@@ -1,0 +1,14 @@
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+shots/
+
+# Referenzmaterial (Apple-Aufnahmen/Screenshots) nur lokal
+docs/reference/
+*.mp4
+*.mov

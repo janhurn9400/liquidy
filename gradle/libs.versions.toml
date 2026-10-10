@@ -1,0 +1,27 @@
+# Toolchain identisch zu ~/Desktop/finds-android (dort lokal verifiziert).
+[versions]
+agp = "9.3.0"
+kotlin = "2.4.10" # ≥ 2.3 nötig: backdrop 2.0.1 ist mit Kotlin 2.4 gebaut
+composeBom = "2025.10.00"
+activityCompose = "1.9.3"
+coreKtx = "1.13.1"
+backdrop = "2.0.1"
+kyantShapes = "1.2.1" # = transitive Version von backdrop 2.0.1
+
+[libraries]
+core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+compose-ui = { group = "androidx.compose.ui", name = "ui" }
+compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
+compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+# Liquid Glass (Refraktion/Dispersion/Highlight), Apache-2.0 — siehe docs/GLASS.md
+kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
+backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "backdrop" }
+kyant-shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "kyantShapes" }
+
+[plugins]
+# KGP-Override für AGP-9-built-in-Kotlin (AGP-Release-Notes: buildscript classpath)
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
