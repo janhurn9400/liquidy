@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.runtime.LaunchedEffect
@@ -58,18 +61,40 @@ import kotlin.math.roundToInt
  */
 @Composable
 fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: ImageBitmap, w: Float, h: Float, onPage: (Int) -> Unit) {
+    // Zurück-Geste: Übersicht schließen (zurück in den Bearbeiten-Modus) — sonst endete der Bearbeiten-Modus darunter und
+    // die Übersicht blieb mit ✓ über der Uhr stehen
+    androidx.activity.compose.BackHandler(enabled = model.pagesOverviewOpen) { model.closePagesOverview(onPage = onPage) }
     val pages = model.overviewPages()
     val n = pages.size
-    val pt = { v: Float -> v * density * (w / density / REF_W) } // pt → px, skaliert auf die Bildschirmbreite
-    val rows = ceil(n / 3f).toInt().coerceAtLeast(1)
-    val blockH = (rows - 1) * pt(ROW_PITCH) + pt(CARD_H) + pt(CIRCLE_GAP) + pt(CIRCLE_D) / 2
-    val top = (h * BLOCK_CENTER - blockH / 2).coerceAtLeast(pt(70f))
-    val left = (w - (2 * pt(COL_PITCH) + pt(CARD_W))) / 2
-    fun gridRect(i: Int) = Rect(Offset(left + (i % 3) * pt(COL_PITCH), top + (i / 3) * pt(ROW_PITCH)), Size(pt(CARD_W), pt(CARD_H)))
-    // Vollbild-Rechteck der Karte (Seite in Originalgröße): gleicher Ausschnitt wie in der Karte
-    val regionTop = (DesignTokens.gridTop.value - REGION_ABOVE_GRID) * density // Ausschnitt-Oberkante in px
-    val regionH = w * CARD_H / CARD_W
-    val full = Rect(Offset(0f, regionTop), Size(w, regionH))
+    val duo = geo.duo
+    // iPhone: 3 Spalten, Maße auf 402 pt skaliert. Duo [GEMESSEN Video 3, 9 s]: 2 Spalten, Karten 205 × 313 pt
+    // (46,8 % der Höhe), 22 pt Abstand, Reihen 395 pt, erste Karte oben 82 pt, Inhalt × 0,492; scrollbar.
+    val cols = if (duo) 2 else 3
+    val pt = { v: Float -> v * density * (w / density / REF_W) } // pt → px, skaliert auf die Bildschirmbreite (iPhone)
+    val cardH = if (duo) h * DUO_CARD_H_SHARE else pt(CARD_H)
+    val cardW = if (duo) minOf(cardH * DUO_CARD_W / DUO_CARD_H, (w - 3 * DUO_GAP * density) / 2) else pt(CARD_W)
+    val cardHf = if (duo) cardW * DUO_CARD_H / DUO_CARD_W else cardH
+    val colPitch = if (duo) cardW + DUO_GAP * density else pt(COL_PITCH)
+    val rowPitch = if (duo) cardHf * DUO_ROW_PITCH / DUO_CARD_H else pt(ROW_PITCH)
+    val cardCorner = if (duo) DUO_CARD_CORNER * density else pt(CARD_CORNER)
+    val circleD = if (duo) CIRCLE_D * density else pt(CIRCLE_D)
+    val circleGap = if (duo) DUO_CIRCLE_GAP * cardHf / DUO_CARD_H else pt(CIRCLE_GAP)
+    val rows = ceil(n / cols.toFloat()).toInt().coerceAtLeast(1)
+    val blockH = (rows - 1) * rowPitch + cardHf + circleGap + circleD / 2
+    val top = if (duo) h * DUO_TOP_SHARE else (h * BLOCK_CENTER - blockH / 2).coerceAtLeast(pt(70f))
+    val left = (w - ((cols - 1) * colPitch + cardW)) / 2
+    // Duo: senkrecht scrollen, wenn mehr Reihen als Platz
+    val maxScroll = if (duo) (top + blockH + h * 0.06f - h).coerceAtLeast(0f) else 0f
+    val scroll = remember { Animatable(0f) }
+    val scrollScope = rememberCoroutineScope()
+    fun gridRect(i: Int) = Rect(Offset(left + (i % cols) * colPitch, top + (i / cols) * rowPitch - scroll.value), Size(cardW, cardHf))
+    // Seitenausschnitt der Karte (Seitenkoordinaten, px) und dessen Bildschirm-Rechteck in Originalgröße
+    val regionW = if (duo) cardW / DUO_CONTENT_SCALE else w
+    val regionH = regionW * cardHf / cardW
+    val regionLeft = if (duo) geo.duoFolderCenterX(0f) - regionW / 2 else 0f
+    val regionTop = if (duo) (DUO_ROW0_TOP - DUO_REGION_ABOVE) * density
+        else (DesignTokens.gridTop.value - REGION_ABOVE_GRID) * density // Ausschnitt-Oberkante in px
+    val full = Rect(Offset(regionLeft, regionTop), Size(regionW, regionH))
     val p = { model.pagesOverview.value }
 
     // Umsortieren: lange drücken hebt die Karte an, sie folgt dem Finger, die anderen weichen federnd aus
@@ -82,7 +107,12 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
     fun nearestSlot(center: Offset): Int = (0 until n).minByOrNull { (gridRect(it).center - center).getDistance() } ?: 0
 
     Box(
-        Modifier.fillMaxSize().pointerInput(n) {
+        Modifier.fillMaxSize().then(if (maxScroll > 0f) Modifier.pointerInput(maxScroll) {
+            detectVerticalDragGestures { ch, dy ->
+                if (drag != null) return@detectVerticalDragGestures
+                ch.consume(); scrollScope.launch { scroll.snapTo((scroll.value - dy).coerceIn(0f, maxScroll)) }
+            }
+        } else Modifier).pointerInput(n) {
             detectDragGesturesAfterLongPress(
                 onDragStart = { pos ->
                     val i = (0 until n).firstOrNull { gridRect(it).contains(pos) } ?: return@detectDragGesturesAfterLongPress
@@ -100,8 +130,8 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
                 if (geo.editButtonRect(false).inflate(12f * density).contains(pos)) { model.closePagesOverview(onPage = onPage); return@detectTapGestures }
                 for (i in 0 until n) {
                     val r = gridRect(i)
-                    val circle = Offset(r.center.x, r.bottom + pt(CIRCLE_GAP))
-                    if ((pos - circle).getDistance() < pt(CIRCLE_D) * 0.75f) { model.togglePage(i); return@detectTapGestures }
+                    val circle = Offset(r.center.x, r.bottom + circleGap)
+                    if ((pos - circle).getDistance() < circleD * 0.75f) { model.togglePage(i); return@detectTapGestures }
                     if (!pages[i].visible && (pos - r.topLeft).getDistance() < pt(22f)) { model.deleteHiddenPage(i); return@detectTapGestures }
                     if (r.contains(pos)) { if (pages[i].visible) model.closePagesOverview(i, onPage); return@detectTapGestures }
                 }
@@ -118,7 +148,7 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
             if (dragged) LaunchedEffect(Unit) {
                 androidx.compose.runtime.snapshotFlow { drag?.let { gridRect(it.from).topLeft + it.offset } }.collect { it?.let { o -> pos.snapTo(o) } }
             }
-            val g = Rect(pos.value, Size(pt(CARD_W), pt(CARD_H)))
+            val g = Rect(pos.value, Size(cardW, cardHf))
             // Zustand je Karte: Fokus-Karte wächst/schrumpft mit p; die anderen blenden verzögert ein
             fun rect(): Rect = if (focus) lerpRect(full, g, p()) else g
             fun appear(): Float = if (focus) 1f else ((p() - OTHERS_FROM) / (1f - OTHERS_FROM)).coerceIn(0f, 1f)
@@ -140,24 +170,24 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
                         transformOrigin = TransformOrigin(0f, 0f)
                     }
             ) {
-                PageCardGlass(Modifier.fillMaxSize(), corner = pt(CARD_CORNER) / density, strength = { glass() })
+                PageCardGlass(Modifier.fillMaxSize(), corner = cardCorner / density, strength = { glass() })
                 // Seite verkleinert (ohne Beschriftung, Android-Widgets als Platzhalter)
                 Box(
-                    Modifier.fillMaxSize().clip(RoundedRectangle(Dp(pt(CARD_CORNER) / density)))
+                    Modifier.fillMaxSize().clip(RoundedRectangle(Dp(cardCorner / density)))
                         .wrapContentSize(Alignment.TopStart, unbounded = true)
-                        .requiredSize(Dp(w / density), Dp(regionH / density))
-                        .graphicsLayer { val s = g.width / w; scaleX = s; scaleY = s; transformOrigin = TransformOrigin(0f, 0f) }
-                ) { PageThumbnail(model, geo, page.items, wallpaper, density, regionTop) }
+                        .requiredSize(Dp(regionW / density), Dp(regionH / density))
+                        .graphicsLayer { val s = g.width / regionW; scaleX = s; scaleY = s; transformOrigin = TransformOrigin(0f, 0f) }
+                ) { PageThumbnail(model, geo, page.items, wallpaper, density, regionTop, regionLeft) }
             }
             // Auswahlkreis + Minus (blenden mit den Karten ein)
             val circleA = { ((p() - CIRCLES_FROM) / (1f - CIRCLES_FROM)).coerceIn(0f, 1f) }
             Box(
                 Modifier
-                    .offset { IntOffset((g.center.x - pt(CIRCLE_D) / 2).roundToInt(), (g.bottom + pt(CIRCLE_GAP) - pt(CIRCLE_D) / 2).roundToInt()) }
-                    .size(Dp(pt(CIRCLE_D) / density))
+                    .offset { IntOffset((g.center.x - circleD / 2).roundToInt(), (g.bottom + circleGap - circleD / 2).roundToInt()) }
+                    .size(Dp(circleD / density))
                     .graphicsLayer { val a = circleA() * (if (dragged) 0f else 1f); alpha = a; scaleX = 0.8f + 0.2f * a; scaleY = 0.8f + 0.2f * a }
             ) {
-                PageCardGlass(Modifier.fillMaxSize(), corner = pt(CIRCLE_D) / 2 / density, strength = { 1f })
+                PageCardGlass(Modifier.fillMaxSize(), corner = circleD / 2 / density, strength = { 1f })
                 if (page.visible) Canvas(Modifier.fillMaxSize()) {
                     val s = size.width; val sw = s * 0.09f
                     drawLine(Color.White, Offset(s * 0.3f, s * 0.52f), Offset(s * 0.44f, s * 0.67f), sw, StrokeCap.Round)
@@ -202,13 +232,13 @@ private fun PageCardGlass(modifier: Modifier, corner: Float, strength: () -> Flo
 
 /** Inhalt einer Seite in Originalgröße (wird außen skaliert): Icons ohne Beschriftung, Ordner, Widgets. */
 @Composable
-private fun PageThumbnail(model: HomeModel, geo: HomeGeometry, items: List<String>, wallpaper: ImageBitmap, density: Float, regionTop: Float) {
+private fun PageThumbnail(model: HomeModel, geo: HomeGeometry, items: List<String>, wallpaper: ImageBitmap, density: Float, regionTop: Float, regionLeft: Float = 0f) {
     val cells = GridPlacement.place(items, model::sizeOf)
     Box(Modifier.fillMaxSize()) {
         items.forEachIndexed { slot, key ->
             val cell = cells.getOrNull(slot) ?: -1
             if (cell < 0) return@forEachIndexed
-            val tl = geo.slotPosition(cell) - Offset(0f, regionTop)
+            val tl = geo.slotPosition(cell) - Offset(regionLeft, regionTop)
             val spec = model.widgets[key]
             if (spec != null) {
                 val r = geo.widgetRect(tl, spec.cols, spec.rows)
@@ -219,7 +249,7 @@ private fun PageThumbnail(model: HomeModel, geo: HomeGeometry, items: List<Strin
                 ) {
                     // Android-Widgets haben nur eine Ansicht (läuft schon auf der echten Seite) → Platzhalter
                     if (spec.type == "android") Box(Modifier.fillMaxSize().background(Color(0xFF1C1C1E)))
-                    else WithWallpaperGlass(wallpaper) { IosWidget(spec.type, spec.cols, Modifier.fillMaxSize()) }
+                    else WithWallpaperGlass(wallpaper) { IosWidget(spec.type, spec.cols, spec.rows, Modifier.fillMaxSize(), spec.config) }
                 }
             } else {
                 val iconPx = DesignTokens.iconSize.value * density
@@ -245,6 +275,17 @@ private fun lerpRect(a: Rect, b: Rect, t: Float) = Rect(
 
 // Maße [GEMESSEN] Aufnahme 10-08 09:55 Bild 460 (3×, iPhone 402 pt breit)
 private const val REF_W = 402f
+private const val DUO_CARD_W = 205f
+private const val DUO_CARD_H = 313f
+private const val DUO_CARD_H_SHARE = 0.468f   // 313 / 669
+private const val DUO_GAP = 22f
+private const val DUO_ROW_PITCH = 395f
+private const val DUO_TOP_SHARE = 0.1226f     // 82 / 669
+private const val DUO_CARD_CORNER = 28f
+private const val DUO_CIRCLE_GAP = 32f        // Kreismitte unter der Kartenunterkante (bei 313 pt Karte)
+private const val DUO_CONTENT_SCALE = 0.492f  // Icon 29,5 pt statt 60
+private const val DUO_ROW0_TOP = 53.6f        // Oberkante der ersten Icon-Reihe (Mitte 83,6 − 30)
+private const val DUO_REGION_ABOVE = 40.6f    // Ausschnitt beginnt so weit darüber (20 pt in der Karte)
 private const val CARD_W = 96f
 private const val CARD_H = 165f
 private const val CARD_CORNER = 13f

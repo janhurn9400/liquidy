@@ -75,19 +75,20 @@ fun LibraryChrome(model: HomeModel, geo: LibraryGeometry, density: Float, pageOf
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(geo.columnWidth / 2 / size.width, Motion.libCategoryPivotY.value)
             }
     ) {
-        ScrollEdge(model)
+        ScrollEdge(model, geo)
         LibrarySearchField(model, geo, density)
     }
 }
 
 /** Progressiver Blur am oberen Rand: verwischte Kopie der Glas-Quelle, nach unten ausgeblendet (DstIn-Verlauf). */
 @Composable
-private fun ScrollEdge(model: HomeModel) {
+private fun ScrollEdge(model: HomeModel, geo: LibraryGeometry) {
     val backdrop = LocalGlassBackdrop.current ?: return
     val endDp = DesignTokens.libEdgeEnd.dp
     Box(
         Modifier
-            .fillMaxWidth()
+            // Duo: nur über der Mediathek-Spalte, links weich auslaufend (sonst harte senkrechte Kante zur Seite daneben)
+            .then(if (geo.duo) Modifier.width(Dp(geo.columnWidth / geo.densityValue)) else Modifier.fillMaxWidth())
             .height(endDp)
             .graphicsLayer {
                 compositingStrategy = CompositingStrategy.Offscreen
@@ -98,6 +99,10 @@ private fun ScrollEdge(model: HomeModel) {
                 drawContent()
                 drawRect(
                     Brush.verticalGradient(0f to Color.Black, EDGE_SOLID to Color.Black, 1f to Color.Transparent),
+                    blendMode = BlendMode.DstIn,
+                )
+                if (geo.duo) drawRect(
+                    Brush.horizontalGradient(0f to Color.Transparent, (DUO_EDGE_FADE_X * geo.densityValue / size.width) to Color.Black, 1f to Color.Black),
                     blendMode = BlendMode.DstIn,
                 )
             }
@@ -141,7 +146,7 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
     val s = geo.search
     val m = model.libFieldMorph.value
     val fullW = s.width / density
-    val listW = (if (geo.duo) LIB_DUO_FIELD_RIGHT else DesignTokens.libListFieldRight.value) - s.left / density
+    val listW = (if (geo.duo) geo.duoFieldRight else DesignTokens.libListFieldRight.value) - s.left / density
     val wDp = fullW + (listW - fullW) * m
     val textColor = lerp(DesignTokens.libSearchTextColor, DesignTokens.libListPlaceholder, (model.libListDim.value).coerceIn(0f, 1f))
     val style = TextStyle(fontFamily = Inter, fontSize = DesignTokens.libSearchFont.value.sp, color = Color.White)
@@ -150,7 +155,10 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
         LiquidGlass(
             shape = glassCapsule(),
             thickness = DesignTokens.libSearchHeight.value / DesignTokens.dockHeight.value,
-            whiteTint = DesignTokens.libSearchTint.value + (DesignTokens.libListFieldTint.value - DesignTokens.libSearchTint.value) * model.libListDim.value,
+            // Duo: fast klares Glas, nur ein Hauch heller als die Umgebung [Video 2, 3,5 s]; iPhone: milchiger (recording2)
+            dispersion = if (geo.duo) false else null, // Duo: keine Regenbogen-Säume an den Kacheln
+            whiteTint = if (geo.duo) DUO_SEARCH_TINT + (DUO_LIST_FIELD_TINT - DUO_SEARCH_TINT) * model.libListDim.value
+                else DesignTokens.libSearchTint.value + (DesignTokens.libListFieldTint.value - DesignTokens.libSearchTint.value) * model.libListDim.value,
             modifier = Modifier.size(Dp(wDp), Dp(s.height / density)),
         ) {
             // Lupe + Text: in Ruhe mittig, in der Liste links (Einzug T-LIB-LIST.fieldInset)
@@ -199,7 +207,7 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
         Box(
             Modifier
                 .offset {
-                    IntOffset(((LIB_DUO_CLOSE_X - d / 2 + (1f - m) * DUO_CLOSE_SLIDE) * density).roundToInt(),
+                    IntOffset(((geo.duoCloseX - d / 2 + (1f - m) * DUO_CLOSE_SLIDE) * density).roundToInt(),
                         (s.top + (s.height - d * density) / 2 + model.libListPull.value * Motion.libListFieldFollow.value * density).roundToInt())
                 }
                 .size(Dp(d))
@@ -238,6 +246,9 @@ private fun androidx.compose.ui.unit.Density.groupWidth(rowWidth: Int, model: Ho
     return (DesignTokens.libSearchIcon.dp + DesignTokens.libSearchIconGap.dp).toPx() + PLACEHOLDER_W.dp.toPx()
 }
 
+private const val DUO_SEARCH_TINT = 0.06f
+private const val DUO_LIST_FIELD_TINT = 0.10f
+private const val DUO_EDGE_FADE_X = 48f   // pt weicher Auslauf links
 private const val EDGE_SOLID = 0.6f       // Verlauf: bis 60 % der Kantenhöhe voll verwischt [GESCHÄTZT] recording2 6,0 s
 private const val EDGE_FADE_IN = 24f      // pt Scrollweg, bis die Kante voll da ist [GESCHÄTZT]
 private const val CANCEL_SLIDE = 24f

@@ -49,9 +49,26 @@ import kotlin.math.roundToInt
  */
 class LibraryGeometry(private val density: Float, val width: Float, val height: Float, val duo: Boolean = false) {
     private fun px(v: Float) = v * density
-    /** Breite der Mediathek-Spalte (Duo: eine Seite ohne Dock-Spalte). */
-    val columnWidth get() = if (duo) px(DUO_LIB_WIDTH) else width
-    val side get() = if (duo) px(DUO_LIB_SIDE) else px(DesignTokens.libSide.value)
+    val densityValue: Float get() = density
+    private val wPt get() = width / density
+    private val unfolded get() = duo && width > height
+    /**
+     * Breite der Mediathek-Spalte in px, aus der Displaygröße (Duo-Werte als Anker, gilt für jedes Foldable):
+     * aufgeklappt von der Mediathek-Kante (47,1 % der Breite) bis 8 pt vor die Dock-Spaltenmitte (Duo 448 pt);
+     * zugeklappt Bildschirmbreite − 18 pt (Duo 448 pt).
+     */
+    val columnWidth get() = when {
+        !duo -> width
+        unfolded -> px((wPt - DUO_LIB_DOCK_FROM_RIGHT - DUO_LIB_DOCK_GAP) - wPt * DUO_LIB_LEFT_SHARE)
+        else -> px(wPt - DUO_LIB_FOLDED_INSET)
+    }
+    private val colPt get() = columnWidth / density
+    /** Seitenrand der Kacheln: 65,5 pt bei 448 pt Spalte, auf schmaleren Spalten anteilig (mind. 20 pt). */
+    val side get() = if (duo) px((DUO_LIB_SIDE * colPt / DUO_LIB_WIDTH).coerceIn(20f, DUO_LIB_SIDE)) else px(DesignTokens.libSide.value)
+    /** Duo-Liste/Suchfeld: Spalten-x-Werte relativ zur rechten Spaltenkante (gemessen bei 448 pt). */
+    val duoFieldRight get() = colPt - (DUO_LIB_WIDTH - 338f)
+    val duoCloseX get() = colPt - (DUO_LIB_WIDTH - 375f)
+    val duoSepRight get() = colPt - (DUO_LIB_WIDTH - 400f)
     val gap get() = if (duo) px(DUO_LIB_GAP) else px(DesignTokens.libGap.value)
     val pad get() = px(DesignTokens.libTilePadding.value)
     val iconGap get() = px(DesignTokens.libTileIconGap.value)
@@ -97,7 +114,11 @@ class LibraryGeometry(private val density: Float, val width: Float, val height: 
     fun maxScroll(tiles: Int) = (contentHeight(tiles) - height).coerceAtLeast(0f)
 }
 
-private const val DUO_LIB_WIDTH = 448f
+private const val DUO_LIB_WIDTH = 448f       // Referenz-Spaltenbreite (Duo)
+private const val DUO_LIB_LEFT_SHARE = 0.4711f // = HomeGeometry DUO_SIDE_SHARE
+private const val DUO_LIB_DOCK_FROM_RIGHT = 47f
+private const val DUO_LIB_DOCK_GAP = 8f
+private const val DUO_LIB_FOLDED_INSET = 18f
 private const val DUO_LIB_SIDE = 65.5f
 private const val DUO_LIB_GAP = 19f
 private const val DUO_LIB_SEARCH_TOP = 54f

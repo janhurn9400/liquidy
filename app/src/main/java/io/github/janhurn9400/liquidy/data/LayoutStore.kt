@@ -36,6 +36,8 @@ data class WidgetSpec(
     /** Stapel-Optionen (iOS „Intelligentes Drehen“ / „Widget-Vorschläge“). */
     val smartRotate: Boolean = true,
     val suggestions: Boolean = true,
+    /** Widget-Einstellung (z. B. Wetter: fester Ort „lat;lon;Name“); null = Standard. */
+    val config: String? = null,
 )
 
 data class SavedFolder(val name: String, val apps: List<String>)
@@ -99,13 +101,16 @@ class LayoutStore(context: Context) {
     private fun JSONArray.toList(): List<String> = List(length()) { getString(it) }
 
     private fun specFrom(wo: JSONObject): WidgetSpec = WidgetSpec(
-        wo.getString("type"), wo.getInt("cols"), wo.getInt("rows"), wo.optInt("id", -1), wo.optString("provider").ifEmpty { null },
+        wo.getString("type"), wo.getInt("cols"),
+        // alte Stände konnten hoch-schmal (2×4) speichern — gibt es bei iOS nicht → klein
+        wo.getInt("rows").let { r -> if (wo.getInt("cols") < 4 && r > 2) 2 else r }, wo.optInt("id", -1), wo.optString("provider").ifEmpty { null },
         stack = wo.optJSONArray("stack")?.let { a -> List(a.length()) { specFrom(a.getJSONObject(it)) } } ?: emptyList(),
         smartRotate = wo.optBoolean("rotate", true), suggestions = wo.optBoolean("suggest", true),
+        config = wo.optString("cfg").ifEmpty { null },
     )
 
     private fun specJson(w: WidgetSpec): JSONObject = JSONObject().put("type", w.type).put("cols", w.cols).put("rows", w.rows)
-        .put("id", w.appWidgetId).put("provider", w.provider ?: "")
+        .put("id", w.appWidgetId).put("provider", w.provider ?: "").apply { if (w.config != null) put("cfg", w.config) }
         .apply { if (w.stack.isNotEmpty()) put("stack", JSONArray(w.stack.map(::specJson))).put("rotate", w.smartRotate).put("suggest", w.suggestions) }
 
     private companion object {

@@ -67,9 +67,12 @@ fun EditButtons(geo: HomeGeometry, wallpaper: ImageBitmap, density: Float, showL
             shape = glassCapsule(),
             thickness = DesignTokens.editButtonHeight.value / DesignTokens.dockHeight.value,
             // Milchglas wie IMG_3124: stark verwischt und hell, damit das dunkle Symbol lesbar bleibt
-            blur = FROST_BLUR.dp,
-            whiteTint = if (DesignTokens.wallpaperIsDark) FROST_WHITE_DARK else FROST_WHITE,
+            // Duo [Video 4, 1 s]: fast klares Glas (Wallpaper-Farbe scheint durch), heller Rand, weiße Symbole
+            blur = if (geo.duo) DUO_BTN_BLUR.dp else FROST_BLUR.dp,
+            whiteTint = if (geo.duo) DUO_BTN_WHITE else if (DesignTokens.wallpaperIsDark) FROST_WHITE_DARK else FROST_WHITE,
             blackTint = 0f,
+            dispersion = if (geo.duo) false else null,
+            rimAlpha = if (geo.duo) DUO_BTN_RIM else null,
             modifier = Modifier
                 .offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }
                 .size(Dp(r.width / density), Dp(r.height / density))
@@ -81,7 +84,10 @@ fun EditButtons(geo: HomeGeometry, wallpaper: ImageBitmap, density: Float, showL
                 },
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (left) { if (leftPlus) PlusGlyph(DesignTokens.editGlyphSize.dp) else BrushGlyph(DesignTokens.editGlyphSize.dp) } else CheckGlyph(DesignTokens.editGlyphSize.dp)
+                val gs = if (geo.duo) DUO_GLYPH.dp else DesignTokens.editGlyphSize.dp
+                val gc = if (geo.duo) Color.White else DesignTokens.glyphColor
+                val sw = if (geo.duo) DUO_GLYPH_STROKE else 0.14f
+                if (left) { if (leftPlus) PlusGlyph(gs, gc) else BrushGlyph(gs, gc, sw) } else CheckGlyph(gs, gc, sw)
             }
         }
     }
@@ -89,30 +95,29 @@ fun EditButtons(geo: HomeGeometry, wallpaper: ImageBitmap, density: Float, showL
 
 /** Häkchen als Vektor (kein SF Symbol); Proportionen nach IMG_3124 [GESCHÄTZT]. */
 @Composable
-private fun CheckGlyph(size: Dp) = Canvas(Modifier.size(size)) {
+private fun CheckGlyph(size: Dp, color: Color = DesignTokens.glyphColor, stroke: Float = 0.14f) = Canvas(Modifier.size(size)) {
     val s = this.size.width
     val path = Path().apply {
         moveTo(0.08f * s, 0.55f * s)
         lineTo(0.38f * s, 0.88f * s)
         lineTo(0.92f * s, 0.12f * s)
     }
-    drawPath(path, DesignTokens.glyphColor, style = Stroke(width = 0.14f * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(path, color, style = Stroke(width = stroke * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
 /** Plus (Stapel bearbeiten: Widget hinzufügen). */
 @Composable
-private fun PlusGlyph(size: Dp) = Canvas(Modifier.size(size)) {
+private fun PlusGlyph(size: Dp, color: Color = DesignTokens.glyphColor) = Canvas(Modifier.size(size)) {
     val s = this.size.width; val w = 0.12f * s
-    drawLine(DesignTokens.glyphColor, Offset(s / 2, 0.08f * s), Offset(s / 2, 0.92f * s), w, StrokeCap.Round)
-    drawLine(DesignTokens.glyphColor, Offset(0.08f * s, s / 2), Offset(0.92f * s, s / 2), w, StrokeCap.Round)
+    drawLine(color, Offset(s / 2, 0.08f * s), Offset(s / 2, 0.92f * s), w, StrokeCap.Round)
+    drawLine(color, Offset(0.08f * s, s / 2), Offset(0.92f * s, s / 2), w, StrokeCap.Round)
 }
 
 /** Pinsel als Vektor (kein SF Symbol) [GESCHÄTZT]. */
 @Composable
-private fun BrushGlyph(size: Dp) = Canvas(Modifier.size(size)) {
+internal fun BrushGlyph(size: Dp, c: Color = DesignTokens.glyphColor, stroke: Float = 0.14f) = Canvas(Modifier.size(size)) {
     val s = this.size.width
-    val c = DesignTokens.glyphColor
-    drawLine(c, Offset(0.85f * s, 0.1f * s), Offset(0.45f * s, 0.55f * s), 0.14f * s, StrokeCap.Round)
+    drawLine(c, Offset(0.85f * s, 0.1f * s), Offset(0.45f * s, 0.55f * s), stroke * s, StrokeCap.Round)
     val tip = Path().apply {
         moveTo(0.42f * s, 0.5f * s)
         cubicTo(0.2f * s, 0.5f * s, 0.25f * s, 0.8f * s, 0.08f * s, 0.92f * s)
@@ -237,3 +242,10 @@ private fun AlertButton(text: String, color: Color, bold: Boolean, onClick: () -
         )
     }
 }
+
+// Duo-Bearbeiten-Knöpfe [GEMESSEN Video 4, 1 s]: Häkchen ≈ 17 × 13 pt, Strich ≈ 1,5 pt, weiß
+internal const val DUO_GLYPH = 18f
+internal const val DUO_GLYPH_STROKE = 0.085f
+internal const val DUO_BTN_BLUR = 6f
+internal const val DUO_BTN_WHITE = 0.05f
+internal const val DUO_BTN_RIM = 0.65f

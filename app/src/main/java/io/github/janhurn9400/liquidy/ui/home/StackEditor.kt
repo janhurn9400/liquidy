@@ -193,7 +193,7 @@ private fun StackItem(child: io.github.janhurn9400.liquidy.data.WidgetSpec, wall
         .graphicsLayer { val s = if (lifted) 1.06f else 1f; scaleX = s; scaleY = s; this.alpha = alpha() }) {
         Box(Modifier.size(Dp(ws.width / density), Dp(ws.height / density)).clip(glassRect(DesignTokens.widgetCorner.dp))) {
             if (child.type == "android") AndroidWidget(child, Modifier.fillMaxSize())
-            else WithWallpaperGlass(wallpaper) { IosWidget(child.type, child.cols, Modifier.fillMaxSize()) }
+            else WithWallpaperGlass(wallpaper) { IosWidget(child.type, child.cols, child.rows, Modifier.fillMaxSize(), child.config) }
         }
         BasicText(widgetLabel(child), Modifier.graphicsLayer { this.alpha = chrome() }.layout { m, _ ->
             val p = m.measure(Constraints())

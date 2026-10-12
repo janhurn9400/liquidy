@@ -61,7 +61,7 @@ fun WidgetStackContent(key: String, spec: WidgetSpec, model: HomeModel, wallpape
                         val sc = 1f - STACK_DEPTH * abs(d); scaleX = sc; scaleY = sc
                     }.clip(glassRect(DesignTokens.widgetCorner.dp))) {
                         if (child.type == "android") AndroidWidget(child, Modifier.fillMaxSize())
-                        else WithWallpaperGlass(wallpaper) { IosWidget(child.type, child.cols, Modifier.fillMaxSize()) }
+                        else WithWallpaperGlass(wallpaper) { IosWidget(child.type, child.cols, child.rows, Modifier.fillMaxSize(), child.config) }
                     }
                 }
             }

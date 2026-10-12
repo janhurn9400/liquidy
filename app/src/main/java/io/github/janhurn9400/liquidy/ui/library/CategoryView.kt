@@ -47,16 +47,27 @@ fun CategoryView(model: HomeModel, open: OpenCategory, geo: LibraryGeometry, den
     originX: Float = 0f) {
     val apps = open.category.apps
     val icon = DesignTokens.iconSize.value * density
-    val maxRows = ((geo.height - DesignTokens.libCatGridTop.value * density) / (DesignTokens.gridRowPitch.value * density)).toInt().coerceAtLeast(1)
+    // Duo: Titel + Raster als Block senkrecht mittig (aus Displayhöhe + Reihenzahl), so viele Reihen wie passen
+    // [Duo-Aufnahme 10:40, 17 s: 5 Reihen, Titel oben]; iPhone: feste Werte aus recording2
+    val hPt = geo.height / density
+    val rowPitch = if (geo.duo) DUO_CAT_ROW_PITCH else DesignTokens.gridRowPitch.value
+    val maxRows = if (geo.duo) ((hPt - DUO_CAT_MIN_TOP - DUO_CAT_TITLE_BLOCK - DUO_CAT_BOTTOM) / rowPitch).toInt().coerceAtLeast(1)
+        else ((geo.height - DesignTokens.libCatGridTop.value * density) / (DesignTokens.gridRowPitch.value * density)).toInt().coerceAtLeast(1)
     val shown = apps.take(DesignTokens.GRID_COLUMNS * maxRows)
+    val rows = ((shown.size + DesignTokens.GRID_COLUMNS - 1) / DesignTokens.GRID_COLUMNS).coerceAtLeast(1)
+    val blockTop = ((hPt - (DUO_CAT_TITLE_BLOCK + rows * rowPitch)) / 2).coerceAtLeast(DUO_CAT_MIN_TOP)
+    val titleBaseline = if (geo.duo) blockTop + DUO_CAT_TITLE_ASCENT else DesignTokens.libCatTitleBaseline.value
+    val gridTop = if (geo.duo) titleBaseline + (DesignTokens.libCatGridTop.value - DesignTokens.libCatTitleBaseline.value) else DesignTokens.libCatGridTop.value
     val clusterApps = if (apps.size > 4) apps.drop(3).take(4).map { it.key }.toSet() else emptySet()
 
     // Duo: Raster der Kategorie wie das Homescreen-Raster einer Seite (Spalte 1 bei 65 pt, Abstand 88 pt), in der Spalte
-    val side = if (geo.duo) DUO_CAT_SIDE else DesignTokens.gridSide.value
-    val pitch = if (geo.duo) DUO_CAT_PITCH else DesignTokens.gridColPitch.value
+    // Duo: Abstand 88 pt, Rand 65 pt bei 448 pt Spalte; auf schmaleren Spalten zuerst Rand, dann Abstand verkleinern
+    val colPt = geo.columnWidth / density
+    val pitch = if (geo.duo) minOf(DUO_CAT_PITCH, (colPt - 2 * DUO_CAT_MIN_SIDE - DesignTokens.iconSize.value) / 3) else DesignTokens.gridColPitch.value
+    val side = if (geo.duo) minOf(DUO_CAT_SIDE, (colPt - 3 * pitch - DesignTokens.iconSize.value) / 2) else DesignTokens.gridSide.value
     fun gridTopLeft(k: Int) = Offset(
         originX + (side + pitch * (k % DesignTokens.GRID_COLUMNS)) * density,
-        (DesignTokens.libCatGridTop.value + DesignTokens.gridRowPitch.value * (k / DesignTokens.GRID_COLUMNS)) * density,
+        (gridTop + rowPitch * (k / DesignTokens.GRID_COLUMNS)) * density,
     )
     /** Inhalts- → Bildschirmkoordinate inkl. Scroll beim Öffnen und der aktuellen Schrumpfung der Mediathek. */
     fun libToScreen(p: Offset): Offset {
@@ -108,7 +119,7 @@ fun CategoryView(model: HomeModel, open: OpenCategory, geo: LibraryGeometry, den
             ) { ms, c ->
                 val t = ms[0].measure(Constraints(maxWidth = c.maxWidth - (2 * DesignTokens.libCatTitleX.value * density).roundToInt()))
                 layout(c.maxWidth, c.maxHeight) {
-                    t.place((originX + DesignTokens.libCatTitleX.value * density).roundToInt(), (DesignTokens.libCatTitleBaseline.value * density).roundToInt() - t[FirstBaseline])
+                    t.place((originX + (if (geo.duo) side else DesignTokens.libCatTitleX.value) * density).roundToInt(), (titleBaseline * density).roundToInt() - t[FirstBaseline])
                 }
             }
             shown.forEachIndexed { k, app ->
@@ -177,3 +188,9 @@ private const val LABEL_FADE = 0.5f  // Labels der Cluster-Icons [GESCHÄTZT]
 
 private const val DUO_CAT_SIDE = 65.1f // pt: Icon-Oberkante-links Spalte 1 (Mitte 95,1 − 30)
 private const val DUO_CAT_PITCH = 88f
+private const val DUO_CAT_MIN_SIDE = 16f
+private const val DUO_CAT_ROW_PITCH = 98.7f   // wie das Duo-Homescreen-Raster
+private const val DUO_CAT_TITLE_BLOCK = 76f   // Titel-Oberkante bis erste Icon-Oberkante
+private const val DUO_CAT_TITLE_ASCENT = 30f
+private const val DUO_CAT_MIN_TOP = 50f       // unter Uhr/Statusbereich
+private const val DUO_CAT_BOTTOM = 20f

@@ -87,6 +87,7 @@ fun SearchPill(
     duoFieldRestY: Dp = 0.dp,
     onLaunch: (AppEntry, Rect) -> Unit,
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var showDots by remember { mutableStateOf(false) }
     val forceDotsState = androidx.compose.runtime.rememberUpdatedState(forceDots)
     LaunchedEffect(pager) {
@@ -257,7 +258,11 @@ fun SearchPill(
                         // Fokus ohne automatisches Öffnen — die Tastatur steuert der KeyboardDriver
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, showKeyboardOnFocus = false),
                         keyboardActions = KeyboardActions(onSearch = {
-                            model.searchResults(1).firstOrNull()?.let { onLaunch(it, Rect.Zero); model.closeSearch(animated = false) }
+                            // iOS: Eingabe öffnet den besten Treffer — eine App, deren Name so beginnt, sonst die Websuche
+                            val app = model.searchResults(1).firstOrNull()?.takeIf { it.label.startsWith(model.query.trim(), ignoreCase = true) }
+                            if (app != null) onLaunch(app, Rect.Zero)
+                            else if (model.query.isNotBlank()) io.github.janhurn9400.liquidy.data.UniversalSearch.searchWeb(context, model.query)
+                            model.closeSearch(animated = false)
                         }),
                         modifier = Modifier.fillMaxWidth().focusRequester(focus),
                     )

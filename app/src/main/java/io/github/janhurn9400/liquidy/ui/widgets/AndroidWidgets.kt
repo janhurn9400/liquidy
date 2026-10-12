@@ -114,7 +114,7 @@ class AndroidWidgetHost(private val context: Context) {
                 (host as? android.appwidget.AppWidgetHostView)?.appWidgetId?.let { id -> widgetKeyForId(id)?.let { k ->
                     pi.creatorPackage?.let { io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetOrigins[it] = k } } }
                 val opts = io.github.janhurn9400.liquidy.data.AppLaunchTransition.optionsFor(rect,
-                    io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.value * context.resources.displayMetrics.density)
+                    io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.value * io.github.janhurn9400.liquidy.design.UiScale.density(context))
                     ?: return@newProxyInstance false // System soll es normal machen
                 runCatching {
                     opts.setPendingIntentBackgroundActivityStartMode(android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
@@ -175,6 +175,8 @@ fun widgetLabel(spec: WidgetSpec): String {
         IosWidgetTypes.CLOCK -> stringResource(R.string.widget_clock)
         IosWidgetTypes.CALENDAR -> stringResource(R.string.widget_calendar)
         IosWidgetTypes.BATTERY -> stringResource(R.string.widget_batteries)
+        IosWidgetTypes.WEATHER -> stringResource(R.string.widget_weather)
+        IosWidgetTypes.PHOTOS -> stringResource(R.string.widget_photos)
         else -> spec.provider?.let { ComponentName.unflattenFromString(it) }?.let { cn ->
             runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(cn.packageName, 0)).toString() }.getOrNull()
         } ?: ""

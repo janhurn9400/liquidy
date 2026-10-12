@@ -27,6 +27,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
@@ -153,6 +154,10 @@ fun HomeScreen(
         val h = constraints.maxHeight.toFloat()
         val navBarPx = androidx.compose.foundation.layout.WindowInsets.navigationBars
             .getBottom(androidx.compose.ui.platform.LocalDensity.current).toFloat()
+        // Höhe der Android-Statusleiste (auch wenn ausgeblendet) — Maß für unsere eigene iOS-Leiste
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        val statusBarPx = androidx.compose.foundation.layout.WindowInsets.statusBarsIgnoringVisibility
+            .getTop(androidx.compose.ui.platform.LocalDensity.current).toFloat()
         // iPhone-Duo-Stil (Foldable, im Setup gewählt): eigene Geometrie; Icons 60 pt wie auf dem Duo [GEMESSEN]
         val duo = io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle
         LaunchedEffect(duo) { DesignTokens.iconSize.tunable.value = if (duo) DUO_ICON else DesignTokens.iconSize.tunable.default }
@@ -160,6 +165,8 @@ fun HomeScreen(
         geo.dockCount = model.display.dock.size
         /** Blätter-Schritt: eine Seite (aufgeklappt 448 pt, sonst Bildschirmbreite). */
         val pw = geo.pageWidth
+        // Duo: Glas-Quelle der Mediathek-Kacheln (sie liegen außerhalb der Haupt-Quelle, über dem Dock)
+        val libPageBackdrop = if (geo.duo) com.kyant.backdrop.backdrops.rememberLayerBackdrop() else null
         // Zuklappen (Duo, Aufnahme 10-08 21:29, 62,2–63,6 s): Außendisplay erscheint gedimmt + unscharf, hellt in ≈ 0,85 s
         // auf und wird danach in ≈ 0,45 s scharf. Aufklappen: Innen sofort scharf (kein eigener Übergang).
         val foldIn = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -192,6 +199,15 @@ fun HomeScreen(
         // Duo: im Wallpaper-Editor zeigt die Vorschau kein Dock und keine Lupe [GEMESSEN 10:40, 84,5 s]
         val duoWpeHide by androidx.compose.animation.core.animateFloatAsState(
             if (geo.duo && model.wallpaperEditorOpen) 1f else 0f, androidx.compose.animation.core.tween(DUO_WPE_FADE_MS), label = "duoWpeHide")
+        // Duo zugeklappt, Suche offen: Dock bleibt erst stehen, gleitet nach kurzer Zeit rechts aus dem Bild, beim Schließen zurück
+        val duoSearchDockOut = remember { androidx.compose.animation.core.Animatable(0f) }
+        val duoSearchDockKey = geo.duo && !geo.unfolded && model.searchOpen
+        LaunchedEffect(duoSearchDockKey) {
+            if (duoSearchDockKey) {
+                delay(DUO_SEARCH_DOCK_DELAY_MS)
+                duoSearchDockOut.animateTo(1f, androidx.compose.animation.core.tween(DUO_SEARCH_DOCK_OUT_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+            } else duoSearchDockOut.animateTo(0f, androidx.compose.animation.core.tween(DUO_SEARCH_DOCK_IN_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+        }
         fun duoCatAmount(): Float = if (geo.duo) (model.openCategory?.progress?.value ?: 0f).coerceIn(0f, 1f) else 0f
 
         fun pageOffsetPx(page: Int) = geo.pageShift(page - pager.position.value)
@@ -217,17 +233,21 @@ fun HomeScreen(
                 val off = Offset((-1f - pager.position.value) * geo.sideStride, -model.todayScroll.value)
                 TodayLayout.place(model.today, model::sizeOf, geo, density).firstOrNull { it.first == wk }?.let { return@locator it.second.translate(off) }
             }
-            val cells = model.displayCells.getOrNull(page) ?: return@locator null
-            // Aus einem Widget geöffnet und das Widget liegt auf dieser Seite → Fenster fliegt ins Widget
-            io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetOrigins[cn.packageName]?.let { wk ->
-                val spec = model.widgets[wk]
-                val slot = d.pages.getOrNull(page)?.indexOf(wk) ?: -1
-                if (spec != null && slot >= 0 && (cells.getOrNull(slot) ?: -1) >= 0)
-                    return@locator geo.widgetRect(geo.slotPosition(cells[slot]) + Offset(pageOffsetPx(page), 0f), spec.cols, spec.rows)
-            }
-            d.pages.getOrNull(page)?.forEachIndexed { slot, k ->
-                if (holds(k) && cells.getOrNull(slot)?.let { it >= 0 } == true)
-                    return@locator Rect(geo.slotPosition(cells[slot]) + Offset(pageOffsetPx(page), 0f), iconSize)
+            // Duo aufgeklappt: zwei Seiten gleichzeitig sichtbar → auch die rechte Seite durchsuchen (sonst flog das Fenster
+            // für Apps der rechten Seite nur zur Mitte)
+            for (pg in page until page + geo.pagesVisible) {
+                val cells = model.displayCells.getOrNull(pg) ?: continue
+                // Aus einem Widget geöffnet und das Widget liegt auf dieser Seite → Fenster fliegt ins Widget
+                io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetOrigins[cn.packageName]?.let { wk ->
+                    val spec = model.widgets[wk]
+                    val slot = d.pages.getOrNull(pg)?.indexOf(wk) ?: -1
+                    if (spec != null && slot >= 0 && (cells.getOrNull(slot) ?: -1) >= 0)
+                        return@locator geo.widgetRect(geo.slotPosition(cells[slot]) + Offset(pageOffsetPx(pg), 0f), spec.cols, spec.rows)
+                }
+                d.pages.getOrNull(pg)?.forEachIndexed { slot, k ->
+                    if (holds(k) && cells.getOrNull(slot)?.let { it >= 0 } == true)
+                        return@locator Rect(geo.slotPosition(cells[slot]) + Offset(pageOffsetPx(pg), 0f), iconSize)
+                }
             }
             null
         }
@@ -239,7 +259,7 @@ fun HomeScreen(
         }
         fun todayMaxScroll(): Float {
             val rects = TodayLayout.place(model.today, model::sizeOf, geo, density)
-            return (TodayLayout.contentHeight(rects, density) - h).coerceAtLeast(0f)
+            return (TodayLayout.contentHeight(rects, density, duoUnfolded = geo.duo && geo.unfolded) - h).coerceAtLeast(0f)
         }
         // sichtbar, sobald die Mediathek in den Bildschirm ragt (aufgeklappt sind zwei Seiten zu sehen)
         val libraryOnScreen by remember(pager, libraryIndex, geo) { derivedStateOf { pager.position.value > libraryIndex - geo.pagesVisible } }
@@ -263,7 +283,9 @@ fun HomeScreen(
             if (geo.duo) {
                 if (model.editing && geo.editButtonRect(left = false).inflate(6f * density).contains(p)) return Hit.EditDone
                 if (model.editing && geo.editButtonRect(left = true).inflate(6f * density).contains(p)) return Hit.EditCustomize
-                if (duoLibAmount() < 0.5f && geo.pillRect.inflate(8f * density).contains(p)) return if (model.editing) Hit.PageDots else Hit.Pill
+                // Bearbeiten: Punkte liegen in einer Glas-Kapsel → Seitenübersicht (Lupe ist dann weg) [Duo, Video 6, 11 s]
+                if (model.editing && duoDotsCapsule(geo, pager.position.value, density).inflate(6f * density).contains(p)) return Hit.PageDots
+                if (duoLibAmount() < 0.5f && (geo.unfolded || pager.position.value > -0.5f) && !model.editing && geo.pillRect.inflate(8f * density).contains(p)) return Hit.Pill
             }
             if (pager.position.value < 0f && p.x < -pager.position.value * geo.sideStride) {
                 if (model.editing) {
@@ -279,7 +301,7 @@ fun HomeScreen(
                 }
                 return Hit.Today
             }
-            if (geo.duo && duoLibAmount() < 0.5f && geo.pillRect.inflate(8f * density).contains(p)) return if (model.editing) Hit.PageDots else Hit.Pill
+            if (geo.duo && duoLibAmount() < 0.5f && (geo.unfolded || pager.position.value > -0.5f) && !model.editing && geo.pillRect.inflate(8f * density).contains(p)) return Hit.Pill
             if (libraryEnabled) {
                 val libOffset = geo.libraryOffset(libraryIndex - pager.position.value)
                 // nur wenn die Mediathek wirklich im Bild ist — Duo aufgeklappt beginnt sie sonst bei 2 × 448 pt, also
@@ -293,7 +315,7 @@ fun HomeScreen(
                 if (geo.editButtonRect(left = true).contains(p)) return Hit.EditCustomize
             }
             // Duo: Lupe liegt in der rechten Spalte → vor Icons/Mediathek prüfen (sonst überdeckt eine Zelle sie)
-            if (geo.duo && duoLibAmount() < 0.5f && geo.pillRect.inflate(8f * density).contains(p)) return if (model.editing) Hit.PageDots else Hit.Pill
+            if (geo.duo && duoLibAmount() < 0.5f && (geo.unfolded || pager.position.value > -0.5f) && !model.editing && geo.pillRect.inflate(8f * density).contains(p)) return Hit.Pill
             val icons = buildList {
                 val pos = pager.position.value
                 for (page in floor(pos).toInt()..(ceil(pos).toInt() + geo.pagesVisible - 1)) {
@@ -331,7 +353,8 @@ fun HomeScreen(
             if (!inMenu && model.contextMenu?.key == key) return
             // App-Fenster fliegt gerade in dieses Icon → Icon-Fläche des Systems steht an seiner Stelle.
             // Widget: nur die Fläche ausblenden, der Name bleibt stehen (sonst erscheint er am Ende mit hartem Schnitt)
-            val flyingHere = !inMenu && model.flyingKey == key
+            // auch: Widget dreht gerade ins Einstellungsblatt (die Kopie im Blatt steht an seiner Stelle)
+            val flyingHere = !inMenu && (model.flyingKey == key || model.widgetConfigKey == key)
             if (flyingHere && !isWidget(key)) return
             if (!inMenu && model.stackEditKey == key) return
             // App wächst gerade aus diesem Icon/Widget (Öffnen-Animation) → Platz ist leer wie bei iOS
@@ -391,7 +414,12 @@ fun HomeScreen(
         val folderGeo = remember(w, h, density, geo, openFolder?.iconTopLeft?.x) { FolderGeometry(density, w, h, geo, openFolder?.iconTopLeft?.x) }
 
         // Hintergrund-Blur (px) für Ordner (T-FOLDER-BG) und Suche (M-SEARCH.blurRamp, T-SEARCH.blur/blurOpen)
-        fun backgroundBlurPx(includeToday: Boolean = false): Float {
+        /** Nur der Such-Anteil der Hintergrund-Unschärfe (px). */
+        fun searchBlurPx(): Float {
+            val ramp = (model.searchProgress.value / Motion.searchBlurRamp.value).coerceIn(0f, 1f)
+            return maxOf(ramp * DesignTokens.searchBlur.value, model.searchOpenAmount.value.coerceIn(0f, 1f) * DesignTokens.searchBlurOpen.value) * density
+        }
+        fun backgroundBlurPx(includeToday: Boolean = false, withSearch: Boolean = true): Float {
             val pf = model.openFolder?.progress?.value ?: 0f
             val hs = model.searchProgress.value
             val ramp = (hs / Motion.searchBlurRamp.value).coerceIn(0f, 1f)
@@ -402,7 +430,8 @@ fun HomeScreen(
             // App öffnen/schließen: Scharf/Unscharf vorerst AUS (Nutzer: später genauer prüfen) — siehe M-HOME-RETURN/M-APP-OPEN
             // Stapel bearbeiten: Homescreen in ≈ 2 Bildern unscharf (Bild 287→288), unabhängig vom langsameren Panel
             val stackEdit = (model.stackEdit.value * 4f).coerceIn(0f, 1f) * DesignTokens.folderBgBlur.value
-            return maxOf(pf * DesignTokens.folderBgBlur.value, searchBlur, cat, today, stackEdit) * density
+            val config = model.widgetConfig.value * DesignTokens.folderBgBlur.value // Widget-Einstellungen: Homescreen verwischt
+            return maxOf(pf * DesignTokens.folderBgBlur.value, if (withSearch) searchBlur else 0f, cat, today, stackEdit, config) * density
         }
 
         // Hintergrund = immer das Android-Wallpaper hinter dem durchsichtigen Fenster (kein eigenes Launcher-Bild).
@@ -434,13 +463,17 @@ fun HomeScreen(
                     // Zuklappen: erst nur gedimmt+unscharf, ab 62 % des Ablaufs wird es scharf
                     val f = foldIn.value
                     val foldBlur = (f / FOLD_SHARPEN_SHARE).coerceIn(0f, 1f) * FOLD_BLUR_DP * density
-                    val r = maxOf(backgroundBlurPx(), foldBlur)
+                    // Duo: bei der Suche bleibt die Dock-Spalte scharf und still [Video 5, 13,1 s] → Such-Unschärfe/Versatz
+                    // dann nur auf Seiten + Heute (unten), nicht auf diesem gemeinsamen Ebene
+                    val r = maxOf(backgroundBlurPx(withSearch = !geo.duo), foldBlur)
                     renderEffect = if (r > 0.5f) BlurEffect(r, r, TileMode.Decal) else null
                     alpha = overviewHide()
-                    val hs = model.searchProgress.value // Homescreen-Versatz h (pt)
-                    translationY = hs * density
-                    val sc = model.searchContentScale()
-                    scaleX = sc; scaleY = sc
+                    if (!geo.duo) {
+                        val hs = model.searchProgress.value // Homescreen-Versatz h (pt)
+                        translationY = hs * density
+                        val sc = model.searchContentScale()
+                        scaleX = sc; scaleY = sc
+                    }
                 }
         ) {
 
@@ -453,8 +486,12 @@ fun HomeScreen(
         Box(Modifier.fillMaxSize().graphicsLayer {
             alpha = overviewHide()
             // Duo aufgeklappt: Seite links neben der Mediathek wird unscharf (Aufnahme 35,5 s)
-            val lb = if (geo.unfolded) duoLibAmount() * DUO_LIB_PAGE_BLUR * density else 0f
+            val lb = maxOf(if (geo.unfolded) duoLibAmount() * DUO_LIB_PAGE_BLUR * density else 0f, if (geo.duo) searchBlurPx() else 0f)
             renderEffect = if (lb > 0.5f) BlurEffect(lb, lb, TileMode.Decal) else null
+            if (geo.duo) {
+                translationY = model.searchProgress.value * density
+                val sc = model.searchContentScale(); scaleX = sc; scaleY = sc
+            }
         }) {
         display.pages.forEachIndexed { page, keys ->
             if (page in visiblePages) {
@@ -486,6 +523,12 @@ fun HomeScreen(
             io.github.janhurn9400.liquidy.ui.library.LibraryChrome(model, libGeo, density) { geo.libraryOffset(libraryIndex - pager.position.value) }
         }
 
+        // Duo-Suche [GEMESSEN Video 5, 12,5 → 13,1 s]: Hintergrund (auch hinter dem Dock) ≈ 40 % dunkler, Dock-Icons
+        // unverändert hell → Abdunkeln hier, unter dem Dock
+        if (geo.duo && model.searchVisible) Canvas(Modifier.fillMaxSize()) {
+            drawRect(Color.Black.copy(alpha = model.searchDim() * (DUO_SEARCH_DIM / DesignTokens.searchDimMax.value)))
+        }
+
         // ── Dock ────────────────────────────────────────────────────────────────
         // Duo aufgeklappt, Mediathek (Aufnahme 10:40, 15,3–16,2 s): Dock samt Glas bleibt stehen und verschwimmt wie die
         // Seite daneben – es liegt UNTER der hereinkommenden Mediathek-Ebene; Kategorie auf (16,79–16,92 s): Dock gleitet rechts aus dem Bild
@@ -493,7 +536,12 @@ fun HomeScreen(
             // Duo: bei offener A–Z-Liste steht der Index in der Dock-Spalte → Dock weg [Video 2, 18 s]
             alpha = homeChromeAlpha() * (1f - duoWpeHide) * (if (geo.duo && model.libListOpen) (1f - model.libList.value).coerceIn(0f, 1f) else 1f)
             val lib = duoLibAmount(); val cat = duoCatAmount()
-            translationX = cat * DUO_CAT_DOCK_SHIFT * density // nur Kategorie schiebt das Dock weg
+            // Kategorie bzw. (zugeklappt) offene Suche schieben das Dock rechts weg
+            // aufgeklappt: Dock gleitet sofort mit dem Herunterziehen zur Suche rechts hinaus (folgt dem Finger, voll bei
+            // halbem Abdunkeln) und beim Schließen zurück [Duo, Nutzer 10-11]; zugeklappt erst verzögert (duoSearchDockOut)
+            val unfoldedSearch = if (geo.duo && geo.unfolded && model.searchVisible)
+                (model.searchDim() / (DesignTokens.searchDimMax.value * DUO_SEARCH_DOCK_FULL_AT)).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) } else 0f
+            translationX = maxOf(cat, duoSearchDockOut.value, unfoldedSearch) * (size.width - geo.dockRect.left + DUO_DOCK_OUT_MARGIN * density).coerceAtLeast(DUO_CAT_DOCK_SHIFT * density)
             val b = lib * DUO_LIB_PAGE_BLUR * density
             renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
         }) {
@@ -522,20 +570,28 @@ fun HomeScreen(
         } // Ende Dock
 
         // Duo (auf- und zugeklappt): Mediathek als Ebene ÜBER dem (unscharfen) Dock
+        // eigene Glas-Quelle, damit das Suchfeld die Kacheln weiterhin bricht (liegt außerhalb der Haupt-Quelle)
         if (libraryEnabled && geo.duo) {
-            if (libraryOnScreen) {
+            if (libraryOnScreen) Box(Modifier.fillMaxSize().then(if (libPageBackdrop != null) Modifier.layerBackdrop(libPageBackdrop) else Modifier)) {
                 io.github.janhurn9400.liquidy.ui.library.LibraryPage(model, libGeo, wallpaper, density) { geo.libraryOffset(libraryIndex - pager.position.value) }
             }
         }
 
         // ── Edit-Buttons oben ─────────────────────────────────────────────────────
         if (model.editing || model.badgeScale.value > 0f) {
-            EditButtons(geo, wallpaper, density) { model.badgeScale.value }
+            // Duo: der Pinsel wird selbst zum Tropfen → solange das Menü offen ist, steht dort kein Knopf (Video 4)
+            EditButtons(geo, wallpaper, density, showLeft = !(geo.duo && model.editMenuOpen)) { model.badgeScale.value }
         }
         // ── Heute-Ansicht (links von Seite 0) — im Homescreen-Inhalt: beim Herunterziehen für die Suche rutscht sie
         // genauso nach unten, schrumpft und wird unscharf wie die Icons (recording8 5–7 s)
         val todayVisible by remember(pager) { derivedStateOf { pager.position.value < -0.001f } }
-        if (todayVisible) Box(Modifier.fillMaxSize().zIndex(-1f)) { TodayPage(model, geo, density, wallpaper, clockSeconds = { clock.floatValue }) { (-1f - pager.position.value) * geo.sideStride } }
+        if (todayVisible) Box(Modifier.fillMaxSize().zIndex(-1f).graphicsLayer {
+            if (geo.duo) {
+                val b = searchBlurPx(); renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
+                translationY = model.searchProgress.value * density
+                val sc = model.searchContentScale(); scaleX = sc; scaleY = sc
+            }
+        }) { TodayPage(model, geo, density, wallpaper, clockSeconds = { clock.floatValue }) { (-1f - pager.position.value) * geo.sideStride } }
         } // Ende Homescreen-Inhalt
 
         // Zuklappen: Abdunkeln (gemessen Helligkeit 105 → 142, also ≈ 26 % dunkler am Anfang), linear aufhellend
@@ -543,7 +599,8 @@ fun HomeScreen(
 
         // Suche: Abdunkeln proportional zum Fortschritt (T-SEARCH.dim)
         if (model.searchVisible) {
-            Canvas(Modifier.fillMaxSize()) { drawRect(Color.Black.copy(alpha = model.searchDim())) }
+            // Duo: Abdunkeln liegt UNTER dem Dock (siehe vor „Dock“) — hier nur iPhone
+            if (!geo.duo) Canvas(Modifier.fillMaxSize()) { drawRect(Color.Black.copy(alpha = model.searchDim())) }
         }
 
         // ── Pill / Dots / Suchfeld-Morph — außerhalb der verwischten Ebene (bleibt beim Ziehen scharf, recording5) ──
@@ -560,8 +617,19 @@ fun HomeScreen(
                 }
         ) {
             // Duo: in der Mediathek verschwinden Lupe + Punkte (Aufnahme 10:40, ab 15,6 s – oben ist das Mediathek-Suchfeld)
-            if (geo.duo) Box(Modifier.fillMaxSize().graphicsLayer { alpha = (1f - duoLibAmount()) * (1f - duoWpeHide) }) {
-                DuoDots(geo, pager, density, dotCount = display.pages.size); DuoSearchButton(model, geo, density)
+            // zugeklappt: auf der Heute-Seite sind Punkte + Lupe weg [GEMESSEN 19:07, 5 s]
+            if (geo.duo) Box(Modifier.fillMaxSize().graphicsLayer {
+                val today = if (geo.unfolded) 0f else (-pager.position.value).coerceIn(0f, 1f)
+                alpha = (1f - duoLibAmount()) * (1f - duoWpeHide) * (1f - today)
+            }) {
+                // Punkte gehören zum Homescreen-Inhalt: beim Herunterziehen zur Suche rutschen, schrumpfen und verschwimmen sie mit
+                // den Seiten (gleiche Ebene-Werte wie die Seiten) [Duo, Nutzer 10-11]
+                Box(Modifier.fillMaxSize().graphicsLayer {
+                    val b = searchBlurPx(); renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
+                    translationY = model.searchProgress.value * density
+                    val sc = model.searchContentScale(); scaleX = sc; scaleY = sc
+                }) { DuoDots(geo, pager, density, dotCount = display.pages.size) { model.badgeScale.value } }
+                DuoSearchButton(model, geo, density)
             }
             SearchPill(
                 model = model,
@@ -759,7 +827,10 @@ fun HomeScreen(
                                             io.github.janhurn9400.liquidy.ui.library.LibraryHit.Empty -> if (wasAnimating) scope.launch { pager.settle() }
                                         }
                                         hit is Hit.Pill -> if (geo.duo) model.openSearchFromDuoLupe() else model.openSearch() // iOS: Tippen auf „Search“ öffnet die Suche
-                                        hit is Hit.Today && model.editing -> if (todayWidgetAt(down.position) == null) model.exitEdit()
+                                        hit is Hit.Today && model.editing -> todayWidgetAt(down.position).let { tw ->
+                                            if (tw == null) model.exitEdit()
+                                            else if (io.github.janhurn9400.liquidy.ui.widgets.hasWidgetConfig(model.widgets[tw.first])) model.openWidgetConfig(tw.first, tw.second)
+                                        }
                                         hit is Hit.Today -> {
                                             // Widget in der Heute-Ansicht antippen → App öffnen
                                             val local = down.position - Offset((-1f - pager.position.value) * geo.sideStride, -model.todayScroll.value)
@@ -775,6 +846,8 @@ fun HomeScreen(
                                         hit is Hit.EditDone -> model.exitEdit()
                                         hit is Hit.PageDots -> model.openPagesOverview(pager.currentPage)
                                         hit is Hit.EditCustomize -> model.openEditMenu(duo = geo.duo)
+                                        hit is Hit.Icon && model.editing && io.github.janhurn9400.liquidy.ui.widgets.hasWidgetConfig(model.widgets[hit.key]) ->
+                                            screenRectOf(hit.key)?.let { r -> model.openWidgetConfig(hit.key, r) }
                                         hit is Hit.Icon && isFolder(hit.key) -> {
                                             releasePress(animated = false)
                                             model.openFolder(hit.key, hit.iconTopLeft)
@@ -806,6 +879,7 @@ fun HomeScreen(
                                         model.stackDragEnd(hk.key, tracker.calculateVelocity().y, geo.widgetSize(sp.cols, sp.rows).height) } }
                                     Mode.TodayDrag -> model.endTodayDrag()
                                     Mode.TodayScroll -> {
+                                        model.todayTouching = false
                                         val v = -tracker.calculateVelocity().y
                                         scope.launch { flingScroll(model.todayScroll, todayMaxScroll(), v) }
                                     }
@@ -857,8 +931,9 @@ fun HomeScreen(
                                                 }
                                                 hit is Hit.Library -> { libScrollStart = model.libraryScroll.value; scope.launch { model.libraryScroll.stop() }; Mode.LibScroll }
                                                 // Heute-Ansicht: ganz oben nach unten → Suche (wie iOS), sonst scrollen
-                                                hit is Hit.Today && acc.y > 0 && model.todayScroll.value <= LIB_PULL_TOP -> Mode.Vertical
-                                                hit is Hit.Today -> { libScrollStart = model.todayScroll.value; scope.launch { model.todayScroll.stop() }; Mode.TodayScroll }
+                                                // Duo aufgeklappt: Ziehen nach unten auf der Heute-Spalte scrollt (Gummiband) statt die Suche zu öffnen [Aufnahme 14:57]
+                                                hit is Hit.Today && acc.y > 0 && model.todayScroll.value <= LIB_PULL_TOP && !(geo.duo && geo.unfolded) -> Mode.Vertical
+                                                hit is Hit.Today -> { libScrollStart = model.todayScroll.value; model.todayTouching = true; scope.launch { model.todayScroll.stop() }; Mode.TodayScroll }
                                                 acc.y > 0 && !model.editing -> Mode.Vertical
                                                 else -> Mode.Consumed
                                             }
@@ -885,7 +960,16 @@ fun HomeScreen(
                                     val off = Offset((-1f - pager.position.value) * geo.sideStride, -model.todayScroll.value)
                                     val from = TodayLayout.place(model.today, model::sizeOf, geo, density).first { it.first == d.key }.second
                                     val delta = change.position - down.position
-                                    model.updateTodayDrag(delta, todayTargetIndex(model, d.key, from.center + delta, geo, density))
+                                    // Über den rechten Rand der Heute-Seite hinaus (aufgeklappt: auf die Homescreen-Seite daneben,
+                                    // sonst an den Bildschirmrand) → Widget wandert auf den Homescreen und wird dort normal weitergezogen
+                                    val todayRight = off.x + (if (geo.unfolded) geo.sideStride else w)
+                                    val toHome = if (geo.unfolded) change.position.x > todayRight else change.position.x > w - geo.edgeZone
+                                    if (toHome) {
+                                        val widgetTopLeft = from.topLeft + off + delta
+                                        model.moveTodayToHome(d.key, change.position, widgetTopLeft - geo.widgetOffset)
+                                        if (!geo.unfolded) scope.launch { pager.animateTo(0) }
+                                        mode = Mode.Drag
+                                    } else model.updateTodayDrag(delta, todayTargetIndex(model, d.key, from.center + delta, geo, density))
                                 }
                                 Mode.TodayScroll -> {
                                     val raw = libScrollStart - (change.position.y - down.position.y)
@@ -907,7 +991,7 @@ fun HomeScreen(
                                 Mode.Drag -> {
                                     // aufgeklappt (Duo): Seite unter dem Finger — zwei Seiten sind gleichzeitig sichtbar
                                     val page = if (geo.unfolded) (pager.position.value.roundToInt() + if (change.position.x > w / 2) 1 else 0).coerceAtLeast(0)
-                                        else pager.position.value.roundToInt()
+                                        else pager.position.value.roundToInt().coerceAtLeast(0)
                                     model.updateDrag(change.position, geo, page, pageOffsetPx(page))
                                     // Seitenwechsel am Rand (M-EDGE), nicht über dem Dock
                                     val x = change.position.x
@@ -937,6 +1021,27 @@ fun HomeScreen(
                 }
         )
 
+        // ── Eigene Statusleiste (Einstellung; Android-Leiste ist dann im Launcher ausgeblendet) ─────
+        if (io.github.janhurn9400.liquidy.data.OwnStatusBar.enabled && !model.editing && !model.wallpaperEditorOpen && model.stackEditKey == null) {
+            val info by io.github.janhurn9400.liquidy.data.rememberStatusInfo()
+            val color = if (DesignTokens.wallpaperIsDark || geo.duo) Color.White else Color.Black
+            Box(Modifier.fillMaxSize().graphicsLayer {
+                // mit Ordner/Suche ausblenden wie die Android-Leiste
+                val folder = ((model.openFolder?.progress?.value ?: 0f) / 0.3f).coerceIn(0f, 1f)
+                alpha = (1f - folder) * (if (geo.duo) 1f else 1f - model.searchOpenAmount.value.coerceIn(0f, 1f))
+            }) {
+                if (geo.duo) DuoStatusSymbols(info, w - DUO_STATUS_FROM_RIGHT * density, density, color)
+                else IosStatusBar(info, statusBarPx.takeIf { it > 0f } ?: (IOS_STATUS_H * density), density, color)
+            }
+        }
+
+        // ── Widget-Einstellungen ──────────────────────────────────────────────────────
+        model.widgetConfigKey?.let { k -> model.widgets[k]?.let { spec ->
+            androidx.activity.compose.BackHandler { model.closeWidgetConfig() }
+            io.github.janhurn9400.liquidy.ui.widgets.WidgetConfigSheet(spec, model.widgetConfigFrom, { model.widgetConfig.value },
+                onChange = { model.setWidgetConfig(k, it) }, onClose = { model.closeWidgetConfig() })
+        } }
+
         // ── Widget-Picker ─────────────────────────────────────────────────────────────
         if (model.widgetPickerOpen) {
             val calendarPermission = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -944,6 +1049,8 @@ fun HomeScreen(
             io.github.janhurn9400.liquidy.ui.widgets.WidgetPicker(
                 onAdd = { spec ->
                     if (spec.type == io.github.janhurn9400.liquidy.ui.widgets.IosWidgetTypes.CALENDAR) calendarPermission.launch(android.Manifest.permission.READ_CALENDAR)
+                    if (spec.type == io.github.janhurn9400.liquidy.ui.widgets.IosWidgetTypes.WEATHER) calendarPermission.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                    if (spec.type == io.github.janhurn9400.liquidy.ui.widgets.IosWidgetTypes.PHOTOS) calendarPermission.launch(android.Manifest.permission.READ_MEDIA_IMAGES)
                     if (model.addingToStack) { model.addingToStack = false; model.addToStack(spec) } else {
                     // Picker → immer Homescreen (Heute-Seite hat ihren eigenen Weg). Offen auf Heute → erst zu Seite 1 blättern
                     val onToday = pager.position.value < -0.5f
@@ -959,6 +1066,9 @@ fun HomeScreen(
             )
         }
 
+        // ── Launcher-Einstellungen ──────────────────────────────────────────────────────
+        if (model.settingsOpen) LauncherSettingsSheet(model, onClose = { model.settingsClosed() })
+
         // ── Customise-Blatt (Icon-Stil) ─────────────────────────────────────────────────
         if (model.customiseOpen) {
             CustomiseSheet(model, sample = display.dock.firstOrNull()?.let { model.apps[it] } ?: model.apps.values.firstOrNull(),
@@ -966,7 +1076,7 @@ fun HomeScreen(
         }
 
         // Duo: Pinsel-Knopf leuchtet auf, bevor das Menü herausfließt
-        if (geo.duo && model.editBrushFlash.value > 0.01f) Canvas(Modifier.fillMaxSize()) {
+        if (geo.duo && !model.editMenuOpen && model.editBrushFlash.value > 0.01f) Canvas(Modifier.fillMaxSize()) {
             val r = geo.editButtonRect(left = true)
             drawCircle(Color.White.copy(alpha = 0.85f * model.editBrushFlash.value), r.width / 2, r.center)
         }
@@ -977,23 +1087,25 @@ fun HomeScreen(
             val r = geo.editButtonRect(left = true)
             // Duo (Aufnahme 21:28, 53,5–54,2 s): Menü rechtsbündig mit der Spalte, Oberkante knapp unter dem Pinsel; es
             // fließt als Tropfen aus dem Knopf nach links unten (Ursprung = Pinsel-Mitte) und schwingt leicht über.
-            val menuW = if (geo.duo) androidx.compose.ui.unit.Dp(DUO_EDIT_MENU_W) else DesignTokens.ctxWidth.dp
-            Box(
+            if (geo.duo) {
+                // Duo: Glastropfen aus dem Pinsel (Video 4) — rechtsbündig mit der Spalte, Oberkante knapp unter dem Pinsel
+                val left = (r.right + DUO_EDIT_MENU_RIGHT_OVER * density - DUO_EDIT_MENU_W * density).coerceAtLeast(8f * density)
+                DuoDropletMenu(model.editMenuItems(), dim = DesignTokens.editMenuTint.value, t = { model.editMenu.value }, from = r,
+                    toLeftTop = Offset(left, r.bottom + DUO_EDIT_MENU_GAP * density), widthPx = DUO_EDIT_MENU_W * density, density = density,
+                    flash = { model.editBrushFlash.value }, closing = { model.editMenuClosing }) { item ->
+                    model.closeEditMenu(); item.action()
+                }
+            } else Box(
                 Modifier
-                    .offset {
-                        if (geo.duo) IntOffset((r.right + DUO_EDIT_MENU_RIGHT_OVER * density - DUO_EDIT_MENU_W * density).roundToInt(),
-                            (r.bottom + DUO_EDIT_MENU_GAP * density).roundToInt())
-                        else IntOffset(r.left.roundToInt(), (r.bottom + EDIT_MENU_GAP * density).roundToInt())
-                    }
-                    .width(menuW)
+                    .offset { IntOffset(r.left.roundToInt(), (r.bottom + EDIT_MENU_GAP * density).roundToInt()) }
+                    .width(DesignTokens.ctxWidth.dp)
                     .graphicsLayer {
                         val v = model.editMenu.value
-                        val s0 = if (geo.duo) DUO_EDIT_MENU_FROM else Motion.ctxMenuFrom.value
+                        val s0 = Motion.ctxMenuFrom.value
                         val s = s0 + (1f - s0) * v
-                        // Duo: erst Tropfen (höher als breit), dann Menüform
-                        scaleX = s; scaleY = if (geo.duo) s + (1f - s) * 0.35f * (1f - v) else s
+                        scaleX = s; scaleY = s
                         alpha = (v * 4f).coerceIn(0f, 1f)
-                        transformOrigin = if (geo.duo) TransformOrigin(1f - DUO_EDIT_MENU_ORIGIN_X, 0f) else TransformOrigin(0f, 0f)
+                        transformOrigin = TransformOrigin(0f, 0f)
                     }
             ) {
                 MenuPanel(model.editMenuItems(), dim = DesignTokens.editMenuTint.value) { item -> model.closeEditMenu(); item.action() }
@@ -1024,8 +1136,12 @@ fun HomeScreen(
         // Duo: Suchfeld ÜBER der Liste; sein Glas bricht Hintergrund + Zeilen (kombinierte Quelle) [Video 2, 24,8 s]
         if (geo.duo && libraryEnabled && libraryOnScreen) {
             val base = io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current
-            val combined = if (model.libListOpen && base != null && libListBackdrop != null)
-                com.kyant.backdrop.backdrops.rememberCombinedBackdrop(base, libListBackdrop) else base
+            // Hintergrund + Mediathek-Kacheln (+ A–Z-Zeilen, wenn offen)
+            val combined = when {
+                base == null || libPageBackdrop == null -> base
+                model.libListOpen && libListBackdrop != null -> com.kyant.backdrop.backdrops.rememberCombinedBackdrop(base, libPageBackdrop, libListBackdrop)
+                else -> com.kyant.backdrop.backdrops.rememberCombinedBackdrop(base, libPageBackdrop)
+            }
             androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop provides combined) {
                 io.github.janhurn9400.liquidy.ui.library.LibraryChrome(model, libGeo, density) { geo.libraryOffset(libraryIndex - pager.position.value) }
             }
@@ -1038,7 +1154,12 @@ fun HomeScreen(
         // ── Suche ─────────────────────────────────────────────────────────────────
         if (model.searchVisible) {
             io.github.janhurn9400.liquidy.ui.search.SearchOverlay(model, onLaunch,
-                columnWidth = if (geo.unfolded) pxToDp(geo.duoSearchWidth + DUO_SEARCH_SUGGEST_EXTRA * density, density) else null)
+                // Duo zugeklappt [Video 5, 13,1 s]: Vorschläge links bis vor die Dock-Spalte, Dock + Statussymbole bleiben sichtbar
+                columnWidth = when {
+                    geo.unfolded -> pxToDp(geo.duoSearchWidth + DUO_SEARCH_SUGGEST_EXTRA * density, density)
+                    geo.duo -> androidx.compose.ui.unit.Dp(geo.duoDockLeftPt - DUO_FOLDED_SEARCH_GAP)
+                    else -> null
+                }, columnStart = geo.duo && !geo.unfolded)
         }
 
         // ── Fliegendes Widget: EIN Bogen über allem (Aufnahme 10:40, 47,56–48,20 s) ─────────────
@@ -1069,7 +1190,7 @@ fun HomeScreen(
                         renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
                     }) {
                     if (spec.type == "android") io.github.janhurn9400.liquidy.ui.widgets.AndroidWidget(spec, Modifier.fillMaxSize())
-                    else WithWallpaperGlass(wallpaper) { io.github.janhurn9400.liquidy.ui.widgets.IosWidget(spec.type, spec.cols, Modifier.fillMaxSize()) }
+                    else WithWallpaperGlass(wallpaper) { io.github.janhurn9400.liquidy.ui.widgets.IosWidget(spec.type, spec.cols, spec.rows, Modifier.fillMaxSize(), spec.config) }
                 }
             }
         }
@@ -1260,8 +1381,6 @@ private const val DUO_DOCK_ICON = 48f
 private const val DUO_EDIT_MENU_W = 249f        // [GEMESSEN] 681,5 → 930,4 pt
 private const val DUO_EDIT_MENU_RIGHT_OVER = 4.4f // rechte Kante 4 pt über die Knopfkante hinaus
 private const val DUO_EDIT_MENU_GAP = -19f      // Oberkante 120 pt; Pinsel-Unterkante 139 pt → Menü überdeckt den Knopf leicht
-private const val DUO_EDIT_MENU_FROM = 0.18f
-private const val DUO_EDIT_MENU_ORIGIN_X = 0.1f // Ursprung nahe der rechten Kante (Pinsel)
 private const val DUO_SEARCH_SUGGEST_EXTRA = 30f // Vorschläge 458 pt vs. Feld 428 pt [GEMESSEN]
 private const val DUO_DOCK_CORNER = 22f
 private const val FOLD_IN_MS = 1300         // gesamt: Aufhellen 0,85 s + Scharfwerden 0,45 s
@@ -1269,8 +1388,17 @@ private const val FOLD_SHARPEN_SHARE = 0.35f // Unschärfe hält, bis 35 % Rest 
 private const val FOLD_BLUR_DP = 18f
 private const val FOLD_DIM = 0.26f
 private const val DUO_WPE_FADE_MS = 250
+private const val DUO_STATUS_FROM_RIGHT = 47f
+private const val DUO_FOLDED_SEARCH_GAP = 8f
+private const val DUO_SEARCH_DIM = 0.40f // Dock-Spaltenmitte
+private const val IOS_STATUS_H = 47f
 private const val DUO_LIB_BLUR_FULL_AT = 0.3f
 private const val DUO_DOCK_RIM = 0.62f
+private const val DUO_SEARCH_DOCK_DELAY_MS = 1200L
+private const val DUO_SEARCH_DOCK_FULL_AT = 0.5f
+private const val DUO_SEARCH_DOCK_OUT_MS = 420
+private const val DUO_SEARCH_DOCK_IN_MS = 320
+private const val DUO_DOCK_OUT_MARGIN = 24f // pt über den Rand hinaus (Glas-Schatten)
 private const val DUO_CAT_DOCK_SHIFT = 150f // pt bei offener Kategorie → ganz aus dem Bild
 private const val DUO_LIB_PAGE_BLUR = 14f // pt Unschärfe der Homescreen-Seite neben der Mediathek [GESCHÄTZT]
 

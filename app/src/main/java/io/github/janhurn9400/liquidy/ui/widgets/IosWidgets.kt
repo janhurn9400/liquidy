@@ -54,7 +54,9 @@ object IosWidgetTypes {
     const val CLOCK = "ios:clock"
     const val CALENDAR = "ios:calendar"
     const val BATTERY = "ios:battery"
-    val all = listOf(CLOCK, CALENDAR, BATTERY)
+    const val WEATHER = "ios:weather"
+    const val PHOTOS = "ios:photos"
+    val all = listOf(CLOCK, CALENDAR, BATTERY, WEATHER, PHOTOS)
 }
 
 /** Antippen eines eigenen Widgets öffnet die passende App (iOS: Kalender → Kalender, Uhr → Uhr, Batterien → nichts). */
@@ -62,11 +64,12 @@ fun openWidgetApp(context: Context, type: String, from: android.graphics.RectF? 
     val intent = when (type) {
         IosWidgetTypes.CALENDAR -> Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR)
         IosWidgetTypes.CLOCK -> Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS)
+        IosWidgetTypes.PHOTOS -> Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY)
         else -> return
     }
     // mit Magisk-Modul: App wächst aus dem Widget (gleiche Karte wie beim Icon, Start mit Widget-Ecken)
     val opts = from?.let { io.github.janhurn9400.liquidy.data.AppLaunchTransition.optionsFor(it,
-        io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.value * context.resources.displayMetrics.density, widgetKey) }
+        io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.value * io.github.janhurn9400.liquidy.design.UiScale.density(context), widgetKey) }
     widgetKey?.let { k ->
         context.packageManager.resolveActivity(intent, 0)?.activityInfo?.packageName?.let { io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetOrigins[it] = k }
     }
@@ -74,8 +77,10 @@ fun openWidgetApp(context: Context, type: String, from: android.graphics.RectF? 
 }
 
 @Composable
-fun IosWidget(type: String, cols: Int, modifier: Modifier = Modifier) {
+fun IosWidget(type: String, cols: Int, rows: Int = 2, modifier: Modifier = Modifier, config: String? = null) {
     when (type) {
+        IosWidgetTypes.WEATHER -> WeatherWidget(cols, rows, modifier, io.github.janhurn9400.liquidy.data.WeatherRepository.Place.decode(config))
+        IosWidgetTypes.PHOTOS -> PhotoWidget(modifier)
         IosWidgetTypes.CLOCK -> ClockWidget(modifier)
         IosWidgetTypes.CALENDAR -> CalendarWidget(cols, modifier)
         IosWidgetTypes.BATTERY -> BatteryWidget(modifier)

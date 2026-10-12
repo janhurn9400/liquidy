@@ -75,6 +75,8 @@ class HomeGeometry(
     /** Ordner aufgeklappt: mittig über dem Raster der Hälfte, in der das Ordner-Icon liegt (Dock → rechts), px. */
     fun duoFolderCenterX(iconX: Float): Float = px(if (iconX < width / 2) leftGridCenter else rightGridCenter)
     val duoColPitchPt: Float get() = colPitch
+    /** Linke Kante der Dock-Glasleiste (pt). */
+    val duoDockLeftPt: Float get() = wPt - DUO_COLUMN_FROM_RIGHT - DUO_DOCK_W / 2
     val duoRowPitchPt: Float get() = rowPitch
     /** Seitenpunkte aufgeklappt: x-Mitte normal bzw. bei offener Heute-Seite (unter dem rechten Raster), px. */
     val duoDotsHomeX: Float get() = px(openCenter)
@@ -82,7 +84,9 @@ class HomeGeometry(
 
     private val colPitch get() = if (unfolded) openColPitch else if (duo) DUO_COL_PITCH else DesignTokens.gridColPitch.value
     private val rowPitch get() = if (duo) DUO_ROW_PITCH else DesignTokens.gridRowPitch.value
-    private val row0 get() = DUO_ROW0
+    // Höher als das Duo (aufgeklappt bzw. zugeklappt) (z. B. Z Fold nach dem Angleichen der Breite, design/UiScale): Raster senkrecht
+    // mittig in den Mehrplatz statt oben kleben
+    private val row0 get() = DUO_ROW0 + ((height / density - if (unfolded) DUO_HEIGHT_PT else DUO_FOLDED_HEIGHT_PT) / 2f).coerceAtLeast(0f)
     private val small get() = colPitch + DesignTokens.iconSize.value + 2 * DUO_WIDGET_INSET
     /** Mitte der ersten Spalte / Reihe (pt). */
     private val firstColCenter get() = if (unfolded) leftGridCenter - 1.5f * colPitch else DUO_COL0_FOLDED
@@ -249,6 +253,8 @@ private const val DUO_OUT_RIGHT_FACTOR = 1.345f // Duo: 666 pt statt der nötige
 private const val DUO_WIDGET_INSET = 4.5f
 private const val DUO_COL_PITCH = 88f
 private const val DUO_ROW_PITCH = 98.7f
+private const val DUO_HEIGHT_PT = 667f // Duo-Innendisplay aufgeklappt
+private const val DUO_FOLDED_HEIGHT_PT = 678f // Duo-Außendisplay
 private const val DUO_COL0_FOLDED = 57.2f      // Mitte Spalte 1 zugeklappt
 private const val DUO_ROW0 = 83.6f             // Mitte Reihe 1
 private const val DUO_WIDGET_DY = 0f

@@ -150,12 +150,17 @@ private const val PHONE_H = 874f
 internal fun wpeLayout(screenW: Float, screenH: Float): WpeLayout {
     val duo = io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle
     if (duo && screenW > screenH) {
-        val s = DUO_PREVIEW_SCALE
-        return WpeLayout(s, (screenW - s * screenW) / 2, DUO_PREVIEW_Y,
+        // aus der Displaygröße: Leiste vom unteren Rand aus (Duo 63 pt), Vorschau passt zwischen Knöpfe und Leiste
+        val barY = screenH - DUO_BAR_FROM_BOTTOM
+        val top = DUO_PREVIEW_Y.coerceAtMost(screenH * 0.15f)
+        val s = minOf(DUO_PREVIEW_SCALE, (barY - DUO_CIRCLE / 2 - DUO_PREVIEW_GAP - top) / screenH, (screenW - 2 * DUO_TOP_CENTER) / screenW)
+        val half = DUO_BAR_HALF_SPAN.coerceAtMost(screenW / 2 - DUO_CIRCLE)
+        val pitch = DUO_BAR_PITCH * half / DUO_BAR_HALF_SPAN
+        return WpeLayout(s, (screenW - s * screenW) / 2, top,
             DUO_TOP_Y, DUO_TOP_CENTER - DesignTokens.wpeButtonW.value / 2, doneLeft = true,
-            DUO_BAR_Y, screenW / 2 - DUO_BAR_HALF_SPAN, DUO_BAR_PITCH,
-            screenW / 2 - DUO_BAR_HALF_SPAN + 3 * DUO_BAR_PITCH + DUO_BAR_GAP, screenW / 2 - DUO_BAR_HALF_SPAN + 3 * DUO_BAR_PITCH + 2 * DUO_BAR_GAP,
-            DUO_CIRCLE, DUO_BAR_Y + DUO_LABEL_BELOW)
+            barY, screenW / 2 - half, pitch,
+            screenW / 2 - half + 3 * pitch + DUO_BAR_GAP, screenW / 2 - half + 3 * pitch + 2 * DUO_BAR_GAP,
+            DUO_CIRCLE, barY + DUO_LABEL_BELOW)
     }
     if (duo) {
         val dx = (screenW - PHONE_W) / 2; val dy = screenH - PHONE_H
@@ -416,7 +421,8 @@ private const val DUO_PREVIEW_SCALE = 0.70f
 private const val DUO_PREVIEW_Y = 100f
 private const val DUO_TOP_Y = 35.5f
 private const val DUO_TOP_CENTER = 37f      // Kapsel-Mitte vom Rand
-private const val DUO_BAR_Y = 606f
+private const val DUO_BAR_FROM_BOTTOM = 63f // Duo: Kreis-Mitte 606 pt bei 669 pt Höhe
+private const val DUO_PREVIEW_GAP = 14f
 private const val DUO_BAR_PITCH = 67.5f
 private const val DUO_BAR_GAP = 45f         // Photo → Trenner → Blur
 private const val DUO_BAR_HALF_SPAN = 146f  // Bildschirmmitte − erster Kreis (329,5 bei 951 pt)

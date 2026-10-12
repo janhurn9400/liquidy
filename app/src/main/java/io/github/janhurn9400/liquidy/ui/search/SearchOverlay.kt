@@ -1,9 +1,13 @@
 package io.github.janhurn9400.liquidy.ui.search
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,7 +75,9 @@ import io.github.janhurn9400.liquidy.motion.Motion
 @Composable
 fun SearchOverlay(model: HomeModel, onLaunch: (AppEntry, Rect) -> Unit,
     /** Duo aufgeklappt: Vorschläge als mittige Spalte dieser Breite (dp), sonst volle Breite. */
-    columnWidth: androidx.compose.ui.unit.Dp? = null) {
+    columnWidth: androidx.compose.ui.unit.Dp? = null,
+    /** Duo zugeklappt: Spalte links bündig (rechts davon bleibt die Dock-Spalte frei). */
+    columnStart: Boolean = false) {
     val density = LocalDensity.current
     val noRipple = remember { MutableInteractionSource() }
 
@@ -94,10 +100,14 @@ fun SearchOverlay(model: HomeModel, onLaunch: (AppEntry, Rect) -> Unit,
             val r = model.searchBlockBlurFraction() * DesignTokens.searchBlockBlur.value * density.density
             renderEffect = if (r > 0.5f) androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Decal) else null
         }
-        val colMod = if (columnWidth != null) Modifier.align(Alignment.TopCenter).width(columnWidth) else Modifier
-        val results = model.searchResults(COLUMNS * 2)
+        val colMod = if (columnWidth != null) Modifier.align(if (columnStart) Alignment.TopStart else Alignment.TopCenter).width(columnWidth) else Modifier
         val showResults = model.query.isNotBlank()
-        val items = if (showResults) results else model.suggestions(COLUMNS)
+        if (showResults) {
+            // Globale Suche: Apps, Rechner, Kontakte, Web-Vorschläge als scrollbare Abschnitte über dem Suchfeld
+            UniversalResults(model, colMod, columnWidth == null, ::launch)
+            return@Box
+        }
+        val items = model.suggestions(COLUMNS)
 
         // Vorschlagsblock als EINE Ebene; ihre Höhe umfasst Überschrift + Karte, damit Blur/Versatz nichts abschneiden
         Box(
@@ -114,7 +124,7 @@ fun SearchOverlay(model: HomeModel, onLaunch: (AppEntry, Rect) -> Unit,
                 .padding(horizontal = DesignTokens.searchHeaderX.dp),
         ) {
             BasicText(
-                stringResource(if (showResults) R.string.search_apps else R.string.siri_suggestions),
+                stringResource(if (showResults) R.string.search_apps else R.string.app_suggestions),
                 style = headerStyle(),
                 modifier = Modifier.weight(1f),
             )
@@ -154,6 +164,101 @@ fun SearchOverlay(model: HomeModel, onLaunch: (AppEntry, Rect) -> Unit,
 }
 
 private const val COLUMNS = 4 // IMG_3131: 4 Vorschläge pro Reihe
+
+/** Treffer-Ansicht beim Tippen [iPhone 10-11 17:10]: Apps, Rechner, Kontakte, Einstellungen, Fotos, Dateien, Vorschläge (Web). */
+@Composable
+private fun UniversalResults(model: HomeModel, colMod: Modifier, fullWidth: Boolean, launch: (AppEntry, Rect) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val q = model.query
+    val apps = model.searchResults(COLUMNS)
+    val calc = remember(q) { io.github.janhurn9400.liquidy.data.UniversalSearch.calculate(q) }
+    var contactsTick by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val contactPerm = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { contactsTick++ }
+    val contacts by androidx.compose.runtime.produceState(emptyList<io.github.janhurn9400.liquidy.data.UniversalSearch.Contact>(), q, contactsTick) {
+        kotlinx.coroutines.delay(SEARCH_DEBOUNCE_MS)
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.janhurn9400.liquidy.data.UniversalSearch.contacts(context, q) }
+    }
+    val web by androidx.compose.runtime.produceState(listOf(q.trim()), q) {
+        value = listOf(q.trim())
+        kotlinx.coroutines.delay(SEARCH_DEBOUNCE_MS)
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.janhurn9400.liquidy.data.UniversalSearch.webSuggestions(q) }
+    }
+    val photos by androidx.compose.runtime.produceState(emptyList<io.github.janhurn9400.liquidy.data.DeviceSearch.Photo>(), q) {
+        kotlinx.coroutines.delay(SEARCH_DEBOUNCE_MS)
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.janhurn9400.liquidy.data.DeviceSearch.photos(context, q) }
+    }
+    val files by androidx.compose.runtime.produceState(emptyList<io.github.janhurn9400.liquidy.data.DeviceSearch.FileHit>(), q) {
+        kotlinx.coroutines.delay(SEARCH_DEBOUNCE_MS)
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { io.github.janhurn9400.liquidy.data.DeviceSearch.files(context, q) }
+    }
+    val settingHits = remember(q) { io.github.janhurn9400.liquidy.data.DeviceSearch.settings(context, q) }
+    val ime = WindowInsets.ime.getBottom(LocalDensity.current)
+    val nav = WindowInsets.navigationBars.getBottom(LocalDensity.current)
+    val bottom = with(LocalDensity.current) { maxOf(ime, nav).toDp() } + RESULTS_ABOVE_FIELD.dp
+    val noRipple = remember { MutableInteractionSource() }
+    Column(
+        colMod.then(if (fullWidth) Modifier.fillMaxWidth() else Modifier)
+            .fillMaxSize()
+            .padding(top = RESULTS_TOP.dp, bottom = bottom)
+            .androidx_verticalScroll()
+            .clickable(interactionSource = noRipple, indication = null) { },
+    ) {
+        if (apps.isNotEmpty()) {
+            SectionHeader(stringResource(R.string.search_apps))
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                apps.forEach { app -> SearchAppCell(app) { b -> launch(app, b) } }
+                repeat(COLUMNS - apps.size) { Spacer(Modifier.width(DesignTokens.labelWidth.dp)) }
+            }
+        }
+        if (calc != null) {
+            SectionHeader(stringResource(R.string.search_calculator))
+            CalculatorRow(q, calc)
+        }
+        if (q.trim().length >= 2) {
+            val hasPerm = io.github.janhurn9400.liquidy.data.UniversalSearch.hasContacts(context)
+            if (contacts.isNotEmpty() || !hasPerm) SectionHeader(stringResource(R.string.search_contacts))
+            if (!hasPerm) HintRow(stringResource(R.string.search_allow_contacts)) { contactPerm.launch(android.Manifest.permission.READ_CONTACTS) }
+            contacts.forEachIndexed { i, c ->
+                ContactRow(c, i == contacts.lastIndex,
+                    onOpen = { io.github.janhurn9400.liquidy.data.UniversalSearch.openContact(context, c); model.closeSearch(animated = false) },
+                    onCall = c.number?.let { n -> { io.github.janhurn9400.liquidy.data.UniversalSearch.call(context, n); model.closeSearch(animated = false) } })
+            }
+        }
+        if (settingHits.isNotEmpty()) {
+            SectionHeader(stringResource(R.string.search_settings))
+            settingHits.forEachIndexed { i, h ->
+                SettingRow(h.label, i == settingHits.lastIndex) { io.github.janhurn9400.liquidy.data.DeviceSearch.openSetting(context, h); model.closeSearch(animated = false) }
+            }
+        }
+        if (photos.isNotEmpty()) {
+            SectionHeader(stringResource(R.string.search_photos))
+            PhotoStrip(photos) { p -> io.github.janhurn9400.liquidy.data.DeviceSearch.openPhoto(context, p); model.closeSearch(animated = false) }
+        }
+        if (files.isNotEmpty()) {
+            SectionHeader(stringResource(R.string.search_files))
+            files.forEachIndexed { i, f ->
+                FileRow(f, i == files.lastIndex) { io.github.janhurn9400.liquidy.data.DeviceSearch.openFile(context, f); model.closeSearch(animated = false) }
+            }
+        }
+        SectionHeader(stringResource(R.string.search_suggestions))
+        // bei einer Rechnung nur die Zeile „so suchen“ — Googles Ergänzungen („12*75“) sind dort sinnlos
+        (if (calc != null) web.take(1) else web).let { w -> w.forEachIndexed { i, sgg ->
+            WebRow(q, sgg, i == w.lastIndex) {
+                io.github.janhurn9400.liquidy.data.UniversalSearch.searchWeb(context, sgg); model.closeSearch(animated = false)
+            }
+        } }
+        Spacer(Modifier.height(12.dp))
+    }
+}
+
+@Composable
+private fun Modifier.androidx_verticalScroll(): Modifier = this.verticalScroll(androidx.compose.foundation.rememberScrollState())
+
+private const val SEARCH_DEBOUNCE_MS = 160L
+private const val RESULTS_TOP = 40f // unter der Statusleiste
+private const val RESULTS_ABOVE_FIELD = 72f // Platz fürs Suchfeld über der Tastatur
 
 @Composable
 private fun headerStyle() = TextStyle(

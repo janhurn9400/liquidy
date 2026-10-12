@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -149,6 +151,121 @@ internal fun MenuPanel(items: List<MenuItem>, dim: Float, header: (@Composable (
         }
     }
 }
+
+/**
+ * Duo-Edit-Menü als Glastropfen [GEMESSEN Video 4 (19:05), 3,91–4,10 s]: der Pinsel-Knopf löst sich als runder Glastropfen,
+ * fließt nach links unten und dehnt sich dabei (Breite eilt der Höhe voraus) zur Menüform; die Einträge erscheinen erst
+ * unscharf (ab ≈ 55 %) und werden scharf. Echte Größe je Frame (kein Skalieren → das Glas zeigt immer, was dahinter liegt).
+ * [t] 0 = Knopf, 1 = Menü; [from] Knopf-Rechteck, [to] Ziel-Rechteck (Höhe aus dem Inhalt, vorher geschätzt).
+ */
+@Composable
+internal fun DuoDropletMenu(items: List<MenuItem>, dim: Float, t: () -> Float, from: Rect, toLeftTop: Offset, widthPx: Float,
+                            density: Float, flash: () -> Float = { 0f }, closing: () -> Boolean = { false }, onTap: (MenuItem) -> Unit) {
+    var contentH by remember { mutableStateOf(0) }
+    val estH = (items.size * DesignTokens.ctxRow.value + 2 * DesignTokens.ctxPadV.value) * density
+    val corner = DesignTokens.ctxCorner.value * density
+    // Höchststand des Fortschritts: Einträge blenden beim Nachschwingen (k < 1) nicht wieder ab; beim Schließen folgt er
+    val peak = remember { floatArrayOf(0f) }
+    fun tp(): Float { val k = t(); if (k > peak[0] || k < peak[0] - 0.15f) peak[0] = k; return peak[0].coerceAtMost(1f) }
+    // Fortschritt kommt von einer federnden Animation (überschwingt) → Überschwinger als Quetschen/Strecken
+    fun rect(): Rect {
+        val k = t()
+        val kc = k.coerceIn(0f, 1f)
+        val h1 = if (contentH > 0) contentH.toFloat() else estH
+        val to = Rect(toLeftTop, Size(widthPx, h1))
+        val ease = { x: Float -> val q = x.coerceIn(0f, 1f); 1f - (1f - q) * (1f - q) }
+        val o = k - kc                                   // >0 Überschwinger, sonst 0
+        val sq = if (k > 1f) o else (k - 1f).coerceAtMost(0f) * 0f
+        // [GEMESSEN Video 4, Mittelpunkt/Größe je Bild] Bogen statt Gerade: erst fast senkrecht nach unten, dann nach links;
+        // Höhe ist früh fertig (93 % bei 68 % Breite), Breite holt nach; am Ende schwingt er etwas unter die Endlage
+        val kw = ease(kc * 1.12f) + sq * 1.1f            // breiter beim Überschwingen …
+        val kh = ease(kc * 0.92f) - sq * 0.7f            // … dafür flacher (Wasser-Quetschen)
+        val kp = ease(kc)
+        var w = from.width + (to.width - from.width) * kw
+        var h = from.height + (to.height - from.height) * kh
+        var c = from.center + (to.center - from.center) * kp
+        if (closing()) {
+            // Zuklappen [Video 4, 4,91–5,10 s]: der Rest-Tropfen hängt unter dem Knopf und wird hineingezogen —
+            // kurz vor dem Ende ein senkrechtes Oval knapp unterhalb der Knopfmitte
+            val e = (1f - kc / 0.25f).coerceIn(0f, 1f) * (kc / 0.25f).coerceIn(0f, 1f) * 4f
+            h *= 1f + 0.28f * e; w *= 1f - 0.12f * e
+            c += Offset(0f, from.height * 0.32f * e)
+        }
+        return Rect(c - Offset(w / 2, h / 2), Size(w, h))
+    }
+    // Form je Fortschritt: anfangs runder Tropfen mit Schweif zum Pinsel, dann wabbelnd (Kanten wölben sich, Ecke
+    // unten links bleibt länger rund) und am Ende das normale Menü [Video 4: 3,95 Tropfen+Schweif, 4,04 schief, 4,09 rund]
+    fun shape(): androidx.compose.ui.graphics.Shape {
+        val k = t(); val kc = k.coerceIn(0f, 1f)
+        val r = rect(); val half = minOf(r.width, r.height) / 2
+        // [Video 4, 3,95–4,14 s] nie spitz: der Tropfen ist ein schräges Ei/Oval entlang der Flugrichtung — Ecke oben
+        // rechts (am Pinsel) und unten links bleiben lange voll rund, oben links/unten rechts werden früh enger;
+        // oben rechts ist bis kurz vor Schluss die rundeste Ecke (4,04–4,09 s), erst am Ende alle gleich
+        val inv = (1f - kc).coerceIn(0f, 1f)
+        val radTR = corner + (half - corner) * Math.pow(inv.toDouble(), 0.35).toFloat()
+        val radBL = corner + (half - corner) * Math.pow(inv.toDouble(), 0.6).toFloat()
+        val rad = corner + (half - corner) * Math.pow(inv.toDouble(), 1.6).toFloat()
+        // Öffnen: nie spitz. Zuklappen: kleiner Tropfen mit runder Kuppe Richtung Knopf (4,99–5,06 s)
+        // Zuklappen: Tropfenform = alle Ecken voll rund, nur die Ecke zum Knopf (oben rechts) enger → zeigt zum Pinsel,
+        // ganz ohne angesetzte Kuppe (die wirkte wie ein eigenes Bläschen). Am Ende wieder Kreis = Knopf.
+        val tail = 0f
+        val pointing = if (closing()) (kc / 0.45f).coerceIn(0f, 1f).let { x -> x * (1f - x) * 4f } else 0f
+        // Kanten wölben sich nur nach AUSSEN (Wasser hat keine Dellen): Bauch in der Mitte des Wegs + beim Überschwingen
+        val wobble = if (closing()) 0f else kotlin.math.sin(kc * Math.PI.toFloat()) * half * 0.05f + (k - 1f).coerceAtLeast(0f) * half * 0.4f
+        val trC = if (closing()) half + (half * 0.42f - half) * pointing else radTR
+        val roundC = if (closing()) maxOf(rad, half * pointing) else rad
+        val blC = if (closing()) maxOf(radBL, half * pointing) else radBL
+        return io.github.janhurn9400.liquidy.glass.DropletShape(roundC, trC, roundC, blC, wobble, tail, inset = DROP_MARGIN * density)
+    }
+    Layout(content = {
+        Box {
+            // Der Pinsel-Knopf SELBST wird zum Tropfen: bei t = 0 sieht der Tropfen exakt wie der Knopf aus (gleiches klares
+            // Glas, weißer Pinsel), leuchtet auf ([flash]) und geht dann fließend in Menü-Glas über [Video 4, 3,84–3,95 s]
+            io.github.janhurn9400.liquidy.glass.DropletGlass(
+                shape = { shape() },
+                modifier = Modifier.fillMaxSize(),
+                blur = DesignTokens.ctxBlur.dp,
+                whiteTint = { val m = (t() / 0.35f).coerceIn(0f, 1f)
+                    DUO_BTN_WHITE + (DesignTokens.ctxTint.value - DUO_BTN_WHITE) * m + DROP_FLASH_WHITE * flash() },
+                blackTint = { dim.coerceAtMost(1f) * t().coerceIn(0f, 1f) },
+            )
+            // Pinsel-Symbol: sitzt an der Knopf-Mitte (oben rechts im Tropfen) und blendet beim Losfließen aus
+            Box(Modifier.fillMaxSize().padding(DROP_MARGIN.dp).graphicsLayer { alpha = (1f - t() / 0.3f).coerceIn(0f, 1f) }, contentAlignment = Alignment.TopEnd) {
+                Box(Modifier.size((from.width / density).dp), contentAlignment = Alignment.Center) {
+                    BrushGlyph(DUO_GLYPH.dp, Color.White, DUO_GLYPH_STROKE)
+                }
+            }
+            // Inhalt in Endgröße, links oben verankert; vom Tropfen beschnitten, blendet unscharf → scharf ein
+            Box(Modifier.fillMaxSize().graphicsLayer { clip = true; shape = shape() }.padding(DROP_MARGIN.dp)) {
+                // Unscharf → scharf als Überblendung zweier Kopien mit FESTEM Blur: ein mitlaufender Radius erzeugt je
+                // Frame neue Blur-Shader (Ruckler, v. a. beim ersten Öffnen)
+                Box(Modifier.wrapContentSize(Alignment.TopStart, unbounded = true).width((widthPx / density).dp)) {
+                    Column(
+                        Modifier.graphicsLayer {
+                            val a = ((tp() - 0.45f) / 0.25f).coerceIn(0f, 1f); val b = ((tp() - 0.7f) / 0.3f).coerceIn(0f, 1f)
+                            alpha = a * (1f - b)
+                            renderEffect = androidx.compose.ui.graphics.BlurEffect(DROP_TEXT_BLUR * density, DROP_TEXT_BLUR * density)
+                        }.padding(vertical = DesignTokens.ctxPadV.dp)
+                    ) { items.forEach { item -> MenuRow(item, onTap = {}) } }
+                    Column(
+                        Modifier.onSizeChanged { contentH = it.height }
+                            .graphicsLayer { alpha = ((tp() - 0.7f) / 0.3f).coerceIn(0f, 1f) }
+                            .padding(vertical = DesignTokens.ctxPadV.dp)
+                    ) { items.forEach { item -> MenuRow(item, onTap) } }
+                }
+            }
+        }
+    }) { ms, c ->
+        val r = rect(); val m = DROP_MARGIN * density
+        val p = ms[0].measure(Constraints.fixed((r.width + 2 * m).roundToInt().coerceAtLeast(1), (r.height + 2 * m).roundToInt().coerceAtLeast(1)))
+        layout(c.maxWidth, c.maxHeight) { p.place((r.left - m).roundToInt(), (r.top - m).roundToInt()) }
+    }
+}
+
+private const val DROP_TEXT_BLUR = 8f
+private const val DROP_MARGIN = 40f // pt Zeichenrand für Wölbung/Kuppe
+
+private const val DROP_FLASH_WHITE = 0.75f
 
 @Composable
 private fun MenuRow(item: MenuItem, onTap: (MenuItem) -> Unit) {
@@ -288,6 +405,15 @@ private fun MenuGlyphView(glyph: MenuGlyph, color: Color) {
             MenuGlyph.Pages -> { // zwei Seiten nebeneinander
                 val pw = w * 0.36f
                 for (k in 0..1) drawRoundRect(color, Offset(w * 0.1f + k * (pw + w * 0.08f), w * 0.12f), Size(pw, w * 0.76f), CornerRadius(w * 0.08f), style = stroke)
+            }
+            MenuGlyph.Settings -> { // Zahnrad: Ring + 8 Zähne
+                drawCircle(color, w * 0.2f, c, style = stroke)
+                for (k in 0 until 8) {
+                    val a = Math.toRadians(k * 45.0)
+                    val d = Offset(kotlin.math.cos(a).toFloat(), kotlin.math.sin(a).toFloat())
+                    drawLine(color, c + d * (w * 0.3f), c + d * (w * 0.44f), sw * 1.5f, StrokeCap.Round)
+                }
+                drawCircle(color, w * 0.31f, c, style = Stroke(sw))
             }
             MenuGlyph.Haptics -> { // Telefon mit Schwingungsbögen
                 val pw = w * 0.36f; val x0 = (w - pw) / 2

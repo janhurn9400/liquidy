@@ -45,6 +45,8 @@ data class WallpaperSettings(
 }
 
 object WallpaperStore {
+    /** Debug: Test-Wallpaper per adb gesetzt → nicht mit unserem überschreiben. */
+    @Volatile var testSuppressSync = false
     private const val PREFS = "wallpaper"
 
     /**
@@ -54,16 +56,47 @@ object WallpaperStore {
      */
     suspend fun syncSystemWallpaper(context: Context, s: WallpaperSettings, bmp: ImageBitmap) = withContext(Dispatchers.IO) {
         if (!s.userChosen) return@withContext // Android-Wallpaper des Nutzers nie ungefragt überschreiben
-        val key = "${s.hashCode()}@${bmp.width}x${bmp.height}"
+        if (testSuppressSync) return@withContext
+        val comp = emulatorFoldCompensation(context, bmp.width, bmp.height)
+        val key = "${s.hashCode()}@${bmp.width}x${bmp.height}" + (if (comp != null) "+comp" else "")
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val wm = android.app.WallpaperManager.getInstance(context)
         if (p.getString("systemSynced", null) == key && p.getInt("systemSyncedId", -1) == wm.getWallpaperId(android.app.WallpaperManager.FLAG_SYSTEM)) return@withContext
         runCatching {
-            val b = bmp.asAndroidBitmap()
+            val src = bmp.asAndroidBitmap()
+            val b = if (comp != null) compensated(src, comp) else src
             val id = wm.setBitmap(b, android.graphics.Rect(0, 0, b.width, b.height), true, android.app.WallpaperManager.FLAG_SYSTEM)
             p.edit().putString("systemSynced", key).putInt("systemSyncedId", id).apply()
         }.onFailure { android.util.Log.w("WallpaperStore", "System-Wallpaper nicht gesetzt", it) }
     }
+
+    /**
+     * Nur Emulator (Pixel-Fold-Image mit Duo-Proportionen 2854 × 2007, aufgeklappt): Android schneidet das System-Wallpaper
+     * dort selbst zu und zeigt nur den Ausschnitt [GEMESSEN 10-11, Koordinaten-Rampe] x 0,0428·H … +h·W/H, y mittig,
+     * h = H / 1,5646 — unabhängig von der Bildbreite. Während der Wisch-nach-Hause-Geste sähe man so ein vergrößertes Bild.
+     * Ausgleich: unser Bild genau in diesen Ausschnitt legen. Auf echten Geräten (noch ungeprüft) bleibt alles unverändert.
+     */
+    private fun emulatorFoldCompensation(context: Context, w: Int, h: Int): android.graphics.Rect? {
+        if (android.os.Build.HARDWARE != "ranchu" && android.os.Build.HARDWARE != "goldfish") return null
+        if (w <= h || !io.github.janhurn9400.liquidy.data.FoldableStyle.isFoldable(context)) return null
+        val shownH = h / EMU_FOLD_ZOOM
+        val top = (h - shownH) / 2f
+        val left = h * EMU_FOLD_LEFT
+        return android.graphics.Rect(left.toInt(), top.toInt(), (left + shownH * w / h).toInt().coerceAtMost(w), (top + shownH).toInt())
+    }
+
+    /** Bild in [r] verkleinert; drumherum dasselbe Bild bildschirmfüllend (nur bei Übergängen/anderen Displays sichtbar). */
+    private fun compensated(src: android.graphics.Bitmap, r: android.graphics.Rect): android.graphics.Bitmap {
+        val out = android.graphics.Bitmap.createBitmap(src.width, src.height, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(out)
+        val p = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+        c.drawBitmap(src, null, android.graphics.Rect(0, 0, src.width, src.height), p)
+        c.drawBitmap(src, null, r, p)
+        return out
+    }
+
+    private const val EMU_FOLD_ZOOM = 1.5646f
+    private const val EMU_FOLD_LEFT = 86f / 2007f
 
     /** Ist das aktuelle System-Wallpaper genau das, das wir zuletzt gesetzt haben? */
     fun systemIsOurs(context: Context): Boolean =

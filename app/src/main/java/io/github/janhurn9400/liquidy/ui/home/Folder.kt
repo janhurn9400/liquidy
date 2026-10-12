@@ -151,7 +151,10 @@ class FolderGeometry(
             if (duoOpen) {
                 val w = px(DUO_FOLDER_W); val h = px(DUO_FOLDER_H)
                 val cx = home!!.duoFolderCenterX(iconX ?: width)
-                return Rect(Offset(cx - w / 2, px(DUO_FOLDER_TOP)), Size(w, h))
+                // Oberkante wie am Duo (160 pt), aber nie so tief, dass das Panel unten hinausragt; seitlich im Bild halten
+                val top = minOf(px(DUO_FOLDER_TOP), height - h - px(DUO_FOLDER_MIN_BOTTOM)).coerceAtLeast(px(DUO_FOLDER_MIN_TOP))
+                val left = (cx - w / 2).coerceIn(px(8f), width - w - px(8f))
+                return Rect(Offset(left, top), Size(w, h))
             }
             val w = px(DesignTokens.folderPanelWidth.value)
             val h = px(DesignTokens.folderPanelHeight.value)
@@ -261,6 +264,15 @@ fun FolderOverlay(
                 transformOrigin = TransformOrigin.Center
             }
     ) {
+        // Seitenpunkte unten im Panel: je 9 Apps eine Seite, im Bearbeiten-Modus eine leere Seite mehr (iOS) [Video 1, 4,1 s]
+        val perPage = DesignTokens.FOLDER_COLUMNS * DesignTokens.FOLDER_ROWS
+        val pageCount = (apps.size + perPage - 1) / perPage + (if (model.editing) 1 else 0)
+        if (pageCount > 1) androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+            val r = FOLDER_DOT_D / 2 * density; val pitch = FOLDER_DOT_PITCH * density
+            val cy = size.height - FOLDER_DOT_FROM_BOTTOM * density
+            val x0 = size.width / 2 - pitch * (pageCount - 1) / 2
+            for (k in 0 until pageCount) drawCircle(Color.White.copy(alpha = if (k == 0) 1f else 0.4f), r, Offset(x0 + k * pitch, cy))
+        }
         apps.take(DesignTokens.FOLDER_COLUMNS * DesignTokens.FOLDER_ROWS).forEachIndexed { i, app ->
             val tl = geo.slot(i)
             // App wächst gerade daraus bzw. fliegt hinein → Platz leer (wie auf dem Homescreen)
@@ -285,9 +297,14 @@ fun FolderOverlay(
 private const val DUO_FOLDER_W = 290f
 private const val DUO_FOLDER_H = 345f
 private const val DUO_FOLDER_TOP = 160f
+private const val DUO_FOLDER_MIN_BOTTOM = 40f
+private const val DUO_FOLDER_MIN_TOP = 100f // Platz für Titel/Umbenennen-Kapsel darüber
 private const val DUO_FOLDER_GRID_LEFT = 26f // Icon-Oberkante-links (erste Mitte 56 pt vom Rand)
 private const val DUO_FOLDER_GRID_TOP = 24f  // erste Reihe Mitte 54 pt unter der Oberkante
 private const val NAME_H = 59f
+private const val FOLDER_DOT_D = 7f
+private const val FOLDER_DOT_PITCH = 15f
+private const val FOLDER_DOT_FROM_BOTTOM = 17f // [GEMESSEN] Punkte 488 pt bei Panel-Unterkante 506
 private const val NAME_TINT = 0.22f
 private const val NAME_GAP = 19f
 private const val NAME_FONT = 26f

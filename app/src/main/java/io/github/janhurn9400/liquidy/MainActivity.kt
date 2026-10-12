@@ -70,6 +70,8 @@ class MainActivity : ComponentActivity() {
         repository = AppRepository(this, iconPx).also { it.start() }
         io.github.janhurn9400.liquidy.data.Haptics.load(this)
         io.github.janhurn9400.liquidy.data.FoldableStyle.load(this)
+        io.github.janhurn9400.liquidy.data.OwnStatusBar.load(this)
+        io.github.janhurn9400.liquidy.data.UniversalSearch.WebSuggestions.load(this)
         androidWidgets = io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetHost(this) // vor onStart (startListening)
         android.app.WallpaperManager.getInstance(this).addOnColorsChangedListener(colorsListener, android.os.Handler(mainLooper))
         refreshSystemWallpaperId()
@@ -81,6 +83,8 @@ class MainActivity : ComponentActivity() {
                 when {
                     m.wallpaperEditorOpen -> m.wallpaperEditorOpen = false
                     m.customiseOpen -> m.closeCustomise()
+                    m.settingsOpen -> m.closeSettings()
+                    m.widgetPickerOpen -> { m.widgetPickerOpen = false; m.addingToStack = false }
                     m.searchOpen -> m.closeSearch()
                     m.openCategory != null -> m.closeCategory()
                     m.libListActive -> m.closeLibList()
@@ -128,7 +132,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
             // Bearbeitungsmodus [GEMESSEN] IMG_3124 und offener Ordner [GEMESSEN] IMG_3130: Statusleiste weg
-            val hideStatus = homeModel.editing || homeModel.wallpaperEditorOpen || homeModel.stackEditKey != null
+            // Eigene Statusleiste (Einstellung): Android-Leiste im Launcher dauerhaft weg (Wischen von oben zeigt sie kurz)
+            val ownBar = io.github.janhurn9400.liquidy.data.OwnStatusBar.enabled && !io.github.janhurn9400.liquidy.ui.welcome.WelcomeStore.active
+            val hideStatus = ownBar || homeModel.editing || homeModel.wallpaperEditorOpen || homeModel.stackEditKey != null
             // Ordner: Statusleiste blendet an ihrem Platz mit dem Ordner aus/ein (statt nach oben zu fahren)
             val statusFader = remember { io.github.janhurn9400.liquidy.ui.home.StatusBarFader(window.decorView) }
             LaunchedEffect(homeModel.openFolder) {
@@ -145,15 +151,24 @@ class MainActivity : ComponentActivity() {
             }
             // Suche: dunkler Hintergrund → helle Statusleisten-Symbole [GEMESSEN] IMG_3131
             val welcomeActive = io.github.janhurn9400.liquidy.ui.welcome.WelcomeStore.active
-            LaunchedEffect(homeModel.searchOpen, DesignTokens.wallpaperIsDark, welcomeActive) {
+            LaunchedEffect(homeModel.searchOpen, DesignTokens.wallpaperIsDark, welcomeActive, homeModel.settingsOpen) {
+                // Einstellungen: heller Grund → dunkle Symbole
                 WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars =
-                    welcomeActive || (!homeModel.searchOpen && !DesignTokens.wallpaperIsDark)
+                    welcomeActive || homeModel.settingsOpen || (!homeModel.searchOpen && !DesignTokens.wallpaperIsDark)
             }
             // Nach dem Bearbeiten können Seiten wegfallen → Pager in gültigen Bereich holen
             LaunchedEffect(homeModel.pages.size) {
                 if (pager.currentPage > homeModel.pages.lastIndex) pager.animateTo(homeModel.pages.lastIndex.coerceAtLeast(0))
             }
-            androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.ui.widgets.LocalAndroidWidgetHost provides widgetHost) {
+            // Duo-Stil auf schmaleren Foldables: Oberfläche gleichmäßig auf Duo-Breite verkleinern (design/UiScale)
+            val baseDensity = androidx.compose.ui.platform.LocalDensity.current
+            val win = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
+            val uiScale = io.github.janhurn9400.liquidy.design.UiScale.compute(
+                io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle && io.github.janhurn9400.liquidy.data.FoldableStyle.isFoldable(this@MainActivity),
+                win.width, win.height, baseDensity.density)
+            androidx.compose.runtime.SideEffect { io.github.janhurn9400.liquidy.design.UiScale.update(uiScale) }
+            androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.ui.widgets.LocalAndroidWidgetHost provides widgetHost,
+                androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(baseDensity.density * uiScale, baseDensity.fontScale)) {
             BoxWithConstraints(Modifier.fillMaxSize().threeFingerLongPress { DebugState.toggle() }) {
                 val w = constraints.maxWidth
                 val h = constraints.maxHeight
@@ -164,7 +179,8 @@ class MainActivity : ComponentActivity() {
                 // Einstellung, zu der [wallpaper] gehört — nach „Done“ wird das fertige Entwurfsbild übernommen, statt neu zu rendern
                 var renderedFor by remember { mutableStateOf<io.github.janhurn9400.liquidy.glass.WallpaperSettings?>(null) }
                 LaunchedEffect(wpSettings, w, h, colorful) {
-                    if (renderedFor == wpSettings && !colorful) return@LaunchedEffect
+                    // auch bei neuer Fenstergröße (Foldable auf-/zugeklappt) neu rendern — sonst passt das Bild fürs Glas nicht
+                    if (renderedFor == wpSettings && !colorful && wallpaper.width == w && wallpaper.height == h) return@LaunchedEffect
                     wallpaper = if (colorful && wpSettings.kind == io.github.janhurn9400.liquidy.glass.WallpaperKind.Pair) Wallpaper.generateColorful(w, h)
                     else io.github.janhurn9400.liquidy.glass.WallpaperRenderer.render(this@MainActivity, wpSettings, w, h)
                     renderedFor = wpSettings
@@ -183,8 +199,14 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(systemWallpaperId, canReadSystemWallpaper, w, h) {
                     systemPixels = if (colorful) null else io.github.janhurn9400.liquidy.glass.SystemWallpaper.read(this@MainActivity, w, h)
                 }
-                val drawOwnWallpaper = colorful || !(systemOurs || systemPixels != null)
-                val homeWallpaper = systemPixels ?: wallpaper
+                // Immer selbst zeichnen: Android zeigt das System-Wallpaper mit eigenem, nicht auslesbarem Zuschnitt/Zoom
+                // (Foldable: 2133-px-Ausschnitt × 1,565, außermittig) → jede Kopie fürs Glas läge daneben. Mit eigenem Bild
+                // sind Hintergrund und Glas pixelgleich. Android behält das Bild für Sperrbildschirm/Übergänge.
+                val drawOwnWallpaper = true
+                // Ist das Android-Wallpaper unseres, nehmen wir fürs Glas unser eigenes Bild: genau die Pixel, die wir gesetzt
+                // haben. Androids gelesene Kopie ist auf Foldables für ein anderes Seitenverhältnis zugeschnitten (z. B.
+                // 2133 statt 2854 px breit) → Glas zeigte einen verschobenen/vergrößerten Ausschnitt.
+                val homeWallpaper = if (systemOurs || colorful) wallpaper else systemPixels ?: wallpaper
                 val onLaunch: (io.github.janhurn9400.liquidy.data.AppEntry, androidx.compose.ui.geometry.Rect) -> Unit = { app, bounds ->
                         val r = android.graphics.Rect(
                             bounds.left.roundToInt(), bounds.top.roundToInt(),
@@ -195,7 +217,7 @@ class MainActivity : ComponentActivity() {
                         val thumb = if (r.width() > 0 && r.height() > 0) roundedIconBitmap(app.icon, r.width(), r.height()) else null
                         // Mit Magisk-Modul (System-App): eigene iOS-Animation, Fenster wächst aus dem Icon
                         val remote = io.github.janhurn9400.liquidy.data.AppLaunchTransition.optionsFor(
-                            android.graphics.RectF(r), DesignTokens.iconCorner.value * resources.displayMetrics.density, app.key)
+                            android.graphics.RectF(r), DesignTokens.iconCorner.value * io.github.janhurn9400.liquidy.design.UiScale.density(this@MainActivity), app.key)
                         val opts = (remote ?: if (thumb != null) ActivityOptions.makeThumbnailScaleUpAnimation(view, thumb, r.left, r.top)
                             else ActivityOptions.makeScaleUpAnimation(view, r.left, r.top, r.width(), r.height())).toBundle()
                         repository.launch(app, r, opts)
@@ -320,11 +342,12 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         io.github.janhurn9400.liquidy.data.AppLaunchTransition.apply {
             enabled = hasRemoteAnimation
-            cardCornerPx = DesignTokens.appLaunchCorner.value * resources.displayMetrics.density
+            cardCornerPx = DesignTokens.appLaunchCorner.value * io.github.janhurn9400.liquidy.design.UiScale.density(this@MainActivity)
             displayCornerPx = screenCornerPx()
         }
         androidWidgets?.applyLaunchAnimation()
         refreshSystemWallpaperId()
+        model?.refreshSuggestions()
     }
 
     /** Icon in Squircle-Annäherung (Icon-Eckenradius) auf [w]×[h] px, als Software-Bitmap für die Öffnen-Animation. */
@@ -390,14 +413,33 @@ class MainActivity : ComponentActivity() {
     private fun handleDebugIntent(intent: Intent?) {
         if (intent?.getBooleanExtra("debug", false) == true) DebugState.visible = true
         // adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME --ez welcome true
+        // Test (nur Debug-Build): adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME --es testwp /sdcard/x.png [--es crop l,t,r,b]
+        if (intent?.getBooleanExtra("teststack", false) == true && (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            intent.removeExtra("teststack"); model?.debugMakeStack()
+        }
+        val testWp = intent?.getStringExtra("testwp")
+        if (testWp != null && (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            val crop = intent.getStringExtra("crop")?.split(',')?.map { it.trim().toInt() }?.let { android.graphics.Rect(it[0], it[1], it[2], it[3]) }
+            intent.removeExtra("testwp"); intent.removeExtra("crop")
+            io.github.janhurn9400.liquidy.glass.WallpaperStore.testSuppressSync = true
+            Thread {
+                runCatching {
+                    val bmp = android.graphics.BitmapFactory.decodeFile(testWp)
+                    val id = android.app.WallpaperManager.getInstance(this).setBitmap(bmp, crop, true, android.app.WallpaperManager.FLAG_SYSTEM)
+                    android.util.Log.i("IosHome", "Test-Wallpaper gesetzt id=$id ${bmp.width}x${bmp.height} crop=$crop")
+                }.onFailure { android.util.Log.w("IosHome", "Test-Wallpaper: $it") }
+            }.start()
+        }
         if (intent?.getBooleanExtra("welcome", false) == true) {
             getSharedPreferences("welcome", MODE_PRIVATE).edit().putBoolean("done", false).commit()
             intent.removeExtra("welcome"); recreate()
         }
     }
 
-    /** Emulator: Taste D öffnet/schließt das Debug-Panel. */
+    /** Emulator-Testtasten — nur in Debug-Builds und nur mit Strg, sonst lösen sie beim Tippen in der Suche aus
+     *  (ein „W“ setzte das Willkommen zurück). Strg+D Debug-Panel, Strg+W Willkommen, Strg+L Test-Wallpaper. */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0 || !event.isCtrlPressed) return super.dispatchKeyEvent(event)
         // Emulator: Taste W zeigt das Willkommen erneut (Test)
         if (event.keyCode == KeyEvent.KEYCODE_W && event.action == KeyEvent.ACTION_UP) {
             getSharedPreferences("welcome", MODE_PRIVATE).edit().putBoolean("done", false).commit(); recreate(); return true

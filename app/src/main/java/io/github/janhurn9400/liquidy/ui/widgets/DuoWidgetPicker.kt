@@ -1,0 +1,381 @@
+package io.github.janhurn9400.liquidy.ui.widgets
+
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import com.kyant.backdrop.backdrops.layerBackdrop
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
+import io.github.janhurn9400.liquidy.R
+import io.github.janhurn9400.liquidy.design.DesignTokens
+import io.github.janhurn9400.liquidy.motion.Motion
+import io.github.janhurn9400.liquidy.ui.Inter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
+
+/**
+ * Widget-Picker im iPhone-Duo-Stil [GEMESSEN Aufnahme 10:40, 33,6 s / 40,3 s, 0,634 pt/px]:
+ * helles Blatt 461 pt breit, mittig, oben 92 pt; Griff; graues Suchfeld (29 pt Rand, 43 pt hoch, Oberkante +33 pt);
+ * App-Liste (Icon 48 pt, Zeilenabstand 72 pt, Name fett 17 pt, Trennlinie ab dem Namen).
+ * Antippen → Detailblatt 20 pt tiefer darüber: App-Kopf, Titel, Beschreibung, Größen-Karussell mit Punkten, grüner Knopf.
+ * Alle Lagen aus der Displaygröße begrenzt (andere Foldables).
+ */
+@Composable
+internal fun DuoWidgetPicker(
+    groups: List<Pair<String, List<PickerEntry>>>,
+    query: String,
+    onQuery: (String) -> Unit,
+    appear: () -> Float,
+    close: () -> Unit,
+    onAdd: (PickerEntry, finished: () -> Unit) -> Unit,
+) {
+    var detail by remember { mutableStateOf<List<PickerEntry>?>(null) }
+    var detailOut by remember { mutableStateOf(false) }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val density = LocalDensity.current.density
+        val screenW = constraints.maxWidth / density
+        val screenH = constraints.maxHeight / density
+        val sheetW = minOf(SHEET_W, screenW - 2 * MIN_SIDE)
+        val left = (screenW - sheetW) / 2
+        val top = minOf(SHEET_TOP, screenH * 0.14f)
+        // Abdunkeln + Tippen daneben schließt
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = appear() }.background(Color.Black.copy(alpha = DIM))
+            .pointerInput(Unit) { detectTapGestures { close() } })
+        Box(
+            Modifier
+                .offset { IntOffset((left * density).roundToInt(), ((top + (1f - appear()) * (screenH - top)) * density).roundToInt()) }
+                .width(Dp(sheetW)).height(Dp(screenH - top + CORNER))
+                .shadow(16.dp, RoundedCornerShape(CORNER.dp), clip = false)
+                .clip(RoundedCornerShape(CORNER.dp))
+                .pointerInput(Unit) { detectTapGestures { } }
+        ) {
+            // Blatt + Liste sind die Glas-Quelle des Suchfelds: Zeilen laufen beim Scrollen sichtbar darunter durch
+            val sheetBackdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+            Box(Modifier.fillMaxSize().layerBackdrop(sheetBackdrop).background(SHEET_BG)) {
+                LazyColumn(
+                    contentPadding = PaddingValues(top = LIST_TOP.dp, bottom = (CORNER + 24f).dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    items(groups, key = { it.first }) { (name, entries) ->
+                        AppRow(name, entries.first(), last = name == groups.last().first) { detailOut = false; detail = entries }
+                    }
+                }
+                // Scroll-Kante: über dem Feld blendet die Liste in die Blattfarbe aus, unter dem Feld weich auslaufend
+                Box(Modifier.fillMaxWidth().height((SEARCH_Y + SEARCH_H + EDGE_BELOW).dp).background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0f to SHEET_BG, ((SEARCH_Y + SEARCH_H / 2) / (SEARCH_Y + SEARCH_H + EDGE_BELOW)) to SHEET_BG, 1f to SHEET_BG.copy(alpha = 0f))))
+            }
+            Grabber()
+            androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop provides sheetBackdrop) {
+                SearchField(query, onQuery)
+            }
+            // Detailblatt darüber → Listenblatt dunkelt ab (Helligkeit 240 → 209) [40,3 s]
+            if (detail != null) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = BACK_DIM)))
+        }
+        detail?.let { entries ->
+            DetailSheet(entries, left, sheetW, top + DETAIL_DY, screenH, out = detailOut,
+                onClose = { detail = null },
+                onAdd = { e -> PickerLaunch.added = true; onAdd(e) { detailOut = true } })
+        }
+    }
+}
+
+@Composable
+private fun Grabber() = Box(Modifier.fillMaxWidth().padding(top = GRAB_Y.dp), contentAlignment = Alignment.TopCenter) {
+    Box(Modifier.size(GRAB_W.dp, 5.dp).clip(CircleShape).background(Color(0x33000000)))
+}
+
+@Composable
+private fun SearchField(query: String, onQuery: (String) -> Unit) {
+    // Liquid-Glass-Kapsel auf dem hellen Blatt [33,6 s: Feld 246 auf Blatt 242, heller Lichtsaum oben, feine Kante]
+    io.github.janhurn9400.liquidy.glass.LiquidGlass(
+        shape = io.github.janhurn9400.liquidy.glass.glassCapsule(),
+        modifier = Modifier.padding(start = SIDE.dp, end = SIDE.dp, top = SEARCH_Y.dp).fillMaxWidth().height(SEARCH_H.dp),
+        blur = FIELD_BLUR.dp, whiteTint = FIELD_WHITE, blackTint = 0f, dispersion = false, rimAlpha = FIELD_RIM,
+    ) {
+        // feine graue Kante wie im Original (auf Weiß sonst kaum Kontur)
+        Box(Modifier.matchParentSize().border(0.75.dp, FIELD_OUTLINE, CircleShape))
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            io.github.janhurn9400.liquidy.ui.home.MagnifierGlyph(20.dp, GREY_TEXT)
+            Spacer(Modifier.width(8.dp))
+            Box {
+                if (query.isEmpty()) BasicText(stringResource(R.string.search_widgets), style = TextStyle(fontFamily = Inter, fontSize = 19.sp, color = GREY_TEXT))
+                BasicTextField(query, onQuery, singleLine = true, cursorBrush = SolidColor(Color(0xFF007AFF)),
+                    textStyle = TextStyle(fontFamily = Inter, fontSize = 19.sp, color = Color.Black), modifier = Modifier.width(170.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppRow(name: String, e: PickerEntry, last: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth().height(ROW.dp)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
+    ) {
+        Row(Modifier.fillMaxSize().padding(start = SIDE.dp), verticalAlignment = Alignment.CenterVertically) {
+            PickerAppIcon(e, ICON)
+            Spacer(Modifier.width((TEXT_X - SIDE - ICON).dp))
+            BasicText(name, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Color.Black))
+        }
+        if (!last) Box(Modifier.align(Alignment.BottomStart).padding(start = TEXT_X.dp).fillMaxWidth().height(1.dp).background(SEPARATOR))
+    }
+}
+
+/** App-Icon im Picker: Android-Anbieter → Icon seiner App; eigene Widgets → schlichtes eigenes Symbol (keine Apple-Icons). */
+@Composable
+internal fun PickerAppIcon(e: PickerEntry, sizePt: Float) {
+    val shape = RoundedCornerShape((sizePt * 0.225f).dp)
+    val context = LocalContext.current
+    if (e.provider != null) {
+        val img by produceState<ImageBitmap?>(null, e.provider) {
+            value = withContext(Dispatchers.IO) {
+                runCatching { context.packageManager.getApplicationIcon(e.provider.provider.packageName).toBitmap(144, 144).asImageBitmap() }.getOrNull()
+            }
+        }
+        Box(Modifier.size(sizePt.dp).clip(shape).background(Color(0xFFE5E5EA))) { img?.let { Image(it, null, Modifier.fillMaxSize()) } }
+        return
+    }
+    if (e.iosType == IosWidgetTypes.WEATHER) {
+        // eigenes Wetter-Symbol: Himmelsverlauf + Sonne/Wolke
+        Box(Modifier.size(sizePt.dp).clip(shape).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF2E6FB7), Color(0xFF7FB2E5)))),
+            contentAlignment = androidx.compose.ui.Alignment.Center) { WeatherIcon(2, true, null, (sizePt * 0.7f).dp) }
+        return
+    }
+    val bg = when (e.iosType) { IosWidgetTypes.BATTERY -> Color(0xFF34C759); IosWidgetTypes.CLOCK -> Color(0xFF1C1C1E); else -> Color.White }
+    Box(Modifier.size(sizePt.dp).clip(shape).background(bg)) {
+        Canvas(Modifier.fillMaxSize()) {
+            val s = size.width
+            when (e.iosType) {
+                IosWidgetTypes.BATTERY -> {
+                    drawRoundRect(Color.White, Offset(s * 0.2f, s * 0.36f), Size(s * 0.54f, s * 0.28f), androidx.compose.ui.geometry.CornerRadius(s * 0.07f), style = Stroke(s * 0.05f))
+                    drawRoundRect(Color.White, Offset(s * 0.25f, s * 0.41f), Size(s * 0.44f, s * 0.18f), androidx.compose.ui.geometry.CornerRadius(s * 0.04f))
+                    drawRoundRect(Color.White, Offset(s * 0.76f, s * 0.45f), Size(s * 0.04f, s * 0.1f), androidx.compose.ui.geometry.CornerRadius(s * 0.02f))
+                }
+                IosWidgetTypes.CLOCK -> {
+                    drawCircle(Color.White, s * 0.36f, center)
+                    drawLine(Color.Black, center, center + Offset(0f, -s * 0.22f), s * 0.05f, StrokeCap.Round)
+                    drawLine(Color.Black, center, center + Offset(s * 0.15f, s * 0.06f), s * 0.05f, StrokeCap.Round)
+                }
+                IosWidgetTypes.PHOTOS -> { // eigenes Fotos-Symbol: Landschaft (Sonne + Berge) im Rahmen
+                    drawRoundRect(Color(0xFF8E8E93), Offset(s * 0.2f, s * 0.26f), Size(s * 0.6f, s * 0.48f), androidx.compose.ui.geometry.CornerRadius(s * 0.06f), style = Stroke(s * 0.045f))
+                    drawCircle(Color(0xFFFFB300), s * 0.06f, Offset(s * 0.36f, s * 0.4f))
+                    val m = androidx.compose.ui.graphics.Path().apply { moveTo(s * 0.24f, s * 0.7f); lineTo(s * 0.44f, s * 0.48f); lineTo(s * 0.56f, s * 0.6f); lineTo(s * 0.64f, s * 0.52f); lineTo(s * 0.76f, s * 0.7f); close() }
+                    drawPath(m, Color(0xFF34C759))
+                }
+                else -> { // Kalender: roter Kopfbalken + Tageszahl
+                    drawRect(Color(0xFFFF3B30), Offset.Zero, Size(s, s * 0.28f))
+                    drawCircle(Color(0xFF1C1C1E), s * 0.05f, Offset(s * 0.35f, s * 0.6f))
+                    drawCircle(Color(0xFF1C1C1E), s * 0.05f, Offset(s * 0.5f, s * 0.6f))
+                    drawCircle(Color(0xFF1C1C1E), s * 0.05f, Offset(s * 0.65f, s * 0.6f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailSheet(
+    entries: List<PickerEntry>, left: Float, sheetW: Float, top: Float, screenH: Float, out: Boolean,
+    onClose: () -> Unit, onAdd: (PickerEntry) -> Unit,
+) {
+    androidx.compose.runtime.DisposableEffect(Unit) { PickerLaunch.added = false; onDispose { } }
+    val appear = remember { Animatable(0f) }
+    LaunchedEffect(out) { appear.animateTo(if (out) 0f else 1f, Motion.wpeSheet.spec()) }
+    val pager = rememberPagerState { entries.size }
+    val e = entries[pager.currentPage.coerceIn(0, entries.lastIndex)]
+    val density = LocalDensity.current.density
+    // Knopf: 448 pt unter der Blattkante (Duo), auf niedrigen Displays über dem unteren Rand gehalten
+    val buttonY = minOf(BUTTON_Y, screenH - top - BUTTON_H - BUTTON_BOTTOM)
+    Box(
+        Modifier
+            .offset { IntOffset((left * density).roundToInt(), ((top + (1f - appear.value) * (screenH - top)) * density).roundToInt()) }
+            .width(Dp(sheetW)).height(Dp(screenH - top + CORNER))
+            .shadow(20.dp, RoundedCornerShape(CORNER.dp), clip = false)
+            .clip(RoundedCornerShape(CORNER.dp)).background(SHEET_BG)
+            .pointerInput(Unit) { detectTapGestures { } }
+    ) {
+        Grabber()
+        // Kopf: App-Icon + Name links, × rechts
+        Row(Modifier.padding(start = HEAD_X.dp, top = (HEAD_Y - HEAD_ICON / 2).dp), verticalAlignment = Alignment.CenterVertically) {
+            PickerAppIcon(e, HEAD_ICON)
+            Spacer(Modifier.width(10.dp))
+            BasicText(e.title, maxLines = 1, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Color.Black))
+        }
+        Canvas(
+            Modifier.align(Alignment.TopEnd).padding(top = (HEAD_Y - 14f).dp, end = (CLOSE_RIGHT - 14f).dp).size(28.dp)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose)
+        ) {
+            val a = size.width * 0.3f; val sw = 2.dp.toPx()
+            drawLine(Color.Black, Offset(a, a), Offset(size.width - a, size.height - a), sw, StrokeCap.Round)
+            drawLine(Color.Black, Offset(size.width - a, a), Offset(a, size.height - a), sw, StrokeCap.Round)
+        }
+        Column(Modifier.fillMaxWidth().padding(top = TITLE_Y.dp, start = SIDE.dp, end = SIDE.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            BasicText(e.subtitle, maxLines = 1, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 28.sp, color = Color.Black, textAlign = TextAlign.Center))
+            Spacer(Modifier.height(6.dp))
+            BasicText(widgetDescription(e), maxLines = 2, style = TextStyle(fontFamily = Inter, fontSize = 16.sp, color = GREY_TEXT, textAlign = TextAlign.Center))
+        }
+        // Größen-Karussell: aktuelle Größe mittig, Nachbarn schauen am Rand herein
+        val small = DesignTokens.widgetSmall.value
+        // Mit großer Größe im Karussell wird es höher; das große Widget wird in echtem Seitenverhältnis verkleinert gezeigt
+        val hasLarge = entries.any { it.rows >= 4 }
+        val pagerH = if (hasLarge) small * LARGE_PAGER_GROW else small
+        HorizontalPager(
+            state = pager,
+            pageSize = PageSize.Fill,
+            contentPadding = PaddingValues(horizontal = PAGER_PEEK.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = (PREVIEW_CY - pagerH / 2).dp).height(pagerH.dp),
+        ) { i ->
+            val pe = entries[i]
+            val wide = DesignTokens.widgetWide.value
+            val w = if (pe.cols >= 4) wide else small
+            val h = if (pe.rows >= 4) wide * LARGE_ASPECT else small
+            // passt in Höhe und Breite (Nachbarn schauen weiter herein)
+            val fit = minOf(1f, pagerH / h, (sheetW - 2 * PAGER_PEEK) / w)
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                WidgetPreviewBox(pe, Modifier.requiredSize(w.dp, h.dp).graphicsLayer { scaleX = fit; scaleY = fit }
+                    .then(if (i == pager.currentPage) Modifier.onGloballyPositioned { c -> PickerLaunch.previewCenter = c.boundsInRoot().center } else Modifier)
+                    .graphicsLayer { alpha = if (PickerLaunch.added && i == pager.currentPage) 0f else 1f })
+            }
+        }
+        if (entries.size > 1) Row(Modifier.align(Alignment.TopCenter).padding(top = DOTS_Y.dp), horizontalArrangement = Arrangement.spacedBy((DOT_PITCH - DOT_D).dp)) {
+            entries.indices.forEach { k ->
+                Box(Modifier.size(DOT_D.dp).clip(CircleShape).background(if (k == pager.currentPage) Color.Black else Color(0x4D000000)))
+            }
+        }
+        Box(
+            Modifier.padding(top = buttonY.dp, start = BUTTON_SIDE.dp, end = BUTTON_SIDE.dp).fillMaxWidth().height(BUTTON_H.dp)
+                .clip(CircleShape).background(GREEN)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onAdd(e) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Canvas(Modifier.size(18.dp)) {
+                    drawCircle(Color.White, size.width / 2)
+                    val a = size.width * 0.27f; val sw = size.width * 0.12f
+                    drawLine(GREEN, center + Offset(-a, 0f), center + Offset(a, 0f), sw, StrokeCap.Round)
+                    drawLine(GREEN, center + Offset(0f, -a), center + Offset(0f, a), sw, StrokeCap.Round)
+                }
+                Spacer(Modifier.width(8.dp))
+                BasicText(stringResource(R.string.add_widget), style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 18.sp, color = Color.White))
+            }
+        }
+    }
+}
+
+@Composable
+private fun widgetDescription(e: PickerEntry): String = when (e.iosType) {
+    IosWidgetTypes.BATTERY -> stringResource(R.string.widget_batteries_long)
+    IosWidgetTypes.CLOCK -> stringResource(R.string.widget_clock_long)
+    IosWidgetTypes.CALENDAR -> stringResource(R.string.widget_calendar_long)
+    IosWidgetTypes.WEATHER -> stringResource(R.string.widget_weather_long)
+    IosWidgetTypes.PHOTOS -> stringResource(R.string.widget_photos_long)
+    else -> e.subtitle
+}
+
+// Maße [GEMESSEN] Aufnahme 10:40, 0,634 pt/px (Displaykanten x 90–1590, y 108–1160 px)
+private const val SHEET_W = 461f
+private const val MIN_SIDE = 4f
+private const val SHEET_TOP = 92f
+private const val CORNER = 30f
+private const val DETAIL_DY = 20f
+private const val GRAB_Y = 9f
+private const val GRAB_W = 40f
+private const val SEARCH_Y = 33f
+private const val SEARCH_H = 43f
+private const val SIDE = 29f
+private const val LIST_TOP = 113f     // erste Zeile Mitte 137 pt unter der Kante − halbe Zeile
+private const val ROW = 72f
+private const val ICON = 48f
+private const val TEXT_X = 94f
+private const val HEAD_X = 20f
+private const val HEAD_Y = 35f
+private const val HEAD_ICON = 29f
+private const val CLOSE_RIGHT = 32f
+private const val TITLE_Y = 92f
+private const val PREVIEW_CY = 295f
+private const val LARGE_PAGER_GROW = 1.45f
+private const val LARGE_ASPECT = 830f / 796f // iPhone groß [GEMESSEN docs/reference/widgets/03]
+private const val PAGER_PEEK = 70f
+private const val DOTS_Y = 426f
+private const val DOT_D = 7f
+private const val DOT_PITCH = 18f
+private const val BUTTON_Y = 448f
+private const val BUTTON_H = 49f
+private const val BUTTON_SIDE = 24f
+private const val BUTTON_BOTTOM = 24f
+private const val DIM = 0.12f
+private val SHEET_BG = Color(0xFFF2F2F2)
+private const val FIELD_BLUR = 8f
+private const val FIELD_WHITE = 0.35f
+private const val FIELD_RIM = 0.5f
+private const val EDGE_BELOW = 12f
+private val FIELD_OUTLINE = Color(0x1F000000)
+private const val BACK_DIM = 0.13f
+private val GREY_TEXT = Color(0xFF8E8E93)
+private val SEPARATOR = Color(0xFFDCDCE0)
+private val GREEN = Color(0xFF34C759)

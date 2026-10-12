@@ -109,7 +109,7 @@ fun hasRoot(c: Context): Boolean =
     runCatching { c.packageManager.getPackageInfo("com.topjohnwu.magisk", 0); true }.getOrDefault(false) ||
         listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/debug_ramdisk/su").any { java.io.File(it).exists() }
 
-private enum class Step { Hello, DefaultHome, Permissions, Appearance, Foldable, Root, Done }
+private enum class Step { Hello, DefaultHome, Permissions, Appearance, Foldable, StatusBar, Root, Done }
 
 /**
  * Willkommen im Stil des iOS-26-Setups (YouTube-Aufnahme iPhone 17 ausgewertet): „Hallo“, dann helle Seiten mit
@@ -126,6 +126,7 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
             if (!isDefaultHome()) add(Step.DefaultHome)
             add(Step.Permissions); add(Step.Appearance)
             if (io.github.janhurn9400.liquidy.data.FoldableStyle.isFoldable(context)) add(Step.Foldable) // nur auf Foldables
+            add(Step.StatusBar)
             if (root) add(Step.Root) // mit Modul: „bereits aktiv“, sonst Anleitung
             add(Step.Done)
         }
@@ -204,6 +205,22 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
                         body = stringResource(R.string.welcome_fold_body),
                         primary = stringResource(R.string.welcome_continue), onPrimary = { next() },
                     ) { FoldStyleChooser() }
+                    Step.StatusBar -> StepPage(
+                        glyph = Glyph.Appearance, showBack = showBack, onBack = ::back,
+                        title = stringResource(R.string.welcome_status_title),
+                        body = stringResource(R.string.welcome_status_body),
+                        primary = stringResource(R.string.welcome_continue), onPrimary = { next() },
+                    ) {
+                        Card {
+                            CardRow(stringResource(R.string.settings_statusbar), Color(0xFF007AFF), {
+                                val w = size.width; val sw = w * 0.07f
+                                drawRoundRect(Color.White, Offset(w * 0.2f, w * 0.3f), Size(w * 0.6f, w * 0.4f), CornerRadius(w * 0.08f), style = Stroke(sw))
+                                drawLine(Color.White, Offset(w * 0.3f, w * 0.42f), Offset(w * 0.45f, w * 0.42f), sw, StrokeCap.Round)
+                            }) {
+                                GlassToggle(io.github.janhurn9400.liquidy.data.OwnStatusBar.enabled, { io.github.janhurn9400.liquidy.data.OwnStatusBar.set(context, it) })
+                            }
+                        }
+                    }
                     Step.Root -> StepPage(
                         glyph = Glyph.Sparkle, showBack = showBack, onBack = ::back,
                         title = stringResource(R.string.welcome_root_title),

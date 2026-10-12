@@ -74,7 +74,7 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /** Eintrag im Picker: eigenes iOS-Widget oder Android-Anbieter. */
-private class PickerEntry(
+internal class PickerEntry(
     val title: String,      // App-/Widget-Name (fett)
     val subtitle: String,   // Beschreibung (grau)
     val cols: Int, val rows: Int,
@@ -105,6 +105,11 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
             PickerEntry(context.getString(R.string.widget_clock), context.getString(R.string.widget_clock_desc), 2, 2, IosWidgetTypes.CLOCK),
             PickerEntry(context.getString(R.string.widget_calendar), context.getString(R.string.widget_calendar_desc), 4, 2, IosWidgetTypes.CALENDAR),
             PickerEntry(context.getString(R.string.widget_batteries), context.getString(R.string.widget_batteries_desc), 2, 2, IosWidgetTypes.BATTERY),
+            PickerEntry(context.getString(R.string.widget_weather), context.getString(R.string.widget_weather_desc), 2, 2, IosWidgetTypes.WEATHER),
+            PickerEntry(context.getString(R.string.widget_weather), context.getString(R.string.widget_weather_desc), 4, 2, IosWidgetTypes.WEATHER),
+            PickerEntry(context.getString(R.string.widget_weather), context.getString(R.string.widget_weather_desc), 4, 4, IosWidgetTypes.WEATHER),
+            PickerEntry(context.getString(R.string.widget_photos), context.getString(R.string.widget_photos_desc), 2, 2, IosWidgetTypes.PHOTOS),
+            PickerEntry(context.getString(R.string.widget_photos), context.getString(R.string.widget_photos_desc), 4, 4, IosWidgetTypes.PHOTOS),
         )
         val android = withContext(Dispatchers.IO) {
             host?.providers().orEmpty().map { p ->
@@ -126,6 +131,20 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
             else { add(listOf(pendingSmall!!, e)); pendingSmall = null }
         }
         pendingSmall?.let { add(listOf(it)) }
+    }
+
+    // Duo-Stil (auf- und zugeklappt): helles Blatt mit App-Liste + Detailblatt mit Größen-Karussell [Aufnahme 10:40, 31–46 s]
+    if (io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle) {
+        DuoWidgetPicker(
+            groups = shown.groupBy { it.title }.entries.map { it.key to it.value }.sortedBy { it.first.lowercase() },
+            query = query, onQuery = { query = it }, appear = { appear.value }, close = { close() },
+            onAdd = { e, finished ->
+                val p = e.provider
+                if (p == null) { onAdd(WidgetSpec(e.iosType!!, e.cols, e.rows)); scope.launch { kotlinx.coroutines.delay(250); finished(); close() } }
+                else (context as? Activity)?.let { act -> host?.add(act, p) { spec -> if (spec != null) { onAdd(spec); finished(); close() } } }
+            },
+        )
+        return
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -203,10 +222,13 @@ private fun PickerCard(e: PickerEntry, onClick: () -> Unit) {
 
 /** Vorschau: iOS-Widgets live, Android: Vorschaubild des Anbieters bzw. App-Icon auf dunkler Fläche. */
 @Composable
-private fun WidgetPreview(e: PickerEntry, modifier: Modifier) {
+private fun WidgetPreview(e: PickerEntry, modifier: Modifier) = WidgetPreviewBox(e, modifier)
+
+@Composable
+internal fun WidgetPreviewBox(e: PickerEntry, modifier: Modifier) {
     val shape = glassRect(DesignTokens.widgetCorner.dp)
     Box(modifier.clip(shape).background(Color(0xFF1C1C1E)), contentAlignment = Alignment.Center) {
-        if (e.iosType != null) IosWidget(e.iosType, e.cols, Modifier.fillMaxSize())
+        if (e.iosType != null) IosWidget(e.iosType, e.cols, e.rows, Modifier.fillMaxSize())
         else {
             val context = LocalContext.current
             val img by produceState<ImageBitmap?>(null, e.provider) {

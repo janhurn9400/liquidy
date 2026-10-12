@@ -86,6 +86,7 @@ sealed interface MenuGlyph {
     data object Haptics : MenuGlyph
     data object Pages : MenuGlyph
     data object Stack : MenuGlyph
+    data object Settings : MenuGlyph
     data class Bitmap(val image: androidx.compose.ui.graphics.ImageBitmap?) : MenuGlyph
 }
 
@@ -134,8 +135,14 @@ const val LANDING_ARRIVE = 0.42f   // 47,94 s: Ankunft/Aufprall
 private const val LANDING_SHOCK_AT = LANDING_ARRIVE
 private const val DUO_LUPE_FLASH_MS = 70
 private const val BRUSH_FLASH_IN_MS = 70
-private const val BRUSH_FLASH_HOLD_MS = 110L
-private const val BRUSH_FLASH_OUT_MS = 120 // weiß auf in ≈ 4 Bildern (41,11 → 41,15 s)
+// [GEMESSEN Video 4] Tropfen → Menü ≈ 0,22 s bis zur Endgröße (Größe 14 % nach 41 ms, 57 % nach 66 ms, 80 % nach 125 ms),
+// kaum Überschwinger (≈ 5 %) → ζ 0,7, ω ≈ 15/s
+private const val DROP_DAMPING = 0.7f
+private const val DROP_STIFFNESS = 230f
+private const val DROP_CLOSE_MS = 340
+private val DROP_CLOSE_EASE = androidx.compose.animation.core.CubicBezierEasing(0.25f, 0.55f, 0.25f, 1f)
+private const val BRUSH_FLASH_HOLD_MS = 60L // Tropfen löst sich ≈ 75 ms nach dem Aufleuchten (Video 4: 3,837 → 3,912 s)
+private const val BRUSH_FLASH_OUT_MS = 140 // weiß auf in ≈ 4 Bildern (41,11 → 41,15 s)
 private const val STACK_MERGE_SHARE = 0.35f // Mitten näher als 35 % der Widgetgröße → Stapel
 private const val STACK_RUBBER = 0.3f
 private const val STACK_FLING = 2.5f        // Widgethöhen pro Sekunde
@@ -180,6 +187,8 @@ class HomeModel(
     var today by mutableStateOf<List<String>>(emptyList())
         private set
     val todayScroll = Animatable(0f)
+    /** Finger scrollt gerade die Heute-Spalte (Duo: Glasfläche hinter der Spalte + Scrollbalken). */
+    var todayTouching by mutableStateOf(false)
 
     /** Widget oben in die Heute-Ansicht einfügen (iOS: neue Widgets landen oben). */
     fun addTodayWidget(spec: WidgetSpec) {
@@ -202,6 +211,17 @@ class HomeModel(
         val d = todayDrag ?: return
         d.offset = offset
         d.index = targetIndex.coerceIn(0, today.lastIndex)
+    }
+
+    /** Widget von der Heute-Seite auf den Homescreen ziehen: aus „Heute“ lösen, vorn auf Seite 1 einsortieren, weiterziehen. */
+    fun moveTodayToHome(key: String, pointer: Offset, cellTopLeftScreen: Offset) {
+        if (key !in today) return
+        todayDrag = null
+        today = today - key
+        pages = pages.toMutableList().also { if (it.isEmpty()) it += emptyList<String>(); it[0] = listOf(key) + it[0] }
+        anims.remove(key)
+        startDrag(key, pointer, cellTopLeftScreen)
+        save()
     }
 
     fun endTodayDrag() {
@@ -322,8 +342,11 @@ class HomeModel(
         val d = sizes.minOf { (sw, sh) -> maxOf(kotlin.math.abs(w - sw) / half.x, kotlin.math.abs(h - sh) / half.y) }.coerceIn(0f, 1f)
         val blur = d * d * (3f - 2f * d) // weich (smoothstep)
         scope.launch { r.w.snapTo(w); r.h.snapTo(h); r.blur.snapTo(blur) }
-        val cols = if (w > (min.width + max.width) / 2) 4 else 2
-        val rows = if (h > (min.height + max.height) / 2) 4 else 2
+        // nur echte Größen (klein 2×2, mittel 4×2, groß 4×4) — die nächstliegende; nie hoch und schmal (2×4)
+        val (cols, rows) = listOf(2 to 2, 4 to 2, 4 to 4).minBy { (c, rw) ->
+            val sw = if (c == 4) max.width else min.width; val sh = if (rw == 4) max.height else min.height
+            maxOf(kotlin.math.abs(w - sw) / half.x, kotlin.math.abs(h - sh) / half.y)
+        }
         val spec = widgets[r.key] ?: return
         if (spec.cols != cols || spec.rows != rows) {
             widgets = widgets + (r.key to spec.copy(cols = cols, rows = rows))
@@ -395,7 +418,42 @@ class HomeModel(
     }
 
     private var stackStart = 0f
+    /** Letztes manuelles Blättern je Stapel — danach dreht „Intelligentes Drehen“ eine Weile nicht dazwischen. */
+    private val stackTouched = HashMap<String, Long>()
+    private var rotateJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Intelligentes Drehen (iOS): beim Zurückkehren auf den Homescreen blättert jeder Stapel mit eingeschalteter Option zum
+     * gerade nützlichsten Widget (data/SmartRotate), sichtbar mit kurz eingeblendeten Punkten. Nicht kurz nach Handarbeit.
+     */
+    fun smartRotateStacks() {
+        if (editing) return
+        val stacks = widgets.filter { it.value.type == STACK && it.value.smartRotate && it.value.stack.size > 1 }
+        if (stacks.isEmpty()) return
+        rotateJob?.cancel()
+        rotateJob = scope.launch {
+            delay(SMART_ROTATE_DELAY_MS)
+            val now = System.currentTimeMillis()
+            val rankedNow = ranked
+            for ((key, spec) in stacks) {
+                if (now - (stackTouched[key] ?: 0L) < SMART_ROTATE_QUIET_MS) continue
+                val cur = stackPosition(key).value.roundToInt()
+                val to = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    io.github.janhurn9400.liquidy.data.SmartRotate.pick(repository.context, spec.stack, cur, rankedNow)
+                } ?: continue
+                launch {
+                    stackDotsAlpha(key).animateTo(1f, Motion.stackFrame.spec())
+                    stackPosition(key).animateTo(to.toFloat(), Motion.stackSnap.spec())
+                    delay(STACK_RIM_HOLD_MS)
+                    stackDotsAlpha(key).animateTo(0f, Motion.stackFrame.spec())
+                }
+            }
+        }
+    }
+
     fun stackDragStart(key: String) {
+        stackTouched[key] = System.currentTimeMillis()
+        rotateJob?.cancel()
         val p = stackPosition(key); stackStart = p.value
         stackHideJob?.cancel()
         scope.launch { p.stop() }
@@ -450,7 +508,7 @@ class HomeModel(
         val m = contextMenu?.takeIf { it.key == key }
         // Startrahmen = angehobene Menü-Kopie (Ruheplatz × Hebung); die Kopie selbst verschwindet sofort — das Panel IST sie (Bild 288)
         stackEditFrom = m?.widgetRect?.let { r ->
-            val s = m.lift.value; val c = r.center - Offset(0f, m.liftY.value * repository.context.resources.displayMetrics.density)
+            val s = m.lift.value; val c = r.center - Offset(0f, m.liftY.value * io.github.janhurn9400.liquidy.design.UiScale.density(repository.context))
             androidx.compose.ui.geometry.Rect(c - Offset(r.width * s / 2, r.height * s / 2), androidx.compose.ui.geometry.Size(r.width * s, r.height * s))
         } ?: stackEditFrom
         if (m != null) contextMenu = null
@@ -703,6 +761,7 @@ class HomeModel(
     // ── Laden / Abgleich ──────────────────────────────────────────────────────
     fun onAppsLoaded(list: List<AppEntry>) {
         apps = list.associateBy { it.key }
+        refreshSuggestions()
         val demo = DebugOptions.demoPages.value.roundToInt()
         val saved = if (demoPagesApplied != -1 && demo != demoPagesApplied) null else store.load()
         demoPagesApplied = demo
@@ -897,6 +956,52 @@ class HomeModel(
         save()
     }
 
+    // ── Widget-Einstellungen (Antippen im Bearbeiten-Modus) ───────────────────────
+    var widgetConfigKey by mutableStateOf<String?>(null)
+        private set
+    val widgetConfig = Animatable(0f)
+
+    /** Bildschirmrahmen des Widgets, aus dem das Blatt herausdreht (und in das es zurückdreht). */
+    var widgetConfigFrom by mutableStateOf(androidx.compose.ui.geometry.Rect.Zero)
+        private set
+
+    /**
+     * [GEMESSEN iPhone 10-11 16:40, Bewegung je Bild bei 60 fps]: Öffnen ≈ 0,62 s — das Widget dreht sich um die senkrechte
+     * Achse (hochkant ≈ 0,16 s), dahinter erscheint die Karte und wächst mittig auf; Schließen ≈ 0,55 s rückwärts.
+     */
+    fun openWidgetConfig(key: String, from: androidx.compose.ui.geometry.Rect) {
+        widgetConfigFrom = from
+        widgetConfigKey = key
+        scope.launch {
+            widgetConfig.snapTo(0f)
+            // [GEMESSEN Bewegung je Bild]: kräftig ab dem ersten Bild, 0,29 s Hauptteil, langer Auslauf bis 0,62 s; hochkant bei ≈ 0,16 s
+            widgetConfig.animateTo(1f, androidx.compose.animation.core.tween(WIDGET_CONFIG_OPEN_MS,
+                easing = androidx.compose.animation.core.CubicBezierEasing(0.22f, 0.55f, 0.28f, 1f)))
+        }
+    }
+
+    fun closeWidgetConfig() {
+        scope.launch {
+            // [GEMESSEN]: Bewegung steigt in ≈ 80 ms an, hochkant bei ≈ 0,11 s, ausgelaufen nach ≈ 0,55 s
+            widgetConfig.animateTo(0f, androidx.compose.animation.core.tween(WIDGET_CONFIG_CLOSE_MS,
+                easing = androidx.compose.animation.core.CubicBezierEasing(0.25f, 0.4f, 0.25f, 1f)))
+            widgetConfigKey = null
+        }
+    }
+
+    fun setWidgetConfig(key: String, config: String?) {
+        val w = widgets[key] ?: return
+        widgets = widgets + (key to w.copy(config = config))
+        save()
+    }
+
+    /** Nur Test (Debug-Build, adb-Intent „teststack“): die ersten beiden kleinen Widgets einer Seite zu einem Stapel. */
+    fun debugMakeStack() {
+        val small = pages.flatten().filter { k -> widgets[k]?.let { it.type != STACK && it.cols == 2 && it.rows == 2 } == true }
+        if (small.size < 2) return
+        mergeInto(small[0], small[1]); save()
+    }
+
     /** Legt [key] in den Ordner [target] bzw. erzeugt aus App [target] + [key] einen neuen Ordner an dessen Platz. */
     private fun mergeInto(key: String, target: String) {
         val basePages = pages.map { it - key }
@@ -934,37 +1039,32 @@ class HomeModel(
         private set
 
     fun openCustomise() { exitEdit(); customiseClosing = false; customiseOpen = true }
+
+    var settingsOpen by mutableStateOf(false)
+    var settingsClosing by mutableStateOf(false)
+    fun openSettings() { exitEdit(); settingsClosing = false; settingsOpen = true }
+    fun closeSettings() { if (settingsOpen) settingsClosing = true }
+    fun settingsClosed() { settingsOpen = false; settingsClosing = false }
     fun closeCustomise() { if (customiseOpen) customiseClosing = true }
     fun customiseClosed() { customiseOpen = false; customiseClosing = false }
 
     var widgetPickerOpen by mutableStateOf(false)
 
     fun editMenuItems(): List<MenuItem> = listOfNotNull(
-        // Einmalig: Lesezugriff aufs Android-Wallpaper („Alle Dateien verwalten“) → danach immer das Android-Bild als einzige Quelle
-        if (io.github.janhurn9400.liquidy.glass.SystemWallpaper.canRead()) null
-        else MenuItem(repository.context.getString(io.github.janhurn9400.liquidy.R.string.use_android_wallpaper), MenuGlyph.Wallpaper) {
-            exitEdit()
-            val ctx = repository.context
-            runCatching {
-                ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                    android.net.Uri.fromParts("package", ctx.packageName, null)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-            }
-        },
         MenuItem(repository.context.getString(io.github.janhurn9400.liquidy.R.string.add_widget), MenuGlyph.AddWidget) { widgetPickerOpen = true },
         MenuItem(repository.context.getString(io.github.janhurn9400.liquidy.R.string.customise), MenuGlyph.Customise) { openCustomise() },
         MenuItem(repository.context.getString(io.github.janhurn9400.liquidy.R.string.edit_wallpaper), MenuGlyph.Wallpaper) {
             exitEdit(); wallpaperEditorOpen = true
         },
         MenuItem(repository.context.getString(io.github.janhurn9400.liquidy.R.string.edit_pages), MenuGlyph.Pages) { pagesOverviewRequested = true },
-        // Haptik ein/aus (Beschriftung = was der Tipp bewirkt)
-        MenuItem(repository.context.getString(if (io.github.janhurn9400.liquidy.data.Haptics.enabled) io.github.janhurn9400.liquidy.R.string.haptics_off
-            else io.github.janhurn9400.liquidy.R.string.haptics_on), MenuGlyph.Haptics) {
-            io.github.janhurn9400.liquidy.data.Haptics.set(repository.context, !io.github.janhurn9400.liquidy.data.Haptics.enabled)
-        },
+        // Launcher-Einstellungen (Haptik, Duo-Stil, Android-Wallpaper …) — eigenes Blatt statt weiterer Menüeinträge
+        MenuItem(repository.context.getString(io.github.janhurn9400.liquidy.R.string.launcher_settings), MenuGlyph.Settings) { openSettings() },
     )
 
     /** Duo: Pinsel-Knopf leuchtet vor dem Menü weiß auf (0…1) [GEMESSEN] 21:28, 53,53–53,71 s. */
     val editBrushFlash = Animatable(0f)
+    /** Duo: Menü fließt gerade in den Pinsel zurück (andere Tropfenform als beim Öffnen). */
+    var editMenuClosing by mutableStateOf(false)
 
     fun openEditMenu(duo: Boolean = false) {
         if (!duo) {
@@ -973,17 +1073,27 @@ class HomeModel(
             return
         }
         scope.launch {
+            // Tropfen liegt sofort deckungsgleich auf dem Knopf (Knopf selbst ausgeblendet) → er leuchtet auf und fließt los
+            editMenu.snapTo(0f)
+            editMenuOpen = true
             editBrushFlash.animateTo(1f, androidx.compose.animation.core.tween(BRUSH_FLASH_IN_MS))
             kotlinx.coroutines.delay(BRUSH_FLASH_HOLD_MS)
-            editMenuOpen = true
             launch { editBrushFlash.animateTo(0f, androidx.compose.animation.core.tween(BRUSH_FLASH_OUT_MS)) }
-            editMenu.animateTo(1f, Motion.ctxMenu.spec())
+            // Tropfen fließt in ≈ 0,19 s zur Menüform (Video 4: 3,91 → 4,10 s), leichtes Nachfedern
+            editMenu.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = DROP_DAMPING, stiffness = DROP_STIFFNESS))
         }
     }
 
     fun closeEditMenu() {
         scope.launch {
-            editMenu.animateTo(0f, Motion.ctxMenuClose.spec(visibilityThreshold = FOLDER_DONE))
+            // Duo: Tropfen zieht sich in den Pinsel zurück (gleicher Weg rückwärts, etwas schneller)
+            if (io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle) {
+                // [GEMESSEN Video 4] Zuklappen ≈ 0,22 s bis in den Knopf: anfangs schnell kleiner, dann langsam hineingezogen
+                editMenuClosing = true
+                editMenu.animateTo(0f, androidx.compose.animation.core.tween(DROP_CLOSE_MS, easing = DROP_CLOSE_EASE))
+                editMenuClosing = false
+            }
+            else editMenu.animateTo(0f, Motion.ctxMenuClose.spec(visibilityThreshold = FOLDER_DONE))
             editMenuOpen = false
         }
     }
@@ -1005,7 +1115,7 @@ class HomeModel(
             val r = iconLocator(c.component, c.user) ?: return@let
             val app = apps.values.firstOrNull { it.component == c.component && it.user == c.user }
             // Ziel ist ein Widget (größer als ein Icon) → keine Icon-Fläche, das Widget selbst bleibt sichtbar
-            val isIconSized = kotlin.math.abs(r.width - DesignTokens.iconSize.value * repository.context.resources.displayMetrics.density) < 2f
+            val isIconSized = kotlin.math.abs(r.width - DesignTokens.iconSize.value * io.github.janhurn9400.liquidy.design.UiScale.density(repository.context)) < 2f
             val inOpenFolder = openFolder?.let { of -> app?.key?.let { k -> folderFor(of.id)?.apps?.contains(k) } } == true
             val target = app?.key?.takeIf { k -> isIconSized && (dock.contains(k) || pages.any { k in it } || inOpenFolder) }
             flyingKey = target
@@ -1013,7 +1123,7 @@ class HomeModel(
             val widgetKey = io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetOrigins[c.component.packageName]?.takeIf { !isIconSized }
             val snap = widgetKey?.let { io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetSnapshots[it] }
             flyingKey = target ?: widgetKey?.takeIf { snap != null }
-            val corner = if (snap != null) DesignTokens.widgetCorner.value * repository.context.resources.displayMetrics.density else null
+            val corner = if (snap != null) DesignTokens.widgetCorner.value * io.github.janhurn9400.liquidy.design.UiScale.density(repository.context) else null
             val fk = flyingKey
             android.util.Log.i("GestureNavContract", "Rückkehr ${c.component.packageName} → $r widget=$widgetKey snap=${snap != null} iconSized=$isIconSized")
             flyingSurface(c, android.graphics.RectF(r.left, r.top, r.right, r.bottom),
@@ -1052,6 +1162,7 @@ class HomeModel(
 
     /** Von MainActivity.onWindowFocusChanged: Rückkehr-Animation des Systems ist fertig → scharf werden. */
     fun onHomeVisible() {
+        smartRotateStacks()
         // App doch nicht gestartet (oder abgebrochen): nicht unscharf hängen bleiben
         if (launchBlur.value > 0f || launchBlur.isRunning) scope.launch { launchBlur.animateTo(0f, Motion.homeReturn.spec()) }
         launchedApp = false
@@ -1385,9 +1496,28 @@ class HomeModel(
         return maxOf(x * x * (3f - 2f * x), searchOpenAmount.value.coerceIn(0f, 1f))
     }
 
-    /** Siri-Vorschläge: zuletzt gestartete Apps, aufgefüllt mit den ersten Apps der Liste. */
+    private val suggester = io.github.janhurn9400.liquidy.data.AppSuggestions(repository.context)
+    /** App-Keys nach Vorschlagswert (Häufigkeit, Tageszeit, Aktualität), im Hintergrund berechnet. */
+    private var ranked by mutableStateOf<List<String>>(emptyList())
+    private var rankJob: Job? = null
+
+    fun hasUsageAccess() = suggester.hasUsageAccess()
+
+    /** Neu bewerten — beim Zurückkehren auf den Homescreen und nach jedem Start (Tageszeit/Nutzung ändern sich). */
+    fun refreshSuggestions() {
+        val snapshot = apps
+        if (snapshot.isEmpty()) return
+        rankJob?.cancel()
+        rankJob = scope.launch {
+            val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { suggester.rank(snapshot) }
+            ranked = r
+        }
+    }
+
+    /** App-Vorschläge: bewertete Apps, dann zuletzt gestartete, dann alphabetisch aufgefüllt. */
     fun suggestions(count: Int): List<AppEntry> =
-        (recents.mapNotNull { apps[it] } + apps.values).distinct().take(count)
+        (ranked.mapNotNull { apps[it] } + recents.mapNotNull { apps[it] } + apps.values.sortedBy { it.label.lowercase() })
+            .distinct().take(count)
 
     fun searchResults(count: Int): List<AppEntry> {
         val q = query.trim()
@@ -1400,6 +1530,7 @@ class HomeModel(
     fun noteLaunch(key: String) {
         recents = (listOf(key) + recents.filter { it != key }).take(RECENTS_MAX)
         store.saveRecents(recents)
+        suggester.record(key)
     }
 
     // ── Entfernen ─────────────────────────────────────────────────────────────
@@ -1421,6 +1552,10 @@ class HomeModel(
         const val PER_PAGE = DesignTokens.GRID_COLUMNS * DesignTokens.GRID_ROWS
         const val DOCK_MAX = DesignTokens.DOCK_SLOTS
         const val RECENTS_MAX = 8
+        const val SMART_ROTATE_DELAY_MS = 700L
+        const val WIDGET_CONFIG_OPEN_MS = 620
+        const val WIDGET_CONFIG_CLOSE_MS = 550
+        const val SMART_ROTATE_QUIET_MS = 15 * 60_000L
         const val FOLDER_DONE = 0.001f
         const val DEFAULT_FOLDER_NAME = "Folder"
         const val DUO_LIB_TILES_OUT_MS = 220f

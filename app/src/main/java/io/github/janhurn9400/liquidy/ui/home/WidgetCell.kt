@@ -86,7 +86,7 @@ fun WidgetCell(
                 }) {
                     if (spec.type == STACK && stackModel != null) WidgetStackContent(key, spec, stackModel, wallpaper)
                     else if (spec.type == "android") AndroidWidget(spec, Modifier.fillMaxSize())
-                    else WithWallpaperGlass(wallpaper) { IosWidget(spec.type, spec.cols, Modifier.fillMaxSize()) }
+                    else WithWallpaperGlass(wallpaper) { IosWidget(spec.type, spec.cols, spec.rows, Modifier.fillMaxSize(), spec.config) }
                 }
             }
             if (showLabel) BasicText(

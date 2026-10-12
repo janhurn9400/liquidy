@@ -83,7 +83,7 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
     val duo = geo.duo
     // Duo [GEMESSEN Video 2, 18 s, echte Displaykanten]: Liste in der Mediathek-Spalte, ohne Buchstaben-Köpfe,
     // Icon 44 pt bei Spalten-x 66, Name ab 130, Trennlinie bis 400, erste Zeile Mitte 168 pt, A–Z in der Dock-Spalte
-    val lay = if (duo) ListLayout(side = 66f, icon = 44f, textX = 130f, sepRight = 400f, top = 132f, indexTop = 214f)
+    val lay = if (duo) ListLayout(side = 66f, icon = 44f, textX = 130f, sepRight = geo.duoSepRight, top = 132f, indexTop = 214f)
         else ListLayout(DesignTokens.libListSide.value, DesignTokens.libListIcon.value, DesignTokens.libListTextX.value,
             DesignTokens.libListSepRight.value, DesignTokens.libListTop.value, DesignTokens.libIndexTop.value)
     val entries = remember(apps, model.libQuery.isEmpty()) {
@@ -164,7 +164,7 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
     if (active) {
         val noRipple = remember { MutableInteractionSource() }
         // Duo: runder ×-Knopf (Spalten-x 375 ± 22) statt „Cancel“
-        val cancelX = if (duo) LIB_DUO_CLOSE_X - LIB_DUO_CLOSE_D / 2 else DesignTokens.libCancelX.value
+        val cancelX = if (duo) geo.duoCloseX - LIB_DUO_CLOSE_D / 2 else DesignTokens.libCancelX.value
         val cancelW = if (duo) LIB_DUO_CLOSE_D else geo.width / density - DesignTokens.libCancelX.value
         Box(
             Modifier
@@ -176,7 +176,7 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
         Box(
             Modifier
                 .offset { IntOffset((geo.search.left + offsetX()).roundToInt(), geo.search.top.roundToInt()) }
-                .size(((if (duo) LIB_DUO_FIELD_RIGHT else DesignTokens.libListFieldRight.value) - geo.search.left / density).dp, (geo.search.height / density).dp)
+                .size(((if (duo) geo.duoFieldRight else DesignTokens.libListFieldRight.value) - geo.search.left / density).dp, (geo.search.height / density).dp)
                 .clickable(interactionSource = noRipple, indication = null) {}
         )
     }
@@ -277,8 +277,6 @@ private fun IndexBar(state: LazyListState, entries: List<Entry>, enabled: Boolea
 
 private const val INDEX_W = 20f   // pt, Trefferbreite des Index
 private const val DUO_INDEX_FROM_RIGHT = 47f // Dock-Spaltenmitte
-const val LIB_DUO_FIELD_RIGHT = 338f // Suchfeld rechts in der Liste (Spalten-x), Feld 516–786 pt
-const val LIB_DUO_CLOSE_X = 375f     // ×-Knopf Mitte (Spalten-x ≙ 823 pt)
 const val LIB_DUO_CLOSE_D = 44f
 
 /**
