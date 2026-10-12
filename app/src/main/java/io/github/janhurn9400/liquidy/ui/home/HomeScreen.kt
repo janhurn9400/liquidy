@@ -75,7 +75,7 @@ private sealed interface Hit {
     data class Library(val hit: io.github.janhurn9400.liquidy.ui.library.LibraryHit) : Hit
 }
 
-private enum class Mode { Pending, Paging, Vertical, LibScroll, LibPull, TodayScroll, TodayDrag, Menu, Drag, Resize, StackScroll, Consumed }
+private enum class Mode { Pending, Paging, Vertical, LibScroll, LibPull, TodayScroll, TodayDrag, Menu, Drag, Resize, StackScroll, WidgetTouch, Consumed }
 
 /**
  * Homescreen: Wallpaper, Seiten (4×6), Dock, Pill, Bearbeitungsmodus.
@@ -314,10 +314,19 @@ fun HomeScreen(
                     return@locator Rect(fg.panel.topLeft + fg.slot(i), iconSize)
                 }
             }
+            // Duo: Dock-Icons sind kleiner (48 pt statt 60) → Ziel-Rahmen um die Icon-Mitte verkleinern, sonst fliegt das große
+            // Icon zurück und springt am Ende auf die Dock-Größe
+            fun dockRect(i: Int): Rect {
+                val tl = geo.dockPosition(i, d.dock.size)
+                if (!geo.duo) return Rect(tl, iconSize)
+                val s = geo.icon * DUO_DOCK_ICON / DesignTokens.iconSize.value
+                val c = tl + Offset(geo.icon / 2, geo.icon / 2)
+                return Rect(c - Offset(s / 2, s / 2), Size(s, s))
+            }
             // mehrere Icons derselben App: das angetippte zuerst (Dock oder sichtbare Seiten), sonst das erste passende
             val pref = model.launchedIconKey?.takeIf(::matches)
             if (pref != null) {
-                d.dock.indexOf(pref).takeIf { it >= 0 }?.let { return@locator Rect(geo.dockPosition(it, d.dock.size), iconSize) }
+                d.dock.indexOf(pref).takeIf { it >= 0 }?.let { return@locator dockRect(it) }
                 for (pg in pager.currentPage until pager.currentPage + geo.pagesVisible) {
                     val cells = model.displayCells.getOrNull(pg) ?: continue
                     val slot = d.pages.getOrNull(pg)?.indexOf(pref) ?: -1
@@ -325,7 +334,7 @@ fun HomeScreen(
                         return@locator Rect(geo.slotPosition(cells[slot]) + Offset(pageOffsetPx(pg), 0f), iconSize)
                 }
             }
-            d.dock.indexOfFirst(::holds).takeIf { it >= 0 }?.let { return@locator Rect(geo.dockPosition(it, d.dock.size), iconSize) }
+            d.dock.indexOfFirst(::holds).takeIf { it >= 0 }?.let { return@locator dockRect(it) }
             val page = pager.currentPage
             // Aus einem Heute-Widget geöffnet und die Heute-Ansicht ist offen → Fenster fliegt in dieses Widget
             io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetOrigins[cn.packageName]?.takeIf { it in model.today && pager.position.value < -0.5f }?.let { wk ->
@@ -363,6 +372,8 @@ fun HomeScreen(
         // sichtbar, sobald die Mediathek in den Bildschirm ragt (aufgeklappt sind zwei Seiten zu sehen)
         // gleiches State-Objekt über Seitenzahl-Änderungen hinweg (kein Schlüssel darauf) → auch in der Gesten-Arena aktuell
         val libraryOnScreen by remember(pager, geo) { derivedStateOf { pager.position.value > model.display.pages.size - geo.pagesVisible } }
+        // Rückkehr in die Mediathek nur, wenn sie ganz im Bild ist (nicht halb hinausgewischt)
+        model.libraryVisible = { libEnabledNow() && abs(pager.position.value - (model.display.pages.size - geo.pagesVisible + 1)) < 0.05f }
 
         // Liest model.display frisch (nicht den beim Erzeugen des pointerInput eingefangenen Stand)
         /** Bildschirmrechteck eines Widgets auf einer Homescreen-Seite (für Lande-Animation/Schockwelle). */
@@ -546,7 +557,8 @@ fun HomeScreen(
         // (Ordner, Suche, Heute, Mediathek …) legen wir unsere deckungsgleiche Kopie (= Androids Ausschnitt) verwischt
         // darüber — das sieht auf jedem Gerät gleich aus (Androids Fenster-Unschärfe ist nicht überall verfügbar).
         // Selbst gezeichnet wird immer, wenn wir Androids Bild nicht kennen ([drawWallpaper]) und im Editor.
-        val blurNow by remember { derivedStateOf { backgroundBlurPx(includeToday = true) > 0.5f } }
+        // Schlüssel: sonst bliebe die Rechnung vom ersten Aufbau (z. B. auf-/zugeklappt) eingefroren
+        val blurNow by remember(geo, screenIsWide) { derivedStateOf { backgroundBlurPx(includeToday = true) > 0.5f } }
         if (drawWallpaper || blurNow) Canvas(
             Modifier
                 .fillMaxSize()
@@ -892,6 +904,10 @@ fun HomeScreen(
                         if (hit is Hit.Library && !model.editing && !wasAnimating) {
                             (hit.hit as? io.github.janhurn9400.liquidy.ui.library.LibraryHit.App)?.let { model.prefetchShortcuts(libraryMenuKey(it.app.key), density) }
                         }
+                        // Android-Widget: Berührung von Anfang an mitschicken (Drück-Zustand, Scrollen); Launcher kann noch übernehmen
+                        if (hit is Hit.Icon && !model.editing && !wasAnimating && model.widgets[hit.key]?.type == "android") {
+                            model.widgets[hit.key]?.let { io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.begin(it.appWidgetId, arenaToWindow(down.position)) }
+                        }
                         if (hit is Hit.Icon && !model.editing && !wasAnimating) {
                             // Widget: Bild für den Rückflug JETZT aufnehmen — das angezeigte Bild hat noch keine Drück-Abdunklung
                             // (beim Loslassen wäre es dunkel → Fläche fliegt dunkel zurück und das echte Widget blitzt hell auf)
@@ -916,7 +932,8 @@ fun HomeScreen(
                             scope.launch {
                                 val d = Motion.pressInDelay.value.roundToInt()
                                 if (d > 0) delay(d.toLong())
-                                if (model.pressedKey == hit.key) model.pressAlpha.snapTo(DesignTokens.pressDarkAlpha.value)
+                                // Android-Widgets zeigen ihren eigenen Drück-Effekt (Berührung wird durchgereicht) → nicht zusätzlich abdunkeln
+                                if (model.pressedKey == hit.key && model.widgets[hit.key]?.type != "android") model.pressAlpha.snapTo(DesignTokens.pressDarkAlpha.value)
                             }
                         }
 
@@ -929,6 +946,7 @@ fun HomeScreen(
                             } else awaitPointerEvent()
                             if (event == null) {
                                 longPressDone = true
+                                io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.cancel() // Halten → Launcher-Menü, kein Klick im Widget
                                 when {
                                     hit is Hit.Icon && model.editing -> beginIconDrag(hit, down.position)
                                     hit is Hit.Icon -> {
@@ -965,7 +983,11 @@ fun HomeScreen(
                                 when (mode) {
                                     Mode.Pending -> when {
                                         hit is Hit.Library -> when (val lh = hit.hit) {
-                                            is io.github.janhurn9400.liquidy.ui.library.LibraryHit.App -> { model.launchedIconKey = null; onLaunch(lh.app, lh.screenRect) }
+                                            is io.github.janhurn9400.liquidy.ui.library.LibraryHit.App -> {
+                                                model.launchedIconKey = null
+                                                onLaunch(lh.app, lh.screenRect)
+                                                model.libraryLaunch = lh.app.key to lh.screenRect // nach onLaunch (setzt es sonst zurück)
+                                            }
                                             is io.github.janhurn9400.liquidy.ui.library.LibraryHit.Category -> model.openCategory(lh.index)
                                             io.github.janhurn9400.liquidy.ui.library.LibraryHit.Search -> model.openLibList()
                                             io.github.janhurn9400.liquidy.ui.library.LibraryHit.Empty -> if (wasAnimating) scope.launch { pager.settle() }
@@ -1002,10 +1024,17 @@ fun HomeScreen(
                                         }
                                         hit is Hit.Icon && !model.editing && model.pressedKey == hit.key -> {
                                             releasePress(animated = false)
-                                            model.apps[hit.key]?.let { model.launchedIconKey = hit.key; onLaunch(it, Rect(hit.iconTopLeft, Size(geo.icon, geo.icon))) }
+                                            model.apps[hit.key]?.let {
+                                                model.launchedIconKey = hit.key
+                                                // Duo-Dock: kleineres Icon (48 pt) → Fenster wächst aus dessen echter Größe
+                                                val r = Rect(hit.iconTopLeft, Size(geo.icon, geo.icon))
+                                                val k = if (geo.duo && hit.key in model.display.dock) DUO_DOCK_ICON / DesignTokens.iconSize.value else 1f
+                                                onLaunch(it, if (k == 1f) r else Rect(r.center - Offset(r.width * k / 2, r.height * k / 2), Size(r.width * k, r.height * k)))
+                                            }
                                             model.shownWidget(hit.key)?.let { spec ->
-                                                if (spec.type == "android") { // Gesten-Ebene liegt darüber → Tap ins Widget weiterreichen
-                                                    io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.tap(spec.appWidgetId, arenaToWindow(down.position))
+                                                if (spec.type == "android") { // Gesten-Ebene liegt darüber → Berührung ins Widget weiterreichen
+                                                    if (io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.isActive) io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.end(arenaToWindow(change.position))
+                                                    else io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.tap(spec.appWidgetId, arenaToWindow(down.position))
                                                     return@let
                                                 }
                                                 val r = geo.widgetRect(hit.iconTopLeft, spec.cols, spec.rows)
@@ -1016,6 +1045,7 @@ fun HomeScreen(
                                         hit is Hit.Empty && model.editing -> model.exitEdit()
                                         wasAnimating -> scope.launch { pager.settle() }
                                     }
+                                    Mode.WidgetTouch -> io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.end(arenaToWindow(change.position))
                                     Mode.Paging -> {
                                         val v = tracker.calculateVelocity().x
                                         scope.launch { pager.endDrag(-v / pw, pw, density) }
@@ -1051,9 +1081,16 @@ fun HomeScreen(
                                 } else if (hit is Hit.Library && (change.position - down.position).getDistance() > slop) {
                                     (hit.hit as? io.github.janhurn9400.liquidy.ui.library.LibraryHit.App)?.let { beginLibraryDrag(it, change.position) }
                                 }
+                                Mode.WidgetTouch -> io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.move(arenaToWindow(change.position))
                                 Mode.Pending -> {
                                     acc += delta
-                                    if (acc.getDistance() > slop) {
+                                    if (acc.getDistance() > slop && io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.isActive && io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.canHandle(acc.x, acc.y)) {
+                                        // Widget kann in diese Richtung selbst scrollen/wischen → Geste gehört dem Widget
+                                        releasePress(animated = true)
+                                        mode = Mode.WidgetTouch
+                                        io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.move(arenaToWindow(change.position))
+                                    } else if (acc.getDistance() > slop) {
+                                        io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.cancel()
                                         if (hit is Hit.WidgetHandle) {
                                             model.widgets[hit.key]?.let { model.beginResize(hit.key, geo.widgetSize(it.cols, it.rows)) }
                                             mode = Mode.Resize
@@ -1142,7 +1179,7 @@ fun HomeScreen(
                                 Mode.Drag -> iconDragMove(change.position)
                                 else -> Unit
                             }
-                            if (mode == Mode.Drag || mode == Mode.Paging || mode == Mode.Vertical || mode == Mode.LibScroll || mode == Mode.LibPull || mode == Mode.Resize || mode == Mode.StackScroll || mode == Mode.TodayScroll || mode == Mode.TodayDrag) change.consume()
+                            if (mode == Mode.Drag || mode == Mode.Paging || mode == Mode.Vertical || mode == Mode.LibScroll || mode == Mode.LibPull || mode == Mode.Resize || mode == Mode.StackScroll || mode == Mode.TodayScroll || mode == Mode.TodayDrag || mode == Mode.WidgetTouch) change.consume()
                         }
                     }
                 }
@@ -1188,7 +1225,11 @@ fun HomeScreen(
         }
         if (geo.duo) StatusLayer()
         model.openCategory?.let { oc ->
-            io.github.janhurn9400.liquidy.ui.library.CategoryView(model, oc, libGeo, density, onLaunch,
+            io.github.janhurn9400.liquidy.ui.library.CategoryView(model, oc, libGeo, density, { app, rect ->
+                    model.launchedIconKey = null
+                    onLaunch(app, rect)
+                    model.libraryLaunch = app.key to rect
+                },
                 originX = (geo.libraryOffset(libIndexNow() - pager.position.value)).coerceAtLeast(0f),
                 onLongPress = { app, tl ->
                     model.prefetchShortcuts(libraryMenuKey(app.key), density)
@@ -1231,7 +1272,7 @@ fun HomeScreen(
                     if (model.addingToStack) { model.addingToStack = false; model.addToStack(spec) } else {
                     // Picker → immer Homescreen (Heute-Seite hat ihren eigenen Weg). Offen auf Heute → erst zu Seite 1 blättern
                     val onToday = pager.position.value < -0.5f
-                    val page = if (onToday) 0 else pager.currentPage.coerceAtMost(display.pages.lastIndex)
+                    val page = if (onToday) 0 else pager.currentPage.coerceAtMost(model.display.pages.lastIndex)
                     if (onToday) scope.launch { pager.animateTo(0) }
                     val id = model.addWidget(spec, page)
                     // fliegt aus der Vorschau des Detail-Blatts (Bildschirmmitte, ≈ 55 % Höhe) an seinen Platz

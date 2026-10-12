@@ -73,6 +73,9 @@ fun isFolder(id: String) = id.startsWith(FOLDER_PREFIX)
  * Mehrere Icons derselben App (iOS: eine App kann auf mehreren Seiten liegen): weitere Icons heißen
  * „<App-Key>~i<id>“ und zeigen auf dieselbe App. [AppMap] löst solche Keys auf, [values]/[keys] bleiben je App einmal.
  */
+/** App, die gerade in ihr Mediathek-Icon zurückfliegt: das echte Icon dort ausblenden (wie flyingKey auf dem Homescreen). */
+object LibraryFlying { var key by androidx.compose.runtime.mutableStateOf<String?>(null) }
+
 const val INSTANCE_SEP = "~i"
 fun appKeyOf(key: String) = key.substringBefore(INSTANCE_SEP)
 
@@ -1200,6 +1203,12 @@ class HomeModel(
     /** Zuletzt angetipptes Icon (bei mehreren Icons derselben App: genau dieses für Öffnen + Rückkehr), sonst null. */
     var launchedIconKey: String? = null
 
+    /** Aus der Mediathek (Übersicht oder Kategorie) geöffnet: App-Key + Bildschirmrahmen des Icons dort, für die Rückkehr. */
+    var libraryLaunch: Pair<String, androidx.compose.ui.geometry.Rect>? = null
+
+    /** Von HomeScreen gesetzt: Mediathek (bzw. offene Kategorie) ist gerade sichtbar → Rückkehr dorthin möglich. */
+    var libraryVisible: () -> Boolean = { false }
+
     /** Icon, in das gerade ein App-Fenster fliegt: wird ausgeblendet (die Icon-Fläche des Systems steht an seiner Stelle). */
     var flyingKey by mutableStateOf<String?>(null)
 
@@ -1210,10 +1219,22 @@ class HomeModel(
     fun onReturnFromApp(contract: io.github.janhurn9400.liquidy.data.GestureNavContract?) {
         holdReturnBlur()
         contract?.let { c ->
-            val r = iconLocator(c.component, c.user) ?: return@let
             val app = apps.values.firstOrNull { it.component == c.component && it.user == c.user }
+            // aus der Mediathek geöffnet und sie ist noch zu sehen → zurück an dieselbe Stelle (iOS)
+            val lib = libraryLaunch?.takeIf { (k, _) -> k == app?.key && libraryVisible() }?.second
+            if (lib != null && app != null) {
+                flyingKey = null
+                // echtes Mediathek-Icon ausblenden, bis die Icon-Fläche des Systems fertig ist — sonst stand es sofort sichtbar da
+                LibraryFlying.key = app.key
+                flyingSurface(c, android.graphics.RectF(lib.left, lib.top, lib.right, lib.bottom), app.icon.asAndroidBitmap(),
+                    { if (LibraryFlying.key == app.key) LibraryFlying.key = null }, null)
+                return@let
+            }
+            val r = iconLocator(c.component, c.user) ?: return@let
             // Ziel ist ein Widget (größer als ein Icon) → keine Icon-Fläche, das Widget selbst bleibt sichtbar
-            val isIconSized = kotlin.math.abs(r.width - DesignTokens.iconSize.value * io.github.janhurn9400.liquidy.design.UiScale.density(repository.context)) < 2f
+            // Icon-Ziel (Seite: 60 pt, Duo-Dock: 48 pt) statt Widget: quadratisch und höchstens Icon-groß
+            val iconPx = DesignTokens.iconSize.value * io.github.janhurn9400.liquidy.design.UiScale.density(repository.context)
+            val isIconSized = kotlin.math.abs(r.width - r.height) < 2f && r.width <= iconPx + 2f
             fun visibleIcon(k: String) = dock.contains(k) || pages.any { k in it } ||
                 openFolder?.let { of -> folderFor(of.id)?.apps?.contains(k) } == true
             // angetipptes Icon zuerst, sonst irgendein Icon dieser App (mehrere Icons derselben App möglich)

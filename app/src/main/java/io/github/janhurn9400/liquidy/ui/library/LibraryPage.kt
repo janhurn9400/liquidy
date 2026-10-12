@@ -219,6 +219,7 @@ private fun LibraryTile(cat: LibraryCategory, geo: LibraryGeometry, wallpaper: I
                         val q = geo.quadrantTopLeft(k)
                         io.github.janhurn9400.liquidy.ui.home.StyledAppIcon(app, Modifier
                             .offset { IntOffset(q.x.roundToInt(), q.y.roundToInt()) }
+                            .graphicsLayer { alpha = if (io.github.janhurn9400.liquidy.ui.home.LibraryFlying.key == app.key) 0f else 1f }
                             .size(Dp(geo.quadrant / density))
                             .clip(iconShape))
                     }

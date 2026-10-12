@@ -266,6 +266,67 @@ object AndroidWidgetTaps {
         down.recycle(); up.recycle()
         return true
     }
+
+    // ── Laufende Berührung durchreichen (Listen scrollen, Stapel wischen, Knöpfe mit Drück-Zustand) ────────────
+    private var active: android.view.View? = null
+    private var activeCoords: androidx.compose.ui.layout.LayoutCoordinates? = null
+    private var downTime = 0L
+    private var downLocal = androidx.compose.ui.geometry.Offset.Zero
+
+    private fun send(action: Int, window: androidx.compose.ui.geometry.Offset) {
+        val v = active ?: return
+        val c = activeCoords?.takeIf { it.isAttached } ?: return
+        val p = runCatching { c.windowToLocal(window) }.getOrNull() ?: return
+        val e = android.view.MotionEvent.obtain(downTime, android.os.SystemClock.uptimeMillis(), action, p.x, p.y, 0)
+        v.dispatchTouchEvent(e); e.recycle()
+    }
+
+    /** Finger setzt auf dem Widget auf: DOWN schicken (Drück-Zustand im Widget). @return false, wenn kein Widget dort. */
+    fun begin(id: Int, window: androidx.compose.ui.geometry.Offset): Boolean {
+        cancel()
+        val (ref, c) = views[id] ?: return false
+        val v = ref.get() ?: return false
+        if (!c.isAttached || !v.isAttachedToWindow) return false
+        val p = runCatching { c.windowToLocal(window) }.getOrNull() ?: return false
+        if (p.x < 0 || p.y < 0 || p.x > v.width || p.y > v.height) return false
+        active = v; activeCoords = c; downTime = android.os.SystemClock.uptimeMillis(); downLocal = p
+        send(android.view.MotionEvent.ACTION_DOWN, window)
+        return true
+    }
+
+    val isActive get() = active != null
+    fun move(window: androidx.compose.ui.geometry.Offset) = send(android.view.MotionEvent.ACTION_MOVE, window)
+    fun end(window: androidx.compose.ui.geometry.Offset) { send(android.view.MotionEvent.ACTION_UP, window); active = null; activeCoords = null }
+    /** Launcher übernimmt (Blättern, Menü, Ziehen): Widget bekommt CANCEL, kein Klick. */
+    fun cancel() {
+        if (active == null) return
+        val v = active!!
+        val e = android.view.MotionEvent.obtain(downTime, android.os.SystemClock.uptimeMillis(), android.view.MotionEvent.ACTION_CANCEL, downLocal.x, downLocal.y, 0)
+        v.dispatchTouchEvent(e); e.recycle()
+        active = null; activeCoords = null
+    }
+
+    /**
+     * Kann das Widget an der Aufsetzstelle in Fingerrichtung ([dx], [dy] px) selbst scrollen/wischen? Dann gehört die Geste
+     * ihm (wie Launcher3: scrollbare Widget-Inhalte gewinnen), sonst blättert der Homescreen bzw. öffnet die Suche.
+     */
+    fun canHandle(dx: Float, dy: Float): Boolean {
+        val root = active ?: return false
+        val vertical = kotlin.math.abs(dy) > kotlin.math.abs(dx)
+        fun at(v: android.view.View, x: Float, y: Float): Boolean {
+            if (v.visibility != android.view.View.VISIBLE) return false
+            if (v is android.widget.StackView || v is android.widget.AdapterViewFlipper) return true // wischbar in beide Richtungen
+            if (vertical && v.canScrollVertically(if (dy < 0) 1 else -1)) return true
+            if (!vertical && v.canScrollHorizontally(if (dx < 0) 1 else -1)) return true
+            if (v is android.view.ViewGroup) for (i in v.childCount - 1 downTo 0) {
+                val ch = v.getChildAt(i)
+                val lx = x + v.scrollX - ch.left - ch.translationX; val ly = y + v.scrollY - ch.top - ch.translationY
+                if (lx >= 0 && ly >= 0 && lx < ch.width && ly < ch.height && at(ch, lx, ly)) return true
+            }
+            return false
+        }
+        return at(root, downLocal.x, downLocal.y)
+    }
 }
 
 /**

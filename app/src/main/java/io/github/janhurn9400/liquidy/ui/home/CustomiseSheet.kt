@@ -190,8 +190,8 @@ private fun Slider(width: Float, y: () -> Float, track: Brush, value: Float, onC
         Modifier
             .offset { IntOffset(0, ((y() - THUMB) * density).roundToInt()) }
             .size(Dp(width), Dp(THUMB * 2))
-            .pointerInput(Unit) { detectTapGestures { onChange(((it.x / density - left) / tw).coerceIn(0f, 1f)) } }
-            .pointerInput(Unit) { detectDragGestures { ch, _ -> onChange(((ch.position.x / density - left) / tw).coerceIn(0f, 1f)) } }
+            .pointerInput(width) { detectTapGestures { onChange(((it.x / density - left) / tw).coerceIn(0f, 1f)) } }
+            .pointerInput(width) { detectDragGestures { ch, _ -> onChange(((ch.position.x / density - left) / tw).coerceIn(0f, 1f)) } }
     ) {
         val l = left.dp.toPx(); val r = (left + tw).dp.toPx(); val cy = THUMB.dp.toPx(); val th = TRACK.dp.toPx()
         drawRoundRect(track, Offset(l, cy - th / 2), Size(r - l, th), CornerRadius(th / 2))

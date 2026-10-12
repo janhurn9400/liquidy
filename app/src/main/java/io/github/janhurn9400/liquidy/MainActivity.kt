@@ -164,7 +164,12 @@ class MainActivity : ComponentActivity() {
             val baseDensity = androidx.compose.ui.platform.LocalDensity.current
             val win = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
             androidx.compose.runtime.SideEffect { io.github.janhurn9400.liquidy.data.FoldableStyle.updateWindow(this@MainActivity, win.width, win.height) }
-            androidx.compose.runtime.LaunchedEffect(win.width, win.height) { io.github.janhurn9400.liquidy.glass.WallpaperCropModel.rememberDisplay(this@MainActivity) }
+            androidx.compose.runtime.LaunchedEffect(win.width, win.height) {
+                io.github.janhurn9400.liquidy.glass.WallpaperCropModel.rememberDisplay(this@MainActivity)
+                // Auf-/Zugeklappt: Android zeigte danach teils noch den alten Zuschnitt, bis etwas neu zeichnete (z. B. Bearbeiten
+                // starten). Nur die Lage melden (billiger Einweg-Aufruf, kein Neuberechnen des Bilds) → Android stellt sofort richtig
+                applyWallpaperLayout()
+            }
             val uiScale = io.github.janhurn9400.liquidy.design.UiScale.compute(
                 io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle && io.github.janhurn9400.liquidy.data.FoldableStyle.supportsDuo(this@MainActivity),
                 win.width, win.height, baseDensity.density)
@@ -216,6 +221,7 @@ class MainActivity : ComponentActivity() {
                 val onLaunch: (io.github.janhurn9400.liquidy.data.AppEntry, androidx.compose.ui.geometry.Rect) -> Unit = { app, bounds ->
                         // ohne Icon-Rahmen (Suche, A–Z-Liste): kein bestimmtes Homescreen-Icon
                         if (bounds.isEmpty) homeModel.launchedIconKey = null
+                        homeModel.libraryLaunch = null // Mediathek-Aufrufe setzen es danach neu
                         val r = android.graphics.Rect(
                             bounds.left.roundToInt(), bounds.top.roundToInt(),
                             bounds.right.roundToInt(), bounds.bottom.roundToInt(),

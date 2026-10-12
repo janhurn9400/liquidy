@@ -12,8 +12,8 @@ android {
         // 33: RenderEffect-Blur (31) + AGSL RuntimeShader (33), siehe docs/ARCHITECTURE.md
         minSdk = 33
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.3.1"
     }
 
     buildTypes {

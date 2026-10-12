@@ -114,7 +114,7 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
                 if (drag != null) return@detectVerticalDragGestures
                 ch.consume(); scrollScope.launch { scroll.snapTo((scroll.value - dy).coerceIn(0f, maxScroll)) }
             }
-        } else Modifier).pointerInput(n) {
+        } else Modifier).pointerInput(pages) { // Schlüssel = Inhalt: Ein-/Ausblenden und Umsortieren ändern n nicht
             detectDragGesturesAfterLongPress(
                 onDragStart = { pos ->
                     val i = (0 until n).firstOrNull { gridRect(it).contains(pos) } ?: return@detectDragGesturesAfterLongPress
@@ -127,7 +127,7 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
                 onDragEnd = { drag?.let { d -> if (d.target != d.from) model.movePage(d.from, d.target) }; drag = null },
                 onDragCancel = { drag = null },
             )
-        }.pointerInput(n) {
+        }.pointerInput(pages) {
             detectTapGestures { pos ->
                 if (geo.editButtonRect(false).inflate(12f * density).contains(pos)) { model.closePagesOverview(onPage = onPage); return@detectTapGestures }
                 for (i in 0 until n) {
