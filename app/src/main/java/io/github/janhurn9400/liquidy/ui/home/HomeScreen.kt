@@ -1022,7 +1022,7 @@ fun HomeScreen(
         )
 
         // ── Eigene Statusleiste (Einstellung; Android-Leiste ist dann im Launcher ausgeblendet) ─────
-        if (io.github.janhurn9400.liquidy.data.OwnStatusBar.enabled && !model.editing && !model.wallpaperEditorOpen && model.stackEditKey == null) {
+        @Composable fun StatusLayer() { if (io.github.janhurn9400.liquidy.data.OwnStatusBar.enabled && !model.editing && !model.wallpaperEditorOpen && model.stackEditKey == null) {
             val info by io.github.janhurn9400.liquidy.data.rememberStatusInfo()
             val color = if (DesignTokens.wallpaperIsDark || geo.duo) Color.White else Color.Black
             Box(Modifier.fillMaxSize().graphicsLayer {
@@ -1033,6 +1033,36 @@ fun HomeScreen(
                 if (geo.duo) DuoStatusSymbols(info, w - DUO_STATUS_FROM_RIGHT * density, density, color)
                 else IosStatusBar(info, statusBarPx.takeIf { it > 0f } ?: (IOS_STATUS_H * density), density, color)
             }
+        } }
+        // Duo: erst nach Mediathek-Liste/-Suchfeld zeichnen (deren verlaufende Kante lag sonst über den Symbolen)
+        if (!geo.duo) StatusLayer()
+
+        // Reihenfolge: Mediathek-Liste/-Suchfeld/Kategorie über der Arena, darüber die Duo-Symbole — aber UNTER Widget-
+        // Einstellungen, Picker, Launcher-Einstellungen, Edit- und Kontextmenü (die decken alles ab).
+        // ── Mediathek: A–Z-Liste und aufgeklappte Kategorie (über der Arena, eigene Gesten) ──
+        val libListBackdrop = if (geo.duo) com.kyant.backdrop.backdrops.rememberLayerBackdrop() else null
+        if (model.libListOpen) {
+            io.github.janhurn9400.liquidy.ui.library.LibraryList(model, libGeo, density,
+                offsetX = { if (geo.duo) geo.libraryOffset(libraryIndex - pager.position.value) else 0f },
+                listBackdrop = libListBackdrop, onLaunch = onLaunch)
+        }
+        // Duo: Suchfeld ÜBER der Liste; sein Glas bricht Hintergrund + Zeilen (kombinierte Quelle) [Video 2, 24,8 s]
+        if (geo.duo && libraryEnabled && libraryOnScreen) {
+            val base = io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current
+            // Hintergrund + Mediathek-Kacheln (+ A–Z-Zeilen, wenn offen)
+            val combined = when {
+                base == null || libPageBackdrop == null -> base
+                model.libListOpen && libListBackdrop != null -> com.kyant.backdrop.backdrops.rememberCombinedBackdrop(base, libPageBackdrop, libListBackdrop)
+                else -> com.kyant.backdrop.backdrops.rememberCombinedBackdrop(base, libPageBackdrop)
+            }
+            androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop provides combined) {
+                io.github.janhurn9400.liquidy.ui.library.LibraryChrome(model, libGeo, density) { geo.libraryOffset(libraryIndex - pager.position.value) }
+            }
+        }
+        if (geo.duo) StatusLayer()
+        model.openCategory?.let { oc ->
+            io.github.janhurn9400.liquidy.ui.library.CategoryView(model, oc, libGeo, density, onLaunch,
+                originX = (geo.libraryOffset(libraryIndex - pager.position.value)).coerceAtLeast(0f))
         }
 
         // ── Widget-Einstellungen ──────────────────────────────────────────────────────
@@ -1124,31 +1154,6 @@ fun HomeScreen(
                     )
                 }
             }
-        }
-
-        // ── Mediathek: A–Z-Liste und aufgeklappte Kategorie (über der Arena, eigene Gesten) ──
-        val libListBackdrop = if (geo.duo) com.kyant.backdrop.backdrops.rememberLayerBackdrop() else null
-        if (model.libListOpen) {
-            io.github.janhurn9400.liquidy.ui.library.LibraryList(model, libGeo, density,
-                offsetX = { if (geo.duo) geo.libraryOffset(libraryIndex - pager.position.value) else 0f },
-                listBackdrop = libListBackdrop, onLaunch = onLaunch)
-        }
-        // Duo: Suchfeld ÜBER der Liste; sein Glas bricht Hintergrund + Zeilen (kombinierte Quelle) [Video 2, 24,8 s]
-        if (geo.duo && libraryEnabled && libraryOnScreen) {
-            val base = io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current
-            // Hintergrund + Mediathek-Kacheln (+ A–Z-Zeilen, wenn offen)
-            val combined = when {
-                base == null || libPageBackdrop == null -> base
-                model.libListOpen && libListBackdrop != null -> com.kyant.backdrop.backdrops.rememberCombinedBackdrop(base, libPageBackdrop, libListBackdrop)
-                else -> com.kyant.backdrop.backdrops.rememberCombinedBackdrop(base, libPageBackdrop)
-            }
-            androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop provides combined) {
-                io.github.janhurn9400.liquidy.ui.library.LibraryChrome(model, libGeo, density) { geo.libraryOffset(libraryIndex - pager.position.value) }
-            }
-        }
-        model.openCategory?.let { oc ->
-            io.github.janhurn9400.liquidy.ui.library.CategoryView(model, oc, libGeo, density, onLaunch,
-                originX = (geo.libraryOffset(libraryIndex - pager.position.value)).coerceAtLeast(0f))
         }
 
         // ── Suche ─────────────────────────────────────────────────────────────────

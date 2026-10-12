@@ -70,7 +70,7 @@ Everything runs on the device. Network is only used for the weather (Open-Meteo)
 
 ## How this was made
 
-Built by janhurn9400 with AI pair programming (Claude). The workflow for every screen and animation was the same:
+Built by [janhurn9400](https://github.com/janhurn9400) with AI pair programming (Claude). The workflow for every screen and animation was the same:
 record it on the real device → measure it frame by frame → implement it with the measured values → capture the emulator
 at the same moments → compare side by side → repeat until there is no visible difference. Things that can't be matched
 on Android without system access (e.g. the system-owned app close gesture) are documented as such instead of faked.
