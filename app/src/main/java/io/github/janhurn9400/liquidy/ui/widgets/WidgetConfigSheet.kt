@@ -60,7 +60,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /** Hat dieses Widget ein Einstellungsblatt (Antippen im Bearbeiten-Modus)? */
-fun hasWidgetConfig(spec: WidgetSpec?) = spec?.type == IosWidgetTypes.WEATHER
+fun hasWidgetConfig(spec: WidgetSpec?) = spec?.type in setOf(IosWidgetTypes.WEATHER, IosWidgetTypes.PHOTOS, IosWidgetTypes.CALENDAR)
 
 /**
  * Einstellungsblatt eines Widgets (iPhone-Aufnahme 10-11 16:40, docs/reference/widgets/widget_config_menu.mp4):
@@ -117,31 +117,65 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
                 .clickable(noRipple, null) { }
                 .padding(horizontal = 22.dp, vertical = 22.dp),
         ) {
+            // Kopf + eine Option je Widget-Art (gleiches Aussehen wie das Wetter-Blatt aus der Aufnahme)
+            val (title, sub, desc) = when (spec.type) {
+                IosWidgetTypes.PHOTOS -> Triple(stringResource(R.string.wcfg_photos_title), stringResource(R.string.widget_photos), stringResource(R.string.widget_photos_long))
+                IosWidgetTypes.CALENDAR -> Triple(stringResource(R.string.wcfg_calendar_title), stringResource(R.string.widget_calendar), stringResource(R.string.widget_calendar_long))
+                else -> Triple(stringResource(R.string.widget_weather_desc), stringResource(R.string.widget_weather), stringResource(R.string.widget_weather_long))
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(36.dp).clip(RoundedCornerShape(9.dp))
-                    .background(Brush.verticalGradient(listOf(Color(0xFF2E7DD7), Color(0xFF7FB8EE)))), contentAlignment = Alignment.Center) {
-                    WeatherIcon(2, true, null, 26.dp)
+                Box(Modifier.size(36.dp).clip(RoundedCornerShape(9.dp)).background(when (spec.type) {
+                    IosWidgetTypes.PHOTOS -> Brush.linearGradient(listOf(Color(0xFFFFB300), Color(0xFFFF375F), Color(0xFF5E5CE6)))
+                    IosWidgetTypes.CALENDAR -> Brush.verticalGradient(listOf(Color.White, Color.White))
+                    else -> Brush.verticalGradient(listOf(Color(0xFF2E7DD7), Color(0xFF7FB8EE)))
+                }), contentAlignment = Alignment.Center) {
+                    when (spec.type) {
+                        IosWidgetTypes.CALENDAR -> BasicText("${java.time.LocalDate.now().dayOfMonth}", style = text(18f, FontWeight.SemiBold, Color.Black))
+                        IosWidgetTypes.PHOTOS -> {}
+                        else -> WeatherIcon(2, true, null, 26.dp)
+                    }
                 }
                 Spacer(Modifier.width(10.dp))
                 Column {
-                    BasicText(stringResource(R.string.widget_weather_desc), style = text(16f, FontWeight.SemiBold, Color.White))
-                    BasicText(stringResource(R.string.widget_weather), style = text(13f, FontWeight.Normal, GREY))
+                    BasicText(title, style = text(16f, FontWeight.SemiBold, Color.White))
+                    BasicText(sub, style = text(13f, FontWeight.Normal, GREY))
                 }
             }
             Spacer(Modifier.height(12.dp))
-            BasicText(stringResource(R.string.widget_weather_long), style = text(14f, FontWeight.Normal, GREY))
+            BasicText(desc, style = text(14f, FontWeight.Normal, GREY))
             Spacer(Modifier.height(14.dp))
+            val (label, value) = when (spec.type) {
+                IosWidgetTypes.PHOTOS -> stringResource(R.string.wcfg_album) to (spec.config ?: stringResource(R.string.wcfg_all_photos))
+                IosWidgetTypes.CALENDAR -> stringResource(R.string.wcfg_calendars) to (spec.config?.split(',')?.filter { it.isNotBlank() }?.size
+                    ?.let { stringResource(R.string.wcfg_n_selected, it) } ?: stringResource(R.string.wcfg_all_calendars))
+                else -> stringResource(R.string.wcfg_location) to (place?.name ?: stringResource(R.string.wcfg_my_location))
+            }
             Row(
                 Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(26.dp)).background(ROW)
                     .clickable(noRipple, null) { listOpen = true }.padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                BasicText(stringResource(R.string.wcfg_location), Modifier.weight(1f), style = text(17f, FontWeight.Normal, GREY))
-                BasicText(place?.name ?: stringResource(R.string.wcfg_my_location), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = text(17f, FontWeight.Normal, BLUE))
+                BasicText(label, Modifier.weight(1f), style = text(17f, FontWeight.Normal, GREY))
+                BasicText(value, maxLines = 1, overflow = TextOverflow.Ellipsis, style = text(17f, FontWeight.Normal, BLUE))
             }
         }
-        if (listOpen) LocationList(
+        val listMod = Modifier.align(Alignment.BottomCenter).width(minOf(LIST_W, maxWidth.value).dp).height((maxHeight.value * LIST_H_SHARE).dp)
+        if (listOpen && spec.type == IosWidgetTypes.PHOTOS) {
+            val albums = remember { photoAlbums(context) }
+            OptionList(listMod, stringResource(R.string.wcfg_album),
+                listOf(null to stringResource(R.string.wcfg_all_photos)) + albums.map { it.first to "${it.first}  ·  ${it.second}" },
+                selected = { it == spec.config }, onPick = { onChange(it); listOpen = false }, onClose = { listOpen = false })
+        } else if (listOpen && spec.type == IosWidgetTypes.CALENDAR) {
+            val cals = remember { deviceCalendars(context) }
+            val chosen = spec.config?.split(',')?.mapNotNull { it.toLongOrNull() }?.toSet()
+            OptionList(listMod, stringResource(R.string.wcfg_calendars), cals.map { it.first.toString() to it.second },
+                selected = { id -> chosen == null || id?.toLong() in chosen },
+                onPick = { id ->
+                    val all = cals.map { it.first }.toSet(); val cur = chosen ?: all
+                    val next = id?.toLong()?.let { if (it in cur) cur - it else cur + it } ?: cur
+                    onChange(if (next == all || next.isEmpty()) null else next.joinToString(","))
+                }, onClose = { listOpen = false }, dots = cals.associate { it.first.toString() to Color(it.third) })
+        } else if (listOpen) LocationList(
             Modifier.align(Alignment.BottomCenter).width(minOf(LIST_W, maxWidth.value).dp).height((maxHeight.value * LIST_H_SHARE).dp),
             onPick = { p ->
                 if (p != null) WeatherRepository.rememberPlace(context, p)
@@ -202,6 +236,44 @@ private fun LocationList(modifier: Modifier, onPick: (WeatherRepository.Place?) 
                 if (query.isEmpty()) BasicText(stringResource(R.string.wcfg_search), style = text(17f, FontWeight.Normal, GREY))
                 BasicTextField(query, { query = it }, singleLine = true, textStyle = text(17f, FontWeight.Normal, Color.White),
                     cursorBrush = SolidColor(BLUE), modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+/** Auswahlliste (dunkles Blatt von unten, wie die Ortsliste): Häkchen bei ausgewählten Einträgen. */
+@Composable
+private fun OptionList(modifier: Modifier, title: String, options: List<Pair<String?, String>>, selected: (String?) -> Boolean,
+                       onPick: (String?) -> Unit, onClose: () -> Unit, dots: Map<String, Color> = emptyMap()) {
+    val noRipple = remember { MutableInteractionSource() }
+    Column(modifier.clip(RoundedCornerShape(topStart = 38.dp, topEnd = 38.dp)).background(SHEET).clickable(noRipple, null) { }) {
+        Box(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 16.dp)) {
+            Box(Modifier.align(Alignment.CenterStart).size(44.dp).clip(CircleShape).background(ROW)
+                .clickable(noRipple, null, onClick = onClose), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.size(16.dp)) {
+                    val sw = 2.2.dp.toPx()
+                    drawLine(Color.White, Offset.Zero, Offset(size.width, size.height), sw, StrokeCap.Round)
+                    drawLine(Color.White, Offset(size.width, 0f), Offset(0f, size.height), sw, StrokeCap.Round)
+                }
+            }
+            BasicText(title, Modifier.align(Alignment.Center), style = text(17f, FontWeight.SemiBold, Color.White))
+        }
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+            if (options.isEmpty()) BasicText(stringResource(R.string.wcfg_nothing_found), Modifier.fillMaxWidth().padding(top = 24.dp),
+                style = text(15f, FontWeight.Normal, GREY).copy(textAlign = TextAlign.Center))
+            options.forEach { (key, label) ->
+                Column(Modifier.fillMaxWidth().clickable(noRipple, null) { onPick(key) }) {
+                    Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
+                        dots[key]?.let { c -> Box(Modifier.size(12.dp).clip(CircleShape).background(c)); Spacer(Modifier.width(10.dp)) }
+                        BasicText(label, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = text(17f, FontWeight.Normal, Color.White))
+                        if (selected(key)) Canvas(Modifier.size(16.dp)) {
+                            val sw = 2.4.dp.toPx()
+                            drawLine(BLUE, Offset(size.width * 0.1f, size.height * 0.55f), Offset(size.width * 0.4f, size.height * 0.85f), sw, StrokeCap.Round)
+                            drawLine(BLUE, Offset(size.width * 0.4f, size.height * 0.85f), Offset(size.width * 0.95f, size.height * 0.15f), sw, StrokeCap.Round)
+                        }
+                    }
+                    Box(Modifier.fillMaxWidth().height(0.6.dp).background(Color.White.copy(alpha = 0.14f)))
+                }
             }
         }
     }

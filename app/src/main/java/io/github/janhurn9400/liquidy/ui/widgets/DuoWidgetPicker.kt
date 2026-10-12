@@ -119,8 +119,8 @@ internal fun DuoWidgetPicker(
                     contentPadding = PaddingValues(top = LIST_TOP.dp, bottom = (CORNER + 24f).dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(groups, key = { it.first }) { (name, entries) ->
-                        AppRow(name, entries.first(), last = name == groups.last().first) { detailOut = false; detail = entries }
+                    items(groups, key = { it.first + "|" + (it.second.first().provider?.provider?.packageName ?: "") }) { (name, entries) ->
+                        AppRow(name, entries.first(), last = entries === groups.last().second) { detailOut = false; detail = entries }
                     }
                 }
                 // Scroll-Kante: über dem Feld blendet die Liste in die Blattfarbe aus, unter dem Feld weich auslaufend
@@ -334,6 +334,7 @@ private fun widgetDescription(e: PickerEntry): String = when (e.iosType) {
     IosWidgetTypes.CALENDAR -> stringResource(R.string.widget_calendar_long)
     IosWidgetTypes.WEATHER -> stringResource(R.string.widget_weather_long)
     IosWidgetTypes.PHOTOS -> stringResource(R.string.widget_photos_long)
+    IosWidgetTypes.REMINDERS -> stringResource(R.string.widget_reminders_long)
     else -> e.subtitle
 }
 

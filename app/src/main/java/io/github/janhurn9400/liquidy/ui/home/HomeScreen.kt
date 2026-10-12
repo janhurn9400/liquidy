@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.input.pointer.positionChange
@@ -99,17 +100,25 @@ fun HomeScreen(
     val display = model.display
     val dragging = model.drag != null
     // App-Mediathek = Seite hinter der letzten Homescreen-Seite (nicht im Bearbeitungsmodus)
-    val libraryIndex = display.pages.size
-    val libraryEnabled = !model.editing
+    // Frisch lesen (Funktionen statt Werte): die Gesten-Arena (pointerInput) wird nur einmal angelegt und hätte sonst
+    // Seitenzahl/Mediathek-Lage vom Anlegen behalten → Taps trafen alte Positionen, Halten in der Mediathek ging nicht
+    fun libIndexNow() = model.display.pages.size
+    fun libEnabledNow() = !model.editing || model.leavingLibrary
     // Heute-Ansicht links (nicht im Bearbeitungsmodus — dort wäre Seite −1 kein gültiges Ziehziel)
     // Heute-Ansicht auch im Bearbeitungsmodus erreichbar — nur nicht beim Ziehen von Icons (Seite −1 ist kein Ablageziel)
     val screenIsWide = androidx.compose.ui.platform.LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
     pager.firstPage = if (model.drag != null) 0 else -1
     pager.pageCount = display.pages.size +
         (if (dragging && display.pages.lastOrNull()?.isNotEmpty() == true) 1 else 0) +
-        (if (libraryEnabled) 1 else 0) -
+        (if (libEnabledNow()) 1 else 0) -
         // Duo aufgeklappt: zwei Seiten sichtbar → letzte Position zeigt [letzte Seite | Mediathek]
         (if (io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle && screenIsWide) 1 else 0)
+
+    // Seiten weggefallen (leere Seite entfernt, App deinstalliert, Neuladen): Position nicht hinter der letzten Seite lassen
+    LaunchedEffect(pager.pageCount) {
+        val last = (pager.pageCount - 1).coerceAtLeast(0).toFloat()
+        if (!pager.isDragging && pager.position.value > last) pager.position.animateTo(last, androidx.compose.animation.core.spring(1f, 380f))
+    }
 
     // Wackel-Uhr: läuft nur, solange gewackelt wird; gelesen nur in graphicsLayer → keine Rekomposition
     val clock = remember { mutableFloatStateOf(0f) }
@@ -123,20 +132,25 @@ fun HomeScreen(
 
     // Glas-Quelle: Wallpaper + Seiten-Icons werden aufgenommen; Dock, Pill, Ordner, Dialoge brechen diesen Inhalt
     // Seitliche Unschärfe: Heute-Ansicht (links) und Mediathek (rechts) verwischen den Wallpaper gleich stark
+    /** Mediathek-Anteil der Seitenunschärfe (0 auf den Homescreen-Seiten, 1 auf der Mediathek). */
+    fun libBlur(): Float {
+        val pos = pager.position.value
+        // frisch lesen (nicht die beim ersten Aufbau eingefangenen Werte — da waren die Apps noch nicht geladen)
+        val libIndex = model.display.pages.size
+        // Duo aufgeklappt: Mediathek kommt schon eine Seite früher ins Bild (zwei Seiten sichtbar) — bei nur einer
+        // Seite also direkt von der Heute-Ansicht aus (Position −1 → 0); darum nicht an pos ≥ 0 koppeln
+        val shift = if (io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle && screenIsWide) 1 else 0
+        return if (!model.editing || model.leavingLibrary) (pos - (libIndex - 1 - shift)).coerceIn(0f, 1f) else 0f
+    }
     fun sideBlur(): Float {
         val pos = pager.position.value
         // Duo: Wallpaper neben der Heute-Seite bleibt scharf (Aufnahme 10-08 21:28, 31 s — scharfe Wallpaper-Kante)
         // Duo aufgeklappt: Heute verwischt nur ihre eigene Seite (TodayPage); zugeklappt wie iPhone bildschirmweit
         val today = if (io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle && screenIsWide) 0f else (-pos).coerceIn(0f, 1f)
-        // frisch lesen (nicht die beim ersten Aufbau eingefangenen Werte — da waren die Apps noch nicht geladen)
-        val libIndex = model.display.pages.size
-        // Duo aufgeklappt: Mediathek kommt schon eine Seite früher ins Bild (zwei Seiten sichtbar)
-        val shift = if (io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle && screenIsWide) 1 else 0
-        val lib = if (!model.editing) (pos - (libIndex - 1 - shift)).coerceIn(0f, 1f) else 0f
-        return maxOf(today, lib)
+        return maxOf(today, libBlur())
     }
     /** Nur der Mediathek-Anteil von [sideBlur] (0 auf der Heute-Seite). */
-    fun sideBlurLibOnly(): Float = if (pager.position.value < 0f) 0f else sideBlur()
+    fun sideBlurLibOnly(): Float = libBlur()
 
     val blurredWallpaper by androidx.compose.runtime.produceState<ImageBitmap?>(null, wallpaper) {
         value = io.github.janhurn9400.liquidy.glass.WallpaperRenderer.softBlur(wallpaper, DesignTokens.todayBlur.value * density)
@@ -183,10 +197,14 @@ fun HomeScreen(
         val libGeo = remember(w, h, density, duo) { io.github.janhurn9400.liquidy.ui.library.LibraryGeometry(density, w, h, duo) }
         /** 1 auf den Homescreen-Seiten, 0 auf der Mediathek: Dock + Pill blenden aus. */
         /** Seitenübersicht: Homescreen-Inhalt verschwindet sofort (Video: ≈ 3 Bilder), die Karte übernimmt. */
-        fun overviewHide(): Float = if (!model.pagesOverviewOpen) 1f else (1f - model.pagesOverview.value / OVERVIEW_HIDE).coerceIn(0f, 1f)
+        // Seitenübersicht ↔ Homescreen [GEMESSEN Duo 19:05:45, 21,9 s @ 30 fps]: beim Schließen blendet der echte Homescreen
+        // (Dock, ✓/Pinsel, Minus, Beschriftungen) ≈ 130–230 ms weich ein, die gezoomte Karte ist ≈ 260 ms weg; kein harter Schnitt.
+        // Homescreen ist voll da, BEVOR die Karte darüber ausblendet → kein dunkles Zwischenbild (PageOverview: FOCUS_FADE_*)
+        fun overviewHide(): Float = if (!model.pagesOverviewOpen) 1f
+            else ((OVERVIEW_HOME_HIDDEN - model.pagesOverview.value) / (OVERVIEW_HOME_HIDDEN - OVERVIEW_HOME_FULL)).coerceIn(0f, 1f)
         fun homeChromeAlpha(): Float {
             // Duo: Dock + Lupe stehen in der rechten Spalte und bleiben neben der Mediathek sichtbar (Aufnahme 35,5 s)
-            val lib = if (!libraryEnabled || geo.duo) 1f else (libraryIndex - pager.position.value).coerceIn(0f, 1f)
+            val lib = if (!libEnabledNow() || geo.duo) 1f else (libIndexNow() - pager.position.value).coerceIn(0f, 1f)
             // Heute-Ansicht: Dock + Pill blenden aus — Duo nicht (rechte Spalte bleibt, Aufnahme 31 s)
             val today = if (geo.duo) 1f else (1f + pager.position.value).coerceIn(0f, 1f)
             return minOf(lib, today)
@@ -195,7 +213,7 @@ fun HomeScreen(
         /** Duo (auf-/zugeklappt): 0…1, wie weit die Mediathek im Bild ist (Dock/Lupe/Punkte reagieren darauf). */
         // Rampe: Seite + Dock sind schon voll unscharf, wenn die Mediathek ≈ 30 % hereingekommen ist
         // [GEMESSEN 10:40: 15,42 s ≈ 10 % leicht, 15,44 s ≈ 29 % voll unscharf]
-        fun duoLibAmount(): Float = if (geo.duo && libraryEnabled) {
+        fun duoLibAmount(): Float = if (geo.duo && libEnabledNow()) {
             val k = (sideBlurLibOnly() / DUO_LIB_BLUR_FULL_AT).coerceIn(0f, 1f); k * (2f - k)
         } else 0f
         // Duo: im Wallpaper-Editor zeigt die Vorschau kein Dock und keine Lupe [GEMESSEN 10:40, 84,5 s]
@@ -213,6 +231,74 @@ fun HomeScreen(
         fun duoCatAmount(): Float = if (geo.duo) (model.openCategory?.progress?.value ?: 0f).coerceIn(0f, 1f) else 0f
 
         fun pageOffsetPx(page: Int) = geo.pageShift(page - pager.position.value)
+        /** Seitenübersicht öffnen; Duo aufgeklappt mit Heute links: aktuelle Seite liegt rechts → Karte wächst aus der rechten Hälfte. */
+        fun openOverview() {
+            model.overviewLeftPage = pager.position.value.roundToInt()
+            model.overviewZoom.clear()
+            model.openPagesOverview(pager.currentPage)
+        }
+
+        // ── Icon ziehen (gemeinsam für Homescreen-Gesten und Mediathek-Kategorie) ──────────
+        val dragEdgeJob = remember { arrayOfNulls<Job>(1) }
+        /** Finger bewegt beim Ziehen: Ziel aktualisieren, am Rand nach M-EDGE weiterblättern bzw. neue Seite anlegen. */
+        fun iconDragMove(pos: Offset) {
+            // aufgeklappt (Duo): Seite unter dem Finger — zwei Seiten sind gleichzeitig sichtbar
+            val page = if (geo.unfolded) (pager.position.value.roundToInt() + if (pos.x > w / 2) 1 else 0).coerceAtLeast(0)
+                else pager.position.value.roundToInt().coerceAtLeast(0)
+            model.updateDrag(pos, geo, page, pageOffsetPx(page))
+            // Seitenwechsel am Rand (M-EDGE), nicht über dem Dock
+            val x = pos.x
+            val right = geo.pagesRightEdge
+            val overDock = geo.inDockZone(pos)
+            // Duo: Dock-Spalte liegt am rechten Rand → Streifen davor (und links gleich) breiter; ein volles Dock (bzw. Widget)
+            // nimmt nichts auf und wirkt wie der Rand — sonst passierte beim Ziehen nach rechts gar nichts
+            val rightZone = if (geo.duo) geo.edgeZone * 2f else geo.edgeZone
+            val dockIsEdge = geo.duo && overDock && model.drag?.key?.let { !model.dockAccepts(it) } == true
+            val atEdge = (!overDock && (x < rightZone || x > right - rightZone)) || dockIsEdge
+            if (atEdge && dragEdgeJob[0] == null) {
+                val dir = if (x < rightZone && !dockIsEdge) -1 else 1
+                dragEdgeJob[0] = scope.launch {
+                    delay(Motion.edgeFlipDelay.value.toLong())
+                    while (isActive) {
+                        // echte Position (kann −1 sein: Heute-Ansicht links, Seite 0 rechts)
+                        val cur = pager.position.value.roundToInt()
+                        // links vor der ersten Seite: neue Seite davor anlegen (Ansicht bleibt stehen, dann hinüber)
+                        if (dir < 0 && cur <= 0) {
+                            if (model.insertPageFront()) {
+                                pager.position.snapTo(pager.position.value + 1f)
+                                pager.animateTo(0, 0f)
+                                model.drag?.let { dr -> model.updateDrag(dr.pointer, geo, 0, pageOffsetPx(0)) }
+                            }
+                            break
+                        }
+                        val target = (cur + dir).coerceIn(0, pager.pageCount - 1)
+                        if (target == cur) break
+                        pager.animateTo(target, 0f)
+                        model.drag?.let { dr -> model.updateDrag(dr.pointer, geo, target, pageOffsetPx(target)) }
+                        delay(Motion.edgeFlipRepeat.value.toLong())
+                    }
+                }
+            } else if (!atEdge) {
+                dragEdgeJob[0]?.cancel(); dragEdgeJob[0] = null
+            }
+        }
+        fun iconDragEnd() {
+            dragEdgeJob[0]?.cancel(); dragEdgeJob[0] = null
+            model.drop(geo, pager.position.value)
+        }
+        /** App aus der Mediathek (Übersicht oder Kategorie) herausziehen: Bearbeiten-Modus, Pager wischt zur letzten Seite. */
+        fun startLibraryDrag(appKey: String, pointer: Offset, iconTopLeft: Offset) {
+            model.closeContextMenu(animated = false)
+            model.leavingLibrary = true
+            model.enterEdit()
+            // liegt die App schon auf dem Homescreen → weiteres Icon (iOS erlaubt mehrere), das alte bleibt
+            model.startDrag(model.newIconKey(appKey), pointer, iconTopLeft)
+            val target = (model.display.pages.size - 1).coerceAtLeast(0)
+            scope.launch {
+                runCatching { pager.animateTo(target, 0f) }
+                model.leavingLibrary = false
+            }
+        }
         // Ziel für die Gesten-Navigation: Icon der App (Seite/Dock) bzw. ihr Ordner auf der aktuellen Seite
         model.iconLocator = locator@{ cn, user ->
             val d = model.display
@@ -226,6 +312,17 @@ fun HomeScreen(
                 if (i >= 0) {
                     val fg = FolderGeometry(density, w, h, geo, of.iconTopLeft.x)
                     return@locator Rect(fg.panel.topLeft + fg.slot(i), iconSize)
+                }
+            }
+            // mehrere Icons derselben App: das angetippte zuerst (Dock oder sichtbare Seiten), sonst das erste passende
+            val pref = model.launchedIconKey?.takeIf(::matches)
+            if (pref != null) {
+                d.dock.indexOf(pref).takeIf { it >= 0 }?.let { return@locator Rect(geo.dockPosition(it, d.dock.size), iconSize) }
+                for (pg in pager.currentPage until pager.currentPage + geo.pagesVisible) {
+                    val cells = model.displayCells.getOrNull(pg) ?: continue
+                    val slot = d.pages.getOrNull(pg)?.indexOf(pref) ?: -1
+                    if (slot >= 0 && (cells.getOrNull(slot) ?: -1) >= 0)
+                        return@locator Rect(geo.slotPosition(cells[slot]) + Offset(pageOffsetPx(pg), 0f), iconSize)
                 }
             }
             d.dock.indexOfFirst(::holds).takeIf { it >= 0 }?.let { return@locator Rect(geo.dockPosition(it, d.dock.size), iconSize) }
@@ -264,7 +361,8 @@ fun HomeScreen(
             return (TodayLayout.contentHeight(rects, density, duoUnfolded = geo.duo && geo.unfolded) - h).coerceAtLeast(0f)
         }
         // sichtbar, sobald die Mediathek in den Bildschirm ragt (aufgeklappt sind zwei Seiten zu sehen)
-        val libraryOnScreen by remember(pager, libraryIndex, geo) { derivedStateOf { pager.position.value > libraryIndex - geo.pagesVisible } }
+        // gleiches State-Objekt über Seitenzahl-Änderungen hinweg (kein Schlüssel darauf) → auch in der Gesten-Arena aktuell
+        val libraryOnScreen by remember(pager, geo) { derivedStateOf { pager.position.value > model.display.pages.size - geo.pagesVisible } }
 
         // Liest model.display frisch (nicht den beim Erzeugen des pointerInput eingefangenen Stand)
         /** Bildschirmrechteck eines Widgets auf einer Homescreen-Seite (für Lande-Animation/Schockwelle). */
@@ -304,8 +402,8 @@ fun HomeScreen(
                 return Hit.Today
             }
             if (geo.duo && duoLibAmount() < 0.5f && (geo.unfolded || pager.position.value > -0.5f) && !model.editing && geo.pillRect.inflate(8f * density).contains(p)) return Hit.Pill
-            if (libraryEnabled) {
-                val libOffset = geo.libraryOffset(libraryIndex - pager.position.value)
+            if (libEnabledNow()) {
+                val libOffset = geo.libraryOffset(libIndexNow() - pager.position.value)
                 // nur wenn die Mediathek wirklich im Bild ist — Duo aufgeklappt beginnt sie sonst bei 2 × 448 pt, also
                 // genau unter dem Dock (Tipps aufs Dock landeten in der unsichtbaren Mediathek)
                 if (libraryOnScreen && libOffset < w && p.x >= libOffset) {
@@ -502,7 +600,19 @@ fun HomeScreen(
             }
         }) {
         display.pages.forEachIndexed { page, keys ->
-            if (page in visiblePages) {
+            if (page in visiblePages) Box(Modifier.fillMaxSize().graphicsLayer {
+                // Seitenübersicht: jede sichtbare Seite zoomt mit IHRER Karte (Duo: links und rechts gleichzeitig)
+                // Fortschritt immer lesen → Block läuft jedes Bild mit, auch wenn die Karte erst ein Bild später eingetragen wird
+                val prog = model.pagesOverview.value
+                val z = if (model.pagesOverviewOpen && prog > 0f) model.overviewZoom[page]?.invoke() else null
+                if (z != null && z.second.width > 0f) {
+                    val (card, full) = z
+                    val sc = card.width / full.width
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                    scaleX = sc; scaleY = sc
+                    translationX = card.left - full.left * sc; translationY = card.top - full.top * sc
+                }
+            }) {
                 val cells = model.displayCells.getOrNull(page)
                 keys.forEachIndexed { slot, key ->
                     val cell = cells?.getOrNull(slot) ?: -1
@@ -521,14 +631,14 @@ fun HomeScreen(
 
         // ── App-Mediathek ─────────────────────────────────────────────────────────
         // Duo: Mediathek erst NACH dem Dock zeichnen (unten) — das Dock liegt dahinter und verschwimmt mit
-        if (libraryEnabled && libraryIndex in visiblePages && !geo.duo) {
-            io.github.janhurn9400.liquidy.ui.library.LibraryPage(model, libGeo, wallpaper, density) { geo.libraryOffset(libraryIndex - pager.position.value) }
+        if (libEnabledNow() && libIndexNow() in visiblePages && !geo.duo) {
+            io.github.janhurn9400.liquidy.ui.library.LibraryPage(model, libGeo, wallpaper, density) { geo.libraryOffset(libIndexNow() - pager.position.value) }
         }
         } // Ende Glas-Quelle
 
         // ── Mediathek: Scroll-Kante + Glas-Suchfeld (außerhalb der Quelle, damit es die Kacheln bricht) ──
-        if (libraryEnabled && libraryOnScreen && !geo.duo) {
-            io.github.janhurn9400.liquidy.ui.library.LibraryChrome(model, libGeo, density) { geo.libraryOffset(libraryIndex - pager.position.value) }
+        if (libEnabledNow() && libraryOnScreen && !geo.duo) {
+            io.github.janhurn9400.liquidy.ui.library.LibraryChrome(model, libGeo, density) { geo.libraryOffset(libIndexNow() - pager.position.value) }
         }
 
         // Duo-Suche [GEMESSEN Video 5, 12,5 → 13,1 s]: Hintergrund (auch hinter dem Dock) ≈ 40 % dunkler, Dock-Icons
@@ -579,9 +689,9 @@ fun HomeScreen(
 
         // Duo (auf- und zugeklappt): Mediathek als Ebene ÜBER dem (unscharfen) Dock
         // eigene Glas-Quelle, damit das Suchfeld die Kacheln weiterhin bricht (liegt außerhalb der Haupt-Quelle)
-        if (libraryEnabled && geo.duo) {
+        if (libEnabledNow() && geo.duo) {
             if (libraryOnScreen) Box(Modifier.fillMaxSize().then(if (libPageBackdrop != null) Modifier.layerBackdrop(libPageBackdrop) else Modifier)) {
-                io.github.janhurn9400.liquidy.ui.library.LibraryPage(model, libGeo, wallpaper, density) { geo.libraryOffset(libraryIndex - pager.position.value) }
+                io.github.janhurn9400.liquidy.ui.library.LibraryPage(model, libGeo, wallpaper, density) { geo.libraryOffset(libIndexNow() - pager.position.value) }
             }
         }
 
@@ -637,7 +747,7 @@ fun HomeScreen(
                     val b = searchBlurPx(); renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
                     translationY = model.searchProgress.value * density
                     val sc = model.searchContentScale(); scaleX = sc; scaleY = sc
-                }) { DuoDots(geo, pager, density, dotCount = display.pages.size) { model.badgeScale.value } }
+                }) { DuoDots(geo, pager, density, dotCount = display.pages.size.coerceAtLeast(1)) { model.badgeScale.value } }
                 DuoSearchButton(model, geo, density)
             }
             SearchPill(
@@ -664,10 +774,16 @@ fun HomeScreen(
 
         // ── Seitenübersicht („Seiten bearbeiten“) ────────────────────────────────
         LaunchedEffect(model.pagesOverviewRequested) {
-            if (model.pagesOverviewRequested) { model.pagesOverviewRequested = false; model.openPagesOverview(pager.currentPage) }
+            if (model.pagesOverviewRequested) { model.pagesOverviewRequested = false; openOverview() }
         }
         if (model.pagesOverviewOpen) {
-            PageOverview(model, geo, density, wallpaper, w, h) { page -> scope.launch { pager.position.snapTo(page.toFloat()) } }
+            PageOverview(model, geo, density, wallpaper, w, h) { page ->
+                // Duo aufgeklappt: war die Seite rechts sichtbar, bleibt sie rechts (kein Sprung nach links) — Karte zoomt dorthin
+                // (echte Position: −1 = Heute links, Seite 0 rechts)
+                val right = geo.unfolded && page == pager.position.value.roundToInt() + 1
+                model.overviewLeftPage = if (right) page - 1 else page
+                scope.launch { pager.position.snapTo((if (right) page - 1 else page).toFloat()) }
+            }
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = model.pagesOverview.value }) {
                 EditButtons(geo, wallpaper, density, showLeft = false) { 1f }
             }
@@ -714,17 +830,21 @@ fun HomeScreen(
             }
         }
 
+        val arenaCoords = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+        fun arenaToWindow(p: Offset): Offset = arenaCoords[0]?.takeIf { it.isAttached }?.localToWindow(p) ?: p
         // ── Gesten-Arena ──────────────────────────────────────────────────────────
         // (bei offener Seitenübersicht abgeschaltet — die Übersicht darunter bekommt die Berührungen)
         if (!model.pagesOverviewOpen && model.stackEditKey == null) Box(
             Modifier
                 .fillMaxSize()
+                .onGloballyPositioned { arenaCoords[0] = it }
                 .pointerInput(geo) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         if (model.pendingRemoval != null) return@awaitEachGesture
                         model.openFolder?.let { of ->
-                            handleFolderGesture(model, of, folderGeo, down, density, onLaunch, scope)
+                            // frisch berechnen: die Gesten-Arena wird nur einmal angelegt (sonst Lage des ERSTEN geöffneten Ordners)
+                            handleFolderGesture(model, of, FolderGeometry(density, w, h, geo, of.iconTopLeft.x), down, density, onLaunch, scope)
                             return@awaitEachGesture
                         }
                         val t0 = System.nanoTime()
@@ -736,7 +856,6 @@ fun HomeScreen(
                         var mode = Mode.Pending
                         var acc = Offset.Zero
                         var longPressDone = false
-                        var edgeJob: Job? = null
                         var libScrollStart = 0f
 
                         var pressJob: Job? = null
@@ -751,6 +870,12 @@ fun HomeScreen(
                             } else scope.launch { model.pressAlpha.snapTo(0f); model.pressedKey = null }
                         }
 
+                        /** App aus der Mediathek herausziehen: Bearbeiten-Modus, Pager wischt zur letzten Seite (Ablageziel). */
+                        fun beginLibraryDrag(app: io.github.janhurn9400.liquidy.ui.library.LibraryHit.App, pointer: Offset) {
+                            startLibraryDrag(app.app.key, pointer, app.screenRect.topLeft)
+                            mode = Mode.Drag
+                        }
+
                         fun beginIconDrag(icon: Hit.Icon, pointer: Offset) {
                             releasePress(animated = false)
                             model.enterEdit()
@@ -763,6 +888,9 @@ fun HomeScreen(
                             todayWidgetAt(down.position)?.let { (k, r) ->
                                 window?.let { io.github.janhurn9400.liquidy.data.AppLaunchTransition.snapshotWidget(it, k, android.graphics.RectF(r.left, r.top, r.right, r.bottom)) }
                             }
+                        }
+                        if (hit is Hit.Library && !model.editing && !wasAnimating) {
+                            (hit.hit as? io.github.janhurn9400.liquidy.ui.library.LibraryHit.App)?.let { model.prefetchShortcuts(libraryMenuKey(it.app.key), density) }
                         }
                         if (hit is Hit.Icon && !model.editing && !wasAnimating) {
                             // Widget: Bild für den Rückflug JETZT aufnehmen — das angezeigte Bild hat noch keine Drück-Abdunklung
@@ -821,6 +949,13 @@ fun HomeScreen(
                                             }
                                         }
                                     }
+                                    // Mediathek: App lange drücken → Menü (Löschen, Info, Shortcuts); Ziehen holt sie auf den Homescreen
+                                    hit is Hit.Library && hit.hit is io.github.janhurn9400.liquidy.ui.library.LibraryHit.App && !model.editing -> {
+                                        val a = hit.hit as io.github.janhurn9400.liquidy.ui.library.LibraryHit.App
+                                        // eigener Menü-Key: sonst verschwindet das gleiche Icon auf dem Homescreen, solange das Menü offen ist
+                                        model.openContextMenu(libraryMenuKey(a.app.key), a.screenRect.topLeft, density, fromLibrary = true)
+                                        mode = Mode.Menu
+                                    }
                                     hit is Hit.Library -> Unit
                                 }
                                 continue
@@ -830,7 +965,7 @@ fun HomeScreen(
                                 when (mode) {
                                     Mode.Pending -> when {
                                         hit is Hit.Library -> when (val lh = hit.hit) {
-                                            is io.github.janhurn9400.liquidy.ui.library.LibraryHit.App -> onLaunch(lh.app, lh.screenRect)
+                                            is io.github.janhurn9400.liquidy.ui.library.LibraryHit.App -> { model.launchedIconKey = null; onLaunch(lh.app, lh.screenRect) }
                                             is io.github.janhurn9400.liquidy.ui.library.LibraryHit.Category -> model.openCategory(lh.index)
                                             io.github.janhurn9400.liquidy.ui.library.LibraryHit.Search -> model.openLibList()
                                             io.github.janhurn9400.liquidy.ui.library.LibraryHit.Empty -> if (wasAnimating) scope.launch { pager.settle() }
@@ -845,6 +980,10 @@ fun HomeScreen(
                                             val local = down.position - Offset((-1f - pager.position.value) * geo.sideStride, -model.todayScroll.value)
                                             TodayLayout.place(model.today, model::sizeOf, geo, density).firstOrNull { it.second.contains(local) }
                                                 ?.let { (k, rr) -> model.widgets[k]?.let { spec ->
+                                                    if (spec.type == "android") {
+                                                        io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.tap(spec.appWidgetId, arenaToWindow(down.position))
+                                                        return@let
+                                                    }
                                                     val off = Offset((-1f - pager.position.value) * geo.sideStride, -model.todayScroll.value)
                                                     io.github.janhurn9400.liquidy.ui.widgets.openWidgetApp(view.context, spec.type,
                                                         android.graphics.RectF(rr.left + off.x, rr.top + off.y, rr.right + off.x, rr.bottom + off.y), k)
@@ -853,7 +992,7 @@ fun HomeScreen(
                                         hit is Hit.Badge && isWidget(hit.key) -> model.removeWidget(hit.key)
                                         hit is Hit.Badge -> model.pendingRemoval = hit.key
                                         hit is Hit.EditDone -> model.exitEdit()
-                                        hit is Hit.PageDots -> model.openPagesOverview(pager.currentPage)
+                                        hit is Hit.PageDots -> openOverview()
                                         hit is Hit.EditCustomize -> model.openEditMenu(duo = geo.duo)
                                         hit is Hit.Icon && model.editing && io.github.janhurn9400.liquidy.ui.widgets.hasWidgetConfig(model.widgets[hit.key]) ->
                                             screenRectOf(hit.key)?.let { r -> model.openWidgetConfig(hit.key, r) }
@@ -863,8 +1002,12 @@ fun HomeScreen(
                                         }
                                         hit is Hit.Icon && !model.editing && model.pressedKey == hit.key -> {
                                             releasePress(animated = false)
-                                            model.apps[hit.key]?.let { onLaunch(it, Rect(hit.iconTopLeft, Size(geo.icon, geo.icon))) }
+                                            model.apps[hit.key]?.let { model.launchedIconKey = hit.key; onLaunch(it, Rect(hit.iconTopLeft, Size(geo.icon, geo.icon))) }
                                             model.shownWidget(hit.key)?.let { spec ->
+                                                if (spec.type == "android") { // Gesten-Ebene liegt darüber → Tap ins Widget weiterreichen
+                                                    io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetTaps.tap(spec.appWidgetId, arenaToWindow(down.position))
+                                                    return@let
+                                                }
                                                 val r = geo.widgetRect(hit.iconTopLeft, spec.cols, spec.rows)
                                                 val rf = android.graphics.RectF(r.left, r.top, r.right, r.bottom)
                                                 io.github.janhurn9400.liquidy.ui.widgets.openWidgetApp(view.context, spec.type, rf, hit.key)
@@ -877,10 +1020,7 @@ fun HomeScreen(
                                         val v = tracker.calculateVelocity().x
                                         scope.launch { pager.endDrag(-v / pw, pw, density) }
                                     }
-                                    Mode.Drag -> {
-                                        edgeJob?.cancel()
-                                        model.drop(geo, pager.position.value)
-                                    }
+                                    Mode.Drag -> iconDragEnd()
                                     Mode.Vertical -> model.searchRelease()
                                     Mode.LibPull -> model.libListRelease()
                                     Mode.Resize -> model.endResize(geo)
@@ -908,6 +1048,8 @@ fun HomeScreen(
                                 Mode.Menu -> if (hit is Hit.Icon && (change.position - down.position).getDistance() > slop) {
                                     model.closeContextMenu(animated = false)
                                     beginIconDrag(hit, change.position)
+                                } else if (hit is Hit.Library && (change.position - down.position).getDistance() > slop) {
+                                    (hit.hit as? io.github.janhurn9400.liquidy.ui.library.LibraryHit.App)?.let { beginLibraryDrag(it, change.position) }
                                 }
                                 Mode.Pending -> {
                                     acc += delta
@@ -934,7 +1076,7 @@ fun HomeScreen(
                                             // Mediathek: vertikal scrollen; sonst nach unten ziehen → Suche
                                             mode = when {
                                                 // Ganz oben nach unten ziehen → A–Z-Liste (recording2 10,1 s); sonst scrollen
-                                                hit is Hit.Library && acc.y > 0 && model.libraryScroll.value <= LIB_PULL_TOP && pager.position.value.let { abs(it - (libraryIndex - geo.pagesVisible + 1)) < 0.01f } -> {
+                                                hit is Hit.Library && acc.y > 0 && model.libraryScroll.value <= LIB_PULL_TOP && pager.position.value.let { abs(it - (libIndexNow() - geo.pagesVisible + 1)) < 0.01f } -> {
                                                     scope.launch { model.libraryScroll.animateTo(0f, Motion.scrollBounce.spec()) }
                                                     model.libListPullBegin(); Mode.LibPull
                                                 }
@@ -997,31 +1139,7 @@ fun HomeScreen(
                                     val c = Motion.rubberBandC.value
                                     model.searchPull((pull * d * c) / (d + c * pull))
                                 }
-                                Mode.Drag -> {
-                                    // aufgeklappt (Duo): Seite unter dem Finger — zwei Seiten sind gleichzeitig sichtbar
-                                    val page = if (geo.unfolded) (pager.position.value.roundToInt() + if (change.position.x > w / 2) 1 else 0).coerceAtLeast(0)
-                                        else pager.position.value.roundToInt().coerceAtLeast(0)
-                                    model.updateDrag(change.position, geo, page, pageOffsetPx(page))
-                                    // Seitenwechsel am Rand (M-EDGE), nicht über dem Dock
-                                    val x = change.position.x
-                                    val atEdge = !geo.inDockZone(change.position) &&
-                                        (x < geo.edgeZone || x > w - geo.edgeZone)
-                                    if (atEdge && edgeJob == null) {
-                                        val dir = if (x < geo.edgeZone) -1 else 1
-                                        edgeJob = scope.launch {
-                                            delay(Motion.edgeFlipDelay.value.toLong())
-                                            while (isActive) {
-                                                val target = (pager.currentPage + dir).coerceIn(0, pager.pageCount - 1)
-                                                if (target == pager.currentPage) break
-                                                pager.animateTo(target, 0f)
-                                                model.drag?.let { dr -> model.updateDrag(dr.pointer, geo, target, pageOffsetPx(target)) }
-                                                delay(Motion.edgeFlipRepeat.value.toLong())
-                                            }
-                                        }
-                                    } else if (!atEdge) {
-                                        edgeJob?.cancel(); edgeJob = null
-                                    }
-                                }
+                                Mode.Drag -> iconDragMove(change.position)
                                 else -> Unit
                             }
                             if (mode == Mode.Drag || mode == Mode.Paging || mode == Mode.Vertical || mode == Mode.LibScroll || mode == Mode.LibPull || mode == Mode.Resize || mode == Mode.StackScroll || mode == Mode.TodayScroll || mode == Mode.TodayDrag) change.consume()
@@ -1052,11 +1170,11 @@ fun HomeScreen(
         val libListBackdrop = if (geo.duo) com.kyant.backdrop.backdrops.rememberLayerBackdrop() else null
         if (model.libListOpen) {
             io.github.janhurn9400.liquidy.ui.library.LibraryList(model, libGeo, density,
-                offsetX = { if (geo.duo) geo.libraryOffset(libraryIndex - pager.position.value) else 0f },
+                offsetX = { if (geo.duo) geo.libraryOffset(libIndexNow() - pager.position.value) else 0f },
                 listBackdrop = libListBackdrop, onLaunch = onLaunch)
         }
         // Duo: Suchfeld ÜBER der Liste; sein Glas bricht Hintergrund + Zeilen (kombinierte Quelle) [Video 2, 24,8 s]
-        if (geo.duo && libraryEnabled && libraryOnScreen) {
+        if (geo.duo && libEnabledNow() && libraryOnScreen) {
             val base = io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current
             // Hintergrund + Mediathek-Kacheln (+ A–Z-Zeilen, wenn offen)
             val combined = when {
@@ -1065,21 +1183,41 @@ fun HomeScreen(
                 else -> com.kyant.backdrop.backdrops.rememberCombinedBackdrop(base, libPageBackdrop)
             }
             androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop provides combined) {
-                io.github.janhurn9400.liquidy.ui.library.LibraryChrome(model, libGeo, density) { geo.libraryOffset(libraryIndex - pager.position.value) }
+                io.github.janhurn9400.liquidy.ui.library.LibraryChrome(model, libGeo, density) { geo.libraryOffset(libIndexNow() - pager.position.value) }
             }
         }
         if (geo.duo) StatusLayer()
         model.openCategory?.let { oc ->
             io.github.janhurn9400.liquidy.ui.library.CategoryView(model, oc, libGeo, density, onLaunch,
-                originX = (geo.libraryOffset(libraryIndex - pager.position.value)).coerceAtLeast(0f))
+                originX = (geo.libraryOffset(libIndexNow() - pager.position.value)).coerceAtLeast(0f),
+                onLongPress = { app, tl ->
+                    model.prefetchShortcuts(libraryMenuKey(app.key), density)
+                    model.openContextMenu(libraryMenuKey(app.key), tl, density, fromLibrary = true)
+                },
+                onDragStart = { app, p, tl -> model.collapseCategoryForDrag(); startLibraryDrag(app.key, p, tl) },
+                onDragMove = { p -> iconDragMove(p) },
+                // Kategorie blieb (unsichtbar) offen, damit ihre Geste weiterläuft → jetzt ohne Animation schließen
+                onDragEnd = { iconDragEnd(); model.closeCategoryNow() })
         }
 
+        val remindersAnim = remember { androidx.compose.animation.core.Animatable(0f) }
+        LaunchedEffect(io.github.janhurn9400.liquidy.ui.widgets.RemindersStore.sheetOpen) {
+            remindersAnim.animateTo(if (io.github.janhurn9400.liquidy.ui.widgets.RemindersStore.sheetOpen) 1f else 0f,
+                androidx.compose.animation.core.spring(0.85f, 500f))
+        }
         // ── Widget-Einstellungen ──────────────────────────────────────────────────────
         model.widgetConfigKey?.let { k -> model.widgets[k]?.let { spec ->
             androidx.activity.compose.BackHandler { model.closeWidgetConfig() }
             io.github.janhurn9400.liquidy.ui.widgets.WidgetConfigSheet(spec, model.widgetConfigFrom, { model.widgetConfig.value },
                 onChange = { model.setWidgetConfig(k, it) }, onClose = { model.closeWidgetConfig() })
         } }
+
+        // ── Erinnerungen-Liste (Antippen des Erinnerungen-Widgets) ──────────────────────
+        if (io.github.janhurn9400.liquidy.ui.widgets.RemindersStore.sheetOpen || remindersAnim.value > 0f) {
+            val close = { io.github.janhurn9400.liquidy.ui.widgets.RemindersStore.sheetOpen = false }
+            if (io.github.janhurn9400.liquidy.ui.widgets.RemindersStore.sheetOpen) androidx.activity.compose.BackHandler(onBack = close)
+            io.github.janhurn9400.liquidy.ui.widgets.RemindersSheet({ remindersAnim.value }, close)
+        }
 
         // ── Widget-Picker ─────────────────────────────────────────────────────────────
         if (model.widgetPickerOpen) {
@@ -1343,6 +1481,7 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.han
             scope.launch { model.pressAlpha.snapTo(0f); model.pressedKey = null }
             if (!moved) when {
                 hitKey != null -> model.apps[hitKey.value]?.let {
+                    model.launchedIconKey = hitKey.value
                     onLaunch(it, Rect(panel.topLeft + geo.slot(hitKey.index), Size(icon, icon)))
                 }
                 !insidePanel -> model.closeFolder()
@@ -1377,7 +1516,8 @@ private suspend fun flingScroll(a: androidx.compose.animation.core.Animatable<Fl
     }
 }
 
-private const val OVERVIEW_HIDE = 0.08f
+private const val OVERVIEW_HOME_HIDDEN = 0.35f // Fortschritt, ab dem der Homescreen ganz weg ist (Feder: ≈ 145 ms vor Ende, Duo ≈ 130 ms)
+private const val OVERVIEW_HOME_FULL = 0.15f   // … und ab dem er voll da ist (≈ 205 ms, Duo ≈ 230 ms)
 
 private const val DUO_ICON = 60f // pt, iPhone Duo [GEMESSEN; mit echten Displaykanten auch in Aufnahme 19:18 bestätigt]
 private const val LAND_FROM = 1f          // hebt in Vorschau-Größe ab (Vorschau = Widget-Größe)
@@ -1448,3 +1588,6 @@ private object WidgetFlight {
     /** Schatten-Schemen, der am Abflugort zurückbleibt und mit dem Blatt verschwindet. */
     fun ghost(t: Float): Float { val s = t * T; return ((s / 0.06f).coerceIn(0f, 1f)) * (1f - ((s - LIFT_S) / 0.12f).coerceIn(0f, 1f)) }
 }
+
+/** Kontextmenü-Key für eine App aus der Mediathek (löst über [AppMap] auf dieselbe App auf, ist aber kein Homescreen-Icon). */
+internal fun libraryMenuKey(appKey: String) = appKey + INSTANCE_SEP + "library"

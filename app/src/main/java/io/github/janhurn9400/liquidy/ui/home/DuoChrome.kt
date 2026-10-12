@@ -75,7 +75,7 @@ fun duoDotsCapsule(geo: HomeGeometry, pagerPos: Float, density: Float, dotCount:
  *  Im Bearbeiten-Modus ([edit] 0…1) liegen sie in einer klaren Glas-Kapsel (antippen → Seitenübersicht). */
 @Composable
 fun DuoDots(geo: HomeGeometry, pager: PagerState, density: Float, dotCount: Int, edit: () -> Float = { 0f }) {
-    if (dotCount <= 1) return
+    if (dotCount <= 1 && edit() <= 0.001f) return // iOS: im Bearbeiten-Modus auch bei einer Seite (Zugang zur Seitenübersicht)
     val e = edit().coerceIn(0f, 1f)
     if (e > 0.001f) {
         val r = duoDotsCapsule(geo, pager.position.value, density, dotCount)

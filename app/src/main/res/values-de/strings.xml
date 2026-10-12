@@ -215,4 +215,23 @@
     <string name="wcfg_your_locations">Deine Orte</string>
     <string name="wcfg_search">Suchen</string>
     <string name="welcome_fold_body_tablet">Dein Tablet hat einen großen Bildschirm. Soll der Home-Bildschirm im Querformat das Duo-Layout nutzen – zwei Seiten nebeneinander, das Dock am Rand? Das kannst du jederzeit ändern.</string>
+    <string name="widget_reminders">Erinnerungen</string>
+    <string name="widget_reminders_desc">Deine To-dos</string>
+    <string name="widget_reminders_long">Behalte deine To-dos im Blick. Tippe aufs Widget, um Erinnerungen hinzuzufügen oder abzuhaken.</string>
+    <string name="reminders_none">Keine Erinnerungen</string>
+    <string name="reminders_new">Neue Erinnerung</string>
+    <string name="reminders_clear_done">Erledigte löschen</string>
+    <string name="wcfg_album">Album</string>
+    <string name="wcfg_all_photos">Alle Fotos</string>
+    <string name="wcfg_calendars">Kalender</string>
+    <string name="wcfg_all_calendars">Alle</string>
+    <string name="wcfg_n_selected">%1$d ausgewählt</string>
+    <string name="wcfg_photos_title">Fotos</string>
+    <string name="wcfg_calendar_title">Als Nächstes</string>
+    <string name="wcfg_nothing_found">Nichts gefunden. Zugriff in den Launcher-Einstellungen erlauben.</string>
+    <string name="settings_sec_iconpack">Icon-Paket</string>
+    <string name="settings_iconpack_system">System-Symbole</string>
+    <string name="settings_iconpack_footer">Unterstützt werden Icon-Pakete im verbreiteten ADW/Nova-Format. Apps ohne Symbol im Paket behalten ihr eigenes.</string>
+    <string name="settings_iconpack_none">Kein Icon-Paket installiert. Installiere eins aus dem Play Store oder als APK (ADW/Nova-Format) und komm dann hierher zurück.</string>
+    <string name="delete_app_menu">App löschen</string>
 </resources>

@@ -73,7 +73,10 @@ class HomeGeometry(
     val sideStride: Float get() = if (unfolded) width * DUO_SIDE_SHARE else width
     fun libraryOffset(pagesFromPos: Float): Float = pagesFromPos * sideStride
     /** Ordner aufgeklappt: mittig über dem Raster der Hälfte, in der das Ordner-Icon liegt (Dock → rechts), px. */
-    fun duoFolderCenterX(iconX: Float): Float = px(if (iconX < width / 2) leftGridCenter else rightGridCenter)
+    // Hälfte nach Icon-MITTE und der Mitte zwischen beiden Rastern — nicht width/2 (enthält die Dock-Spalte; die linke Spalte
+    // der rechten Seite lag sonst noch „links“)
+    fun duoFolderCenterX(iconX: Float): Float =
+        px(if (iconX + icon / 2 < px((leftGridCenter + rightGridCenter) / 2)) leftGridCenter else rightGridCenter)
     val duoColPitchPt: Float get() = colPitch
     /** Linke Kante der Dock-Glasleiste (pt). */
     val duoDockLeftPt: Float get() = wPt - DUO_COLUMN_FROM_RIGHT - DUO_DOCK_W / 2
@@ -238,6 +241,8 @@ class HomeGeometry(
     }
 
     val edgeZone: Float get() = px(DesignTokens.edgeZone.value)
+    /** Rechte Kante der Seitenfläche (px): Duo = links neben der Dock-Spalte (dort wechselt das Ziehen die Seite), sonst Bildschirmrand. */
+    val pagesRightEdge: Float get() = if (duo) duoColumnX - px(DUO_DOCK_W) else width
 }
 
 private const val DOCK_ABOVE_NAV = 8f // pt Abstand zwischen Dock und Gestenleisten-Bereich [GESCHÄTZT]

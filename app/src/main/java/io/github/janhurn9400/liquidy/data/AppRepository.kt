@@ -63,6 +63,8 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
     }
 
     fun start() {
+        IconPacks.load(context)
+        IconPacks.onChanged = { IconLayerCache.map.clear(); reload() }
         launcherApps.registerCallback(callback, Handler(Looper.getMainLooper()))
         reload()
     }
@@ -81,7 +83,10 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
                             label = info.label.toString(),
                             component = info.componentName,
                             user = user,
-                            icon = IconRenderer.render(info.getIcon(0), iconSizePx),
+                            icon = info.getIcon(0).let { orig ->
+                                val pack = runCatching { IconPacks.icon(context, info.componentName, orig, iconSizePx) }.getOrNull()
+                                IconRenderer.render(pack ?: orig, iconSizePx, fullBleed = pack != null)
+                            },
                             category = info.applicationInfo.category,
                             installTime = runCatching { context.packageManager.getPackageInfo(info.componentName.packageName, 0).firstInstallTime }.getOrDefault(0L),
                         )
@@ -149,7 +154,11 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
             val info = runCatching {
                 launcherApps.resolveActivity(android.content.Intent().setComponent(app.component), app.user)
             }.getOrNull() ?: continue
-            val layers = runCatching { IconRenderer.layers(info.getIcon(0), px) }.getOrNull() ?: continue
+            val layers = runCatching {
+                val orig = info.getIcon(0)
+                val pack = IconPacks.icon(context, info.componentName, orig, px)
+                IconRenderer.layers(pack ?: orig, px, fullBleed = pack != null)
+            }.getOrNull() ?: continue
             kotlinx.coroutines.withContext(Dispatchers.Main) { IconLayerCache.map[app.key] = layers }
         }
     }

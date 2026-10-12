@@ -56,11 +56,13 @@ object IosWidgetTypes {
     const val BATTERY = "ios:battery"
     const val WEATHER = "ios:weather"
     const val PHOTOS = "ios:photos"
-    val all = listOf(CLOCK, CALENDAR, BATTERY, WEATHER, PHOTOS)
+    const val REMINDERS = "ios:reminders"
+    val all = listOf(CLOCK, CALENDAR, BATTERY, WEATHER, PHOTOS, REMINDERS)
 }
 
 /** Antippen eines eigenen Widgets öffnet die passende App (iOS: Kalender → Kalender, Uhr → Uhr, Batterien → nichts). */
 fun openWidgetApp(context: Context, type: String, from: android.graphics.RectF? = null, widgetKey: String? = null) {
+    if (type == IosWidgetTypes.REMINDERS) { RemindersStore.sheetOpen = true; return } // eigene Liste statt fremder App
     val intent = when (type) {
         IosWidgetTypes.CALENDAR -> Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR)
         IosWidgetTypes.CLOCK -> Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS)
@@ -80,9 +82,10 @@ fun openWidgetApp(context: Context, type: String, from: android.graphics.RectF? 
 fun IosWidget(type: String, cols: Int, rows: Int = 2, modifier: Modifier = Modifier, config: String? = null) {
     when (type) {
         IosWidgetTypes.WEATHER -> WeatherWidget(cols, rows, modifier, io.github.janhurn9400.liquidy.data.WeatherRepository.Place.decode(config))
-        IosWidgetTypes.PHOTOS -> PhotoWidget(modifier)
+        IosWidgetTypes.PHOTOS -> PhotoWidget(modifier, config)
+        IosWidgetTypes.REMINDERS -> RemindersWidget(cols, rows, modifier)
         IosWidgetTypes.CLOCK -> ClockWidget(modifier)
-        IosWidgetTypes.CALENDAR -> CalendarWidget(cols, modifier)
+        IosWidgetTypes.CALENDAR -> CalendarWidget(cols, modifier, config)
         IosWidgetTypes.BATTERY -> BatteryWidget(modifier)
         else -> Box(modifier.background(Color(0xFF1C1C1E)))
     }
@@ -122,10 +125,10 @@ private fun ClockWidget(modifier: Modifier) {
 private data class CalEvent(val title: String, val time: String, val color: Int)
 
 @Composable
-private fun CalendarWidget(cols: Int, modifier: Modifier) {
+private fun CalendarWidget(cols: Int, modifier: Modifier, config: String? = null) {
     val context = LocalContext.current
     val today = LocalDate.now()
-    val events by produceState(emptyList<CalEvent>(), today) { value = loadEvents(context) }
+    val events by produceState(emptyList<CalEvent>(), today, config) { value = loadEvents(context, config) }
     val locale = Locale.getDefault()
     Row(modifier.background(Color.Black).padding(WIDGET_PAD.dp)) {
         Column(Modifier.then(if (cols >= 4) Modifier.width(MEDIUM_DATE_W.dp) else Modifier.fillMaxWidth())) {
@@ -165,13 +168,28 @@ private fun EventList(events: List<CalEvent>, max: Int, modifier: Modifier = Mod
 private fun Color.lighten() = Color(red + (1 - red) * 0.35f, green + (1 - green) * 0.35f, blue + (1 - blue) * 0.35f, alpha)
 
 /** Termine heute + morgen (nur mit Kalender-Berechtigung; ohne sie bleibt die Liste leer). */
-private suspend fun loadEvents(context: Context): List<CalEvent> = withContext(Dispatchers.IO) {
+/** Kalender des Geräts (Id, Name, Farbe) für die Widget-Einstellung „Kalender“. */
+internal fun deviceCalendars(context: Context): List<Triple<Long, String, Int>> {
+    if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) return emptyList()
+    val out = ArrayList<Triple<Long, String, Int>>()
+    runCatching {
+        context.contentResolver.query(CalendarContract.Calendars.CONTENT_URI, arrayOf(CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME, CalendarContract.Calendars.CALENDAR_COLOR), null, null, null)?.use { c ->
+            while (c.moveToNext()) out += Triple(c.getLong(0), c.getString(1) ?: "", c.getInt(2) or (0xFF shl 24))
+        }
+    }
+    return out
+}
+
+/** [config] = ausgewählte Kalender-Ids, kommagetrennt; null = alle. */
+private suspend fun loadEvents(context: Context, config: String? = null): List<CalEvent> = withContext(Dispatchers.IO) {
     if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) return@withContext emptyList()
     val now = System.currentTimeMillis()
     val uri = CalendarContract.Instances.CONTENT_URI.buildUpon()
         .let { ContentUrisCompat.appendRange(it, now, now + 2 * 24 * 3600_000L) }.build()
     val proj = arrayOf(CalendarContract.Instances.TITLE, CalendarContract.Instances.BEGIN, CalendarContract.Instances.END,
-        CalendarContract.Instances.DISPLAY_COLOR, CalendarContract.Instances.ALL_DAY)
+        CalendarContract.Instances.DISPLAY_COLOR, CalendarContract.Instances.ALL_DAY, CalendarContract.Instances.CALENDAR_ID)
+    val only = config?.split(',')?.mapNotNull { it.toLongOrNull() }?.toSet()
     val fmt = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
     val out = mutableListOf<CalEvent>()
     runCatching {
@@ -179,6 +197,7 @@ private suspend fun loadEvents(context: Context): List<CalEvent> = withContext(D
             while (c.moveToNext() && out.size < 4) {
                 val end = c.getLong(2)
                 if (end < now) continue
+                if (only != null && c.getLong(5) !in only) continue
                 val time = if (c.getInt(4) == 1) "" else fmt.format(java.util.Date(c.getLong(1))) + " – " + fmt.format(java.util.Date(end))
                 out += CalEvent(c.getString(0) ?: "", time, c.getInt(3) or (0xFF shl 24))
             }
@@ -228,4 +247,4 @@ private const val MEDIUM_DATE_W = 110f
 private const val CLOCK_PAD = 10f
 private const val BATTERY_PAD = 30f
 private const val WIDGET_GLASS_BLUR = 24f
-private const val WIDGET_GLASS_DARK = 0.62f
+private const val WIDGET_GLASS_DARK = 0.22f // Duo [Referenz 10_today/01_home]: durchscheinendes Glas, nicht deckend

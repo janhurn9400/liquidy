@@ -214,6 +214,8 @@ class MainActivity : ComponentActivity() {
                 // Selbst zeichnen nur, wenn wir Androids Bild weder kennen noch lesen dürfen (sonst passte Glas nicht dazu)
                 val drawOwnWallpaper = colorful || (!systemOurs && systemPixels == null)
                 val onLaunch: (io.github.janhurn9400.liquidy.data.AppEntry, androidx.compose.ui.geometry.Rect) -> Unit = { app, bounds ->
+                        // ohne Icon-Rahmen (Suche, A–Z-Liste): kein bestimmtes Homescreen-Icon
+                        if (bounds.isEmpty) homeModel.launchedIconKey = null
                         val r = android.graphics.Rect(
                             bounds.left.roundToInt(), bounds.top.roundToInt(),
                             bounds.right.roundToInt(), bounds.bottom.roundToInt(),
@@ -223,7 +225,9 @@ class MainActivity : ComponentActivity() {
                         val thumb = if (r.width() > 0 && r.height() > 0) roundedIconBitmap(app.icon, r.width(), r.height()) else null
                         // Mit Magisk-Modul (System-App): eigene iOS-Animation, Fenster wächst aus dem Icon
                         val remote = io.github.janhurn9400.liquidy.data.AppLaunchTransition.optionsFor(
-                            android.graphics.RectF(r), DesignTokens.iconCorner.value * io.github.janhurn9400.liquidy.design.UiScale.density(this@MainActivity), app.key)
+                            android.graphics.RectF(r), DesignTokens.iconCorner.value * io.github.janhurn9400.liquidy.design.UiScale.density(this@MainActivity),
+                            // genau das angetippte Icon (bei mehreren Icons derselben App), sonst die App
+                            homeModel.launchedIconKey?.takeIf { io.github.janhurn9400.liquidy.ui.home.appKeyOf(it) == app.key } ?: app.key)
                         val opts = (remote ?: if (thumb != null) ActivityOptions.makeThumbnailScaleUpAnimation(view, thumb, r.left, r.top)
                             else ActivityOptions.makeScaleUpAnimation(view, r.left, r.top, r.width(), r.height())).toBundle()
                         repository.launch(app, r, opts)
@@ -422,6 +426,19 @@ class MainActivity : ComponentActivity() {
         // Test (nur Debug-Build): adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME --es testwp /sdcard/x.png [--es crop l,t,r,b]
         if (intent?.getBooleanExtra("teststack", false) == true && (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             intent.removeExtra("teststack"); model?.debugMakeStack()
+        }
+        // Test (nur Debug-Build): --es testwidget ios:reminders,4,2  → Widget auf Seite 1 legen
+        intent?.getStringExtra("testwidget")?.takeIf { (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 }?.let { w ->
+            intent.removeExtra("testwidget"); val p = w.split(',')
+            if (p[0].startsWith("android:")) { // --es testwidget android:pkg/cls,4,2  (vorher: cmd appwidget grantbind --package …)
+                val cn = android.content.ComponentName.unflattenFromString(p[0].removePrefix("android:"))
+                androidWidgets?.providers()?.firstOrNull { it.provider == cn }?.let { info ->
+                    androidWidgets?.add(this, info, p[1].toInt() to p[2].toInt()) { spec -> if (spec != null) model?.addWidget(spec, 0) }
+                }
+            } else model?.addWidget(io.github.janhurn9400.liquidy.data.WidgetSpec(p[0], p[1].toInt(), p[2].toInt()), 0)
+        }
+        if (intent?.getBooleanExtra("testdemo", false) == true && (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            intent.removeExtra("testdemo"); model?.debugDemoLayout()
         }
         val testWp = intent?.getStringExtra("testwp")
         if (testWp != null && (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {

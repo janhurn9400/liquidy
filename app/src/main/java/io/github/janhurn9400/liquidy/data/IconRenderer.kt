@@ -20,10 +20,14 @@ class IconLayers(val glyph: ImageBitmap, val mono: ImageBitmap)
 object IconRenderer {
     private const val LEGACY_SCALE = 0.8f // [GESCHÄTZT] iOS kennt keine Legacy-Icons
 
-    fun render(drawable: Drawable, sizePx: Int): ImageBitmap {
+    /** [fullBleed]: Symbol aus einem Icon-Paket — füllt das Quadrat (die Squircle-Maske schneidet beim Zeichnen). */
+    fun render(drawable: Drawable, sizePx: Int, fullBleed: Boolean = false): ImageBitmap {
         val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        if (drawable is AdaptiveIconDrawable) {
+        if (fullBleed && drawable !is AdaptiveIconDrawable) {
+            drawable.setBounds(0, 0, sizePx, sizePx)
+            drawable.draw(canvas)
+        } else if (drawable is AdaptiveIconDrawable) {
             val inset = (sizePx * 0.25f).toInt()
             listOfNotNull(drawable.background, drawable.foreground).forEach { layer ->
                 layer.setBounds(-inset, -inset, sizePx + inset, sizePx + inset)
@@ -45,11 +49,13 @@ object IconRenderer {
      *  - [IconLayers.mono]: einfarbige Maske (Monochrom-Layer ab API 33, sonst aus [glyph]) für Clear/Tinted.
      * Gleiche Geometrie wie [render] (Layer 1,5× des Icons), damit die Motive deckungsgleich sitzen.
      */
-    fun layers(drawable: Drawable, sizePx: Int): IconLayers {
+    fun layers(drawable: Drawable, sizePx: Int, fullBleed: Boolean = false): IconLayers {
         val glyph = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val c = Canvas(glyph)
         val inset = (sizePx * 0.25f).toInt()
-        if (drawable is AdaptiveIconDrawable) {
+        if (fullBleed && drawable !is AdaptiveIconDrawable) {
+            drawable.setBounds(0, 0, sizePx, sizePx); drawable.draw(c)
+        } else if (drawable is AdaptiveIconDrawable) {
             listOfNotNull(drawable.background, drawable.foreground).forEach { it.setBounds(-inset, -inset, sizePx + inset, sizePx + inset); it.draw(c) }
         } else {
             val sz = (sizePx * LEGACY_SCALE).toInt(); val o = (sizePx - sz) / 2

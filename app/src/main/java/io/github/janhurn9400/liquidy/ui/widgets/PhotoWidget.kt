@@ -40,13 +40,13 @@ import kotlinx.coroutines.withContext
  * Galerie randlos im Widget, ohne Beschriftung darin; wechselt stündlich. Ohne Galerie-Zugriff ein Hinweis.
  */
 @Composable
-internal fun PhotoWidget(modifier: Modifier) {
+internal fun PhotoWidget(modifier: Modifier, album: String? = null) {
     val context = LocalContext.current
     BoxWithConstraints(modifier.background(Color(0xFF2C2C2E))) {
         val px = with(LocalDensity.current) { maxOf(maxWidth, maxHeight).toPx().toInt().coerceIn(64, 1600) }
-        val photo by produceState<ImageBitmap?>(null, px) {
+        val photo by produceState<ImageBitmap?>(null, px, album) {
             while (true) {
-                value = withContext(Dispatchers.IO) { loadPhoto(context, px, System.currentTimeMillis() / HOUR_MS) } ?: value
+                value = withContext(Dispatchers.IO) { loadPhoto(context, px, System.currentTimeMillis() / HOUR_MS, album) } ?: value
                 delay(HOUR_MS - System.currentTimeMillis() % HOUR_MS)
             }
         }
@@ -64,12 +64,13 @@ private fun hasAccess(context: Context) =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
 
 /** Ein Foto aus der Kamera-Galerie (bevorzugt DCIM), je Stunde [slot] ein anderes, aber stabil innerhalb der Stunde. */
-private fun loadPhoto(context: Context, px: Int, slot: Long): ImageBitmap? {
+private fun loadPhoto(context: Context, px: Int, slot: Long, album: String? = null): ImageBitmap? {
     if (!hasAccess(context)) return null
     val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
     val ids = ArrayList<Long>()
     runCatching {
-        context.contentResolver.query(uri, arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.RELATIVE_PATH), null, null,
+        context.contentResolver.query(uri, arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.RELATIVE_PATH),
+            album?.let { "${MediaStore.Images.Media.BUCKET_DISPLAY_NAME} = ?" }, album?.let { arrayOf(it) },
             "${MediaStore.Images.Media.DATE_ADDED} DESC")?.use { c ->
             val camera = ArrayList<Long>()
             while (c.moveToNext() && ids.size + camera.size < 500) {
@@ -87,3 +88,16 @@ private fun loadPhoto(context: Context, px: Int, slot: Long): ImageBitmap? {
 }
 
 private const val HOUR_MS = 3_600_000L
+
+/** Alben (Ordner) mit Anzahl, für die Widget-Einstellung „Album“. */
+internal fun photoAlbums(context: Context): List<Pair<String, Int>> {
+    if (!hasAccess(context)) return emptyList()
+    val counts = LinkedHashMap<String, Int>()
+    runCatching {
+        context.contentResolver.query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.Images.Media.BUCKET_DISPLAY_NAME),
+            null, null, "${MediaStore.Images.Media.DATE_ADDED} DESC")?.use { c ->
+            while (c.moveToNext()) { val b = c.getString(0) ?: continue; counts[b] = (counts[b] ?: 0) + 1 }
+        }
+    }
+    return counts.entries.map { it.key to it.value }
+}

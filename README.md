@@ -17,6 +17,8 @@ until they matched — including the in-between frames of every transition, not 
 
 **Home screen**
 - 4×6 icon grid, dock, page dots, rubber-band paging, edit mode with jiggle, drag & drop, folders, page overview
+- Free placement like current iOS: icons stay where you drop them, gaps allowed; drag to the left/right edge to flip or create pages
+- The same app can be on several pages; drag apps out of the App Library (also from an open category)
 - Context menus with app shortcuts, widget stacks with swipe and *Smart Rotate*
 - Liquid Glass (refraction, rim light, blur) on dock, folders, menus and search
 - Today view, App Library with categories and A–Z list
@@ -31,7 +33,10 @@ until they matched — including the in-between frames of every transition, not 
 - Status symbols avoid the camera cutout automatically
 - Tablets in portrait use the regular single-page layout
 
-**Widgets** — calendar, clock, batteries, weather (Open-Meteo, location or fixed place), photos, plus any Android widget
+**Widgets** — calendar (choose calendars), clock, batteries, weather (Open-Meteo, location or fixed place), photos (choose album),
+reminders (own list), plus any Android widget — offered in every iOS size it fits and fitted to the iOS frame
+
+**Icon packs** — any icon pack in the common ADW/Nova format, chosen with a live preview in Launcher Settings
 
 **Search** — apps, calculator, contacts, Android settings, photos (name, album, month/year), files and web suggestions
 (Google suggestions can be turned off in Launcher Settings)

@@ -1,7 +1,10 @@
 package io.github.janhurn9400.liquidy.ui.library
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -44,7 +47,12 @@ import kotlin.math.roundToInt
 @Composable
 fun CategoryView(model: HomeModel, open: OpenCategory, geo: LibraryGeometry, density: Float, onLaunch: (AppEntry, Rect) -> Unit,
     /** Bildschirm-x der Mediathek-Spalte (Duo aufgeklappt: rechte Seite), sonst 0. */
-    originX: Float = 0f) {
+    originX: Float = 0f,
+    /** Halten: Kontextmenü (Mediathek-Variante); danach Ziehen holt die App auf den Homescreen. */
+    onLongPress: (AppEntry, Offset) -> Unit = { _, _ -> },
+    onDragStart: (AppEntry, Offset, Offset) -> Unit = { _, _, _ -> },
+    onDragMove: (Offset) -> Unit = {},
+    onDragEnd: () -> Unit = {}) {
     val apps = open.category.apps
     val icon = DesignTokens.iconSize.value * density
     // Duo: Titel + Raster als Block senkrecht mittig (aus Displayhöhe + Reihenzahl), so viele Reihen wie passen
@@ -81,14 +89,34 @@ fun CategoryView(model: HomeModel, open: OpenCategory, geo: LibraryGeometry, den
     Box(
         Modifier
             .fillMaxSize()
+            // beim Herausziehen unsichtbar, bleibt aber da (sonst bräche die laufende Geste ab)
+            .graphicsLayer { alpha = if (model.drag != null) 0f else 1f }
             .pointerInput(open) {
-                detectTapGestures { p ->
-                    if (open.progress.targetValue < 1f) return@detectTapGestures
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    if (open.progress.targetValue < 1f) return@awaitEachGesture
                     val k = shown.indices.firstOrNull { k ->
-                        Rect(gridTopLeft(k), Size(icon, icon)).inflate(icon * TAP_SLOP).contains(p)
+                        Rect(gridTopLeft(k), Size(icon, icon)).inflate(icon * TAP_SLOP).contains(down.position)
                     }
-                    if (k != null) onLaunch(shown[k], Rect(gridTopLeft(k), Size(icon, icon)))
-                    else model.closeCategory()
+                    if (k == null) { if (waitForUpOrCancellation() != null) model.closeCategory(); return@awaitEachGesture }
+                    // Antippen öffnet, Halten → Menü, Halten + Ziehen → auf den Homescreen (wie in der Mediathek-Übersicht)
+                    val up = withTimeoutOrNull(Motion.longPress.value.toLong()) { waitForUpOrCancellation() }
+                    if (up != null) { onLaunch(shown[k], Rect(gridTopLeft(k), Size(icon, icon))); return@awaitEachGesture }
+                    if (currentEvent.changes.none { it.pressed }) return@awaitEachGesture
+                    val tl = gridTopLeft(k)
+                    onLongPress(shown[k], tl)
+                    var dragging = false
+                    while (true) {
+                        val ev = awaitPointerEvent()
+                        val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!ch.pressed) break
+                        if (!dragging && (ch.position - down.position).getDistance() > viewConfiguration.touchSlop) {
+                            dragging = true
+                            onDragStart(shown[k], ch.position, tl + (ch.position - down.position))
+                        }
+                        if (dragging) { onDragMove(ch.position); ch.consume() }
+                    }
+                    if (dragging) onDragEnd()
                 }
             }
     ) {

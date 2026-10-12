@@ -11,6 +11,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -237,6 +238,20 @@ private fun HeaderCard(compact: Boolean) {
 @Composable
 private fun Detail(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolean) {
     val context = LocalContext.current
+    var iconPackPage by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = iconPackPage) { iconPackPage = false }
+    AnimatedContent(iconPackPage, transitionSpec = {
+        if (targetState) slideInHorizontally(spring(1f, 380f)) { it } togetherWith slideOutHorizontally(spring(1f, 380f)) { -it / 3 }
+        else slideInHorizontally(spring(1f, 380f)) { -it / 3 } togetherWith slideOutHorizontally(spring(1f, 380f)) { it }
+    }, label = "sub") { sub ->
+        if (sub) Box(Modifier.fillMaxSize().background(DETAIL_BG)) { IconPackPage(categoryTitle(c)) { iconPackPage = false } }
+        else Box(Modifier.fillMaxSize().background(DETAIL_BG)) { DetailBody(c, model, tick, inlineTitle) { iconPackPage = true } }
+    }
+}
+
+@Composable
+private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolean, openIconPacks: () -> Unit) {
+    val context = LocalContext.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(TOP_PAD.dp))
         // „Allgemein“ mit großer Kopfkarte wie iOS (Symbol, Titel, Beschreibung), sonst kleiner Titel oben
@@ -269,6 +284,11 @@ private fun Detail(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolea
                     LinkRow(stringResource(R.string.settings_icons)) { model.closeSettings(); model.openCustomise() }
                     Divider()
                     LinkRow(stringResource(R.string.edit_wallpaper)) { model.closeSettings(); model.wallpaperEditorOpen = true }
+                    Divider()
+                    // Icon-Pakete: eigene Unterseite mit Vorschau je Paket
+                    val chosen = io.github.janhurn9400.liquidy.data.IconPacks.selected
+                    val label = remember(chosen) { chosen?.let { io.github.janhurn9400.liquidy.data.IconPacks.available(context).firstOrNull { p -> p.packageName == it }?.label } }
+                    LinkRow(stringResource(R.string.settings_sec_iconpack), label ?: stringResource(R.string.settings_iconpack_system)) { openIconPacks() }
                 }
                 Section(stringResource(R.string.settings_sec_statusbar),
                     footer = stringResource(if (FoldableStyle.duoStyle) R.string.settings_statusbar_footer_duo else R.string.settings_statusbar_footer)) {
@@ -429,6 +449,100 @@ private fun ValueRow(label: String, value: String) {
     }
 }
 
+/**
+ * Unterseite „Icon-Paket“: je Paket eine Karte mit Name, Häkchen und einer Vorschau-Reihe aus vier Standard-Apps
+ * (Telefon, Nachrichten, Fotos, Kalender), so wie sie mit diesem Paket aussehen. Oben „‹ Zurück“ wie iOS.
+ */
+@Composable
+private fun IconPackPage(backLabel: String, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val packs = remember { io.github.janhurn9400.liquidy.data.IconPacks.available(context) }
+    val sample = remember { previewApps(context) }
+    val chosen = io.github.janhurn9400.liquidy.data.IconPacks.selected
+    val noRipple = remember { MutableInteractionSource() }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+        Spacer(Modifier.height(TOP_PAD.dp))
+        Row(Modifier.clickable(noRipple, null, onClick = onBack).padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Canvas(Modifier.size(10.dp, 17.dp)) {
+                val sw = 2.4.dp.toPx(); val c = Color(0xFF007AFF)
+                drawLine(c, androidx.compose.ui.geometry.Offset(size.width * 0.9f, size.height * 0.05f), androidx.compose.ui.geometry.Offset(size.width * 0.1f, size.height * 0.5f), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(c, androidx.compose.ui.geometry.Offset(size.width * 0.1f, size.height * 0.5f), androidx.compose.ui.geometry.Offset(size.width * 0.9f, size.height * 0.95f), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+            Spacer(Modifier.width(6.dp))
+            BasicText(backLabel, style = LABEL.copy(color = Color(0xFF007AFF)))
+        }
+        BasicText(stringResource(R.string.settings_sec_iconpack), Modifier.padding(bottom = 18.dp),
+            style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 28.sp, color = Color.Black))
+        (listOf<io.github.janhurn9400.liquidy.data.IconPacks.Pack?>(null) + packs).forEach { pack ->
+            val selected = chosen == pack?.packageName
+            Column(Modifier.fillMaxWidth().padding(bottom = 14.dp).clip(RoundedCornerShape(GROUP_CORNER.dp)).background(Color.White)
+                .clickable(noRipple, null) { io.github.janhurn9400.liquidy.data.IconPacks.select(context, pack?.packageName) }
+                .padding(horizontal = 20.dp, vertical = 16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    BasicText(pack?.label ?: stringResource(R.string.settings_iconpack_system), Modifier.weight(1f), maxLines = 1,
+                        style = LABEL.copy(fontWeight = FontWeight.SemiBold))
+                    if (selected) Canvas(Modifier.size(16.dp, 14.dp)) {
+                        val sw = 2.4.dp.toPx(); val c = Color(0xFF007AFF)
+                        drawLine(c, androidx.compose.ui.geometry.Offset(size.width * 0.05f, size.height * 0.55f), androidx.compose.ui.geometry.Offset(size.width * 0.38f, size.height * 0.92f), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+                        drawLine(c, androidx.compose.ui.geometry.Offset(size.width * 0.38f, size.height * 0.92f), androidx.compose.ui.geometry.Offset(size.width * 0.95f, size.height * 0.08f), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly) {
+                    sample.forEach { (cn, label) -> PreviewIcon(pack?.packageName, cn, label) }
+                }
+            }
+        }
+        BasicText(stringResource(if (packs.isEmpty()) R.string.settings_iconpack_none else R.string.settings_iconpack_footer),
+            Modifier.padding(start = 20.dp, end = 20.dp, bottom = 30.dp), style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = GREY))
+    }
+}
+
+@Composable
+private fun PreviewIcon(pack: String?, cn: android.content.ComponentName, label: String) {
+    val context = LocalContext.current
+    val density = LocalDensity.current.density
+    val px = (PREVIEW_ICON * density).toInt()
+    val img by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, pack, cn) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val orig = context.packageManager.getActivityIcon(cn)
+                val themed = pack?.let { io.github.janhurn9400.liquidy.data.IconPacks.iconFrom(context, it, cn, orig, px) }
+                io.github.janhurn9400.liquidy.data.IconRenderer.render(themed ?: orig, px, fullBleed = themed != null)
+            }.getOrNull()
+        }
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width((PREVIEW_ICON + 18f).dp)) {
+        Box(Modifier.size(PREVIEW_ICON.dp).clip(io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((PREVIEW_ICON * ICON_CORNER_SHARE).dp))
+            .background(Color(0xFFE5E5EA))) {
+            img?.let { androidx.compose.foundation.Image(it, null, Modifier.fillMaxSize()) }
+            // feiner Rand: weiße Symbole sonst unsichtbar auf der weißen Karte
+            Box(Modifier.fillMaxSize().border(0.5.dp, Color.Black.copy(alpha = 0.12f), io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((PREVIEW_ICON * ICON_CORNER_SHARE).dp)))
+        }
+        Spacer(Modifier.height(5.dp))
+        BasicText(label, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            style = TextStyle(fontFamily = Inter, fontSize = 12.sp, color = Color.Black))
+    }
+}
+
+/** Vier Standard-Apps für die Vorschau (Telefon, Nachrichten, Fotos, Kalender) — jeweils die Launcher-Activity. */
+private fun previewApps(c: android.content.Context): List<Pair<android.content.ComponentName, String>> {
+    val pm = c.packageManager
+    fun launcherOf(i: android.content.Intent): Pair<android.content.ComponentName, String>? {
+        val pkg = runCatching { pm.resolveActivity(i, 0)?.activityInfo?.packageName }.getOrNull()?.takeIf { it != "android" } ?: return null
+        val cn = pm.getLaunchIntentForPackage(pkg)?.component ?: return null
+        val label = runCatching { pm.getActivityInfo(cn, 0).loadLabel(pm).toString() }.getOrDefault(pkg)
+        return cn to label
+    }
+    val main = android.content.Intent.ACTION_MAIN
+    return listOfNotNull(
+        launcherOf(android.content.Intent(android.content.Intent.ACTION_DIAL)),
+        launcherOf(android.content.Intent.makeMainSelectorActivity(main, android.content.Intent.CATEGORY_APP_MESSAGING)),
+        launcherOf(android.content.Intent.makeMainSelectorActivity(main, android.content.Intent.CATEGORY_APP_GALLERY)),
+        launcherOf(android.content.Intent.makeMainSelectorActivity(main, android.content.Intent.CATEGORY_APP_CALENDAR)),
+    ).distinctBy { it.first }.take(4)
+}
+
 @Composable
 private fun LinkRow(label: String, value: String? = null, onClick: () -> Unit) {
     Row(
@@ -492,5 +606,8 @@ private val SELECTED = Color(0xFFE5E5EA)
 private val GREY = Color(0xFF8E8E93)
 private val SEPARATOR = Color(0xFFD1D1D6)
 private val CHEVRON = Color(0xFFC4C4C7)
+private const val PREVIEW_ICON = 54f
+/** T-ICON-R / Icon-Größe (16,33 / 60). */
+private const val ICON_CORNER_SHARE = 16.33f / 60f
 private val LABEL = TextStyle(fontFamily = Inter, fontSize = 17.sp, color = Color.Black)
 private val TILE_COLORS = listOf(Color(0xFF34C759), Color(0xFF0A84FF), Color(0xFFFF9F0A), Color(0xFFFF375F), Color(0xFFBF5AF2), Color(0xFF64D2FF))

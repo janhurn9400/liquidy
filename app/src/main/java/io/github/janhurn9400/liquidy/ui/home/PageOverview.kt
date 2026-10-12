@@ -94,7 +94,9 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
     val regionLeft = if (duo) geo.duoFolderCenterX(0f) - regionW / 2 else 0f
     val regionTop = if (duo) (DUO_ROW0_TOP - DUO_REGION_ABOVE) * density
         else (DesignTokens.gridTop.value - REGION_ABOVE_GRID) * density // Ausschnitt-Oberkante in px
+    // Bildschirmfläche einer Seite in Originalgröße: linke Hälfte bzw. (Duo aufgeklappt) rechte Hälfte
     val full = Rect(Offset(regionLeft, regionTop), Size(regionW, regionH))
+    val fullRight = full.translate(geo.pageShift(1f), 0f)
     val p = { model.pagesOverview.value }
 
     // Umsortieren: lange drücken hebt die Karte an, sie folgt dem Finger, die anderen weichen federnd aus
@@ -140,7 +142,16 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
     ) {
         val ids = remember(pages) { val seen = HashMap<String, Int>(); pages.map { pg -> val k = pg.items.joinToString(","); k + "#" + (seen.merge(k, 1, Int::plus)) } }
         pages.forEachIndexed { i, page -> key(ids[i]) {
-            val focus = i == model.overviewFocus
+            // „Fokus“ = Karten der beim Öffnen/Schließen sichtbaren Seiten (Duo aufgeklappt: links UND rechts) — sie wachsen
+            // aus bzw. in ihre Bildschirmhälfte, statt nur einzublenden
+            val vis = model.overviewVisibleIndex(i)
+            val half: Rect? = when {
+                vis == null -> null
+                vis == model.overviewLeftPage -> full
+                geo.unfolded && vis == model.overviewLeftPage + 1 -> fullRight
+                else -> null
+            }
+            val focus = half != null
             val dragged = drag?.from == i
             val home = gridRect(slotOf(i)).topLeft
             val pos = remember { Animatable(home, Offset.VectorConverter) }
@@ -150,8 +161,11 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
             }
             val g = Rect(pos.value, Size(cardW, cardHf))
             // Zustand je Karte: Fokus-Karte wächst/schrumpft mit p; die anderen blenden verzögert ein
-            fun rect(): Rect = if (focus) lerpRect(full, g, p()) else g
-            fun appear(): Float = if (focus) 1f else ((p() - OTHERS_FROM) / (1f - OTHERS_FROM)).coerceIn(0f, 1f)
+            fun rect(): Rect = if (half != null) lerpRect(half, g, p()) else g
+            if (half != null && vis != null) model.overviewZoom[vis] = { rect() to half }
+            // Fokus-Karte ↔ echter Homescreen [GEMESSEN Duo 19:05:45]: Karte blendet erst aus, wenn der Homescreen darunter schon
+            // voll da ist (HomeScreen.overviewHide) — so gibt es weder harten Schnitt noch ein halbdunkles Zwischenbild
+            fun appear(): Float = if (focus) ((p() - FOCUS_FADE_END) / (FOCUS_FADE_START - FOCUS_FADE_END)).coerceIn(0f, 1f) else ((p() - OTHERS_FROM) / (1f - OTHERS_FROM)).coerceIn(0f, 1f)
             // Fokus-Karte: Glas erst, wenn sie deutlich kleiner ist — beim Vollbild darf die Linse nichts vergrößern
             // (sonst bricht sie die zurückkehrenden echten Icons riesig auf)
             fun glass(): Float = if (focus) ((p() - FOCUS_GLASS_FROM) / (1f - FOCUS_GLASS_FROM)).coerceIn(0f, 1f) else p().coerceIn(0f, 1f)
@@ -161,7 +175,7 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
                     .zIndex(if (dragged) 2f else 0f)
                     .graphicsLayer {
                         val a = appear(); alpha = a
-                        val s = (0.92f + 0.08f * a) * (if (dragged) DRAG_LIFT else 1f); scaleX = s; scaleY = s
+                        val s = (if (focus) 1f else 0.92f + 0.08f * a) * (if (dragged) DRAG_LIFT else 1f); scaleX = s; scaleY = s
                     }
                     .size(Dp(g.width / density), Dp(g.height / density))
                     .graphicsLayer {
@@ -233,9 +247,10 @@ private fun PageCardGlass(modifier: Modifier, corner: Float, strength: () -> Flo
 /** Inhalt einer Seite in Originalgröße (wird außen skaliert): Icons ohne Beschriftung, Ordner, Widgets. */
 @Composable
 private fun PageThumbnail(model: HomeModel, geo: HomeGeometry, items: List<String>, wallpaper: ImageBitmap, density: Float, regionTop: Float, regionLeft: Float = 0f) {
-    val cells = GridPlacement.place(items, model::sizeOf)
+    // Lücken (freie Platzierung) bestimmen die Zellen, werden aber nicht gezeichnet
+    val cells = GridPlacement.placeReal(items, model::sizeOf)
     Box(Modifier.fillMaxSize()) {
-        items.forEachIndexed { slot, key ->
+        GridPlacement.stripGaps(items).forEachIndexed { slot, key ->
             val cell = cells.getOrNull(slot) ?: -1
             if (cell < 0) return@forEachIndexed
             val tl = geo.slotPosition(cell) - Offset(regionLeft, regionTop)
@@ -247,9 +262,11 @@ private fun PageThumbnail(model: HomeModel, geo: HomeGeometry, items: List<Strin
                         .size(Dp(r.width / density), Dp(r.height / density))
                         .clip(io.github.janhurn9400.liquidy.glass.glassRect(DesignTokens.widgetCorner.dp))
                 ) {
+                    // Stapel: das gerade oben liegende Widget (sonst dunkle Fläche, die am Ende ins echte Widget umspringt)
+                    val shown = model.shownWidget(key) ?: spec
                     // Android-Widgets haben nur eine Ansicht (läuft schon auf der echten Seite) → Platzhalter
-                    if (spec.type == "android") Box(Modifier.fillMaxSize().background(Color(0xFF1C1C1E)))
-                    else WithWallpaperGlass(wallpaper) { IosWidget(spec.type, spec.cols, spec.rows, Modifier.fillMaxSize(), spec.config) }
+                    if (shown.type == "android") Box(Modifier.fillMaxSize().background(Color(0xFF1C1C1E)))
+                    else WithWallpaperGlass(wallpaper) { IosWidget(shown.type, shown.cols, shown.rows, Modifier.fillMaxSize(), shown.config) }
                 }
             } else {
                 val iconPx = DesignTokens.iconSize.value * density
@@ -301,3 +318,7 @@ private const val DRAG_LIFT = 1.06f
 
 private data class CardDrag(val from: Int, val target: Int, val offset: Offset)
 private const val FOCUS_GLASS_FROM = 0.3f
+
+/** Fokus-Karte blendet zwischen diesen Fortschritten aus (Homescreen ist ab 0,15 voll da, Duo: Karte ≈ 260 ms weg). */
+private const val FOCUS_FADE_START = 0.15f
+private const val FOCUS_FADE_END = 0.02f

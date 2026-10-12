@@ -52,7 +52,7 @@ class DragState(
     /** Finger minus Icon-Oberkante-links, Bildschirm-px. */
     val grabOffset: Offset,
     pointer: Offset,
-    initialHover: DropTarget,
+    initialHover: DropTarget?,
 ) {
     var pointer by mutableStateOf(pointer)
     var hover by mutableStateOf<DropTarget?>(initialHover)
@@ -68,6 +68,18 @@ class OpenFolder(val id: String, val iconTopLeft: Offset) {
 }
 
 fun isFolder(id: String) = id.startsWith(FOLDER_PREFIX)
+
+/**
+ * Mehrere Icons derselben App (iOS: eine App kann auf mehreren Seiten liegen): weitere Icons heißen
+ * „<App-Key>~i<id>“ und zeigen auf dieselbe App. [AppMap] löst solche Keys auf, [values]/[keys] bleiben je App einmal.
+ */
+const val INSTANCE_SEP = "~i"
+fun appKeyOf(key: String) = key.substringBefore(INSTANCE_SEP)
+
+class AppMap(private val base: Map<String, AppEntry>) : Map<String, AppEntry> by base {
+    override fun get(key: String): AppEntry? = base[key] ?: if (INSTANCE_SEP in key) base[appKeyOf(key)] else null
+    override fun containsKey(key: String) = get(key) != null
+}
 fun isWidget(id: String) = id.startsWith(WIDGET_PREFIX)
 const val WIDGET_PREFIX = "widget:"
 fun isLibraryFolder(id: String) = id.startsWith(LIBRARY_PREFIX)
@@ -157,7 +169,11 @@ class OpenCategory(val category: LibraryCategory, val tileIndex: Int, val scroll
 }
 const val FOLDER_PREFIX = "folder:"
 
-data class DisplayLayout(val pages: List<List<String>>, val dock: List<String>)
+/**
+ * Angezeigtes Layout. [pages] = nur echte Items (für Anzeige/Treffer), [gapped] = mit Platzhaltern für Lücken
+ * (freie Platzierung, GridPlacement.GAP_PREFIX) — daraus werden die Zellen berechnet.
+ */
+data class DisplayLayout(val pages: List<List<String>>, val dock: List<String>, val gapped: List<List<String>> = pages)
 
 /**
  * Zustand des Homescreens: gespeichertes Layout, Bearbeitungsmodus, Ziehen, Antipp-Feedback.
@@ -170,7 +186,7 @@ class HomeModel(
     val repository: AppRepository,
     private val scope: CoroutineScope,
 ) {
-    var apps by mutableStateOf<Map<String, AppEntry>>(emptyMap())
+    var apps by mutableStateOf<Map<String, AppEntry>>(AppMap(emptyMap()))
         private set
     var pages by mutableStateOf<List<List<String>>>(listOf(emptyList()))
         private set
@@ -251,11 +267,61 @@ class HomeModel(
         return ids
     }
 
+    /**
+     * Nur Test (Debug-Build, adb-Intent „testdemo“): aufgeräumtes Beispiel-Layout — Widgets oben, Apps nach Zweck sortiert,
+     * Ordner für Kleinkram, Dock wie iOS. Apps über den Paketnamen gesucht; was fehlt, wird übersprungen.
+     */
+    fun debugDemoLayout() {
+        if (apps.isEmpty()) return
+        fun app(pkg: String) = apps.values.firstOrNull { it.component.packageName == pkg }?.key
+        fun widget(type: String, c: Int, r: Int): String {
+            val id = WIDGET_PREFIX + java.util.UUID.randomUUID().toString()
+            widgets = widgets + (id to WidgetSpec(type, c, r)); return id
+        }
+        // alte Homescreen-Widgets (nicht Heute) entfernen, Android-Widgets dabei freigeben
+        val keepToday = today.toSet()
+        widgets.filterKeys { it !in keepToday }.forEach { (_, w) ->
+            (if (w.type == STACK) w.stack else listOf(w)).filter { it.type == "android" }.forEach { onAndroidWidgetRemoved(it.appWidgetId) }
+        }
+        widgets = widgets.filterKeys { it in keepToday }
+        val T = io.github.janhurn9400.liquidy.ui.widgets.IosWidgetTypes
+        val cols = DesignTokens.GRID_COLUMNS
+        fun page(vararg items: Pair<String?, Int>) = GridPlacement.canonical(items.mapNotNull { (k, c) -> k?.let { it to c } }, ::sizeOf)
+        // Seite 1: Wetter breit, darunter Kalender + Uhr, unten die Alltags-Apps
+        val p1 = page(
+            widget(T.WEATHER, 4, 2) to 0,
+            widget(T.CALENDAR, 2, 2) to 2 * cols, widget(T.CLOCK, 2, 2) to 2 * cols + 2,
+            app("com.android.camera2") to 4 * cols, app("com.google.android.apps.photos") to 4 * cols + 1,
+            app("com.google.android.calendar") to 4 * cols + 2, app("com.google.android.deskclock") to 4 * cols + 3,
+            app("com.google.android.apps.maps") to 5 * cols, app("com.google.android.youtube") to 5 * cols + 1,
+            app("com.google.android.gm") to 5 * cols + 2, app("com.android.settings") to 5 * cols + 3,
+        )
+        // Seite 2: Fotos + Erinnerungen, Werkzeuge, Ordner, Batterien unten links (freie Platzierung)
+        val extras = listOfNotNull(app("com.google.android.apps.safetyhub"), app("com.android.stk"), app("com.sysadmindoc.iosicons"))
+        val folderId = FOLDER_PREFIX + java.util.UUID.randomUUID().toString()
+        folders = if (extras.size >= 2) mapOf(folderId to SavedFolder("Extras", extras)) else emptyMap()
+        val p2 = page(
+            widget(T.PHOTOS, 2, 2) to 0, widget(T.REMINDERS, 2, 2) to 2,
+            app("com.google.android.apps.docs") to 2 * cols, app("com.google.android.documentsui") to 2 * cols + 1,
+            app("com.google.android.contacts") to 2 * cols + 2, app("com.google.android.googlequicksearchbox") to 2 * cols + 3,
+            (if (folders.isNotEmpty()) folderId else extras.firstOrNull()) to 3 * cols,
+            widget(T.BATTERY, 2, 2) to 4 * cols,
+        )
+        dock = listOfNotNull(app("com.google.android.dialer"), app("com.google.android.apps.messaging"),
+            app("com.android.chrome"), app("com.google.android.apps.youtube.music")).take(DOCK_MAX)
+        pages = listOf(p1, p2)
+        hiddenPages = emptyList()
+        // übrige Apps bleiben in der Mediathek (wie iOS „Nur in App-Mediathek“)
+        val placed = (p1 + p2 + dock + extras).toSet()
+        hidden = apps.keys.filter { it !in placed }.toSet()
+        save()
+    }
+
     /** Größe eines Items in Rasterzellen (Icon/Ordner 1×1). */
     fun sizeOf(key: String): Pair<Int, Int> = widgets[key]?.let { it.cols to it.rows } ?: (1 to 1)
 
     /** Zellen je Seite für das angezeigte Layout (GridPlacement). */
-    val displayCells: List<IntArray> by derivedStateOf { display.pages.map { GridPlacement.place(it, ::sizeOf) } }
+    val displayCells: List<IntArray> by derivedStateOf { display.gapped.map { GridPlacement.placeReal(it, ::sizeOf) } }
 
     /** Wird von MainActivity gesetzt: Android-Widget entfernen (AppWidgetHost.deleteAppWidgetId). */
     var onAndroidWidgetRemoved: (Int) -> Unit = {}
@@ -388,7 +454,8 @@ class HomeModel(
         if (spec.appWidgetId >= 0) onAndroidWidgetRemoved(spec.appWidgetId)
         spec.stack.forEach { if (it.appWidgetId >= 0) onAndroidWidgetRemoved(it.appWidgetId) }
         widgets = widgets - id
-        pages = pages.map { it - id }
+        pages = pagesWithHole(id)
+        pruneEmptyPages()
         today = today - id
         anims.remove(id)
         save()
@@ -738,6 +805,12 @@ class HomeModel(
         return 1f - (p / Motion.libCategoryFadeEnd.value).coerceIn(0f, 1f)
     }
 
+    /** Sofort zu (nach dem Herausziehen einer App — die Kategorie war dabei schon unsichtbar). */
+    fun closeCategoryNow() { openCategory = null }
+
+    /** Beim Herausziehen: Kategorie-Effekte (Unschärfe, geschrumpfte Mediathek) sofort zurücknehmen, Ansicht bleibt bestehen. */
+    fun collapseCategoryForDrag() { openCategory?.let { c -> scope.launch { c.progress.snapTo(0f) } } }
+
     fun closeCategory() {
         val c = openCategory ?: return
         scope.launch {
@@ -763,7 +836,7 @@ class HomeModel(
 
     // ── Laden / Abgleich ──────────────────────────────────────────────────────
     fun onAppsLoaded(list: List<AppEntry>) {
-        apps = list.associateBy { it.key }
+        apps = AppMap(list.associateBy { it.key })
         refreshSuggestions()
         val demo = DebugOptions.demoPages.value.roundToInt()
         val saved = if (demoPagesApplied != -1 && demo != demoPagesApplied) null else store.load()
@@ -782,15 +855,15 @@ class HomeModel(
             today = defaultToday()
         } else {
             val valid = apps.keys
-            folders = saved.folders.mapValues { (_, f) -> f.copy(apps = f.apps.filter { it in valid }) }
+            folders = saved.folders.mapValues { (_, f) -> f.copy(apps = f.apps.filter { appKeyOf(it) in valid }) }
                 .filterValues { it.apps.isNotEmpty() }
             widgets = saved.widgets
             today = saved.today?.filter { it in saved.widgets } ?: defaultToday()
-            fun keep(id: String) = id in valid || id in folders || (id in widgets && id !in today)
+            fun keep(id: String) = appKeyOf(id) in valid || id in folders || (id in widgets && id !in today) || GridPlacement.isGap(id)
             dock = saved.dock.filter(::keep).take(DOCK_MAX)
             hidden = saved.hidden.filter { it in valid }.toSet()
             dock = dock.filterNot(::isWidget)
-            val p = saved.pages.map { it.filter(::keep) }.filter { it.isNotEmpty() }.toMutableList()
+            val p = saved.pages.map { GridPlacement.trim(it.filter(::keep)) }.filterNot(GridPlacement::isBlank).toMutableList()
             hiddenPages = saved.hiddenPages.map { it.copy(items = it.items.filter(::keep)) }.filter { it.items.isNotEmpty() }
             val known = p.flatten().toSet() + dock + folders.values.flatMap { it.apps } + hidden + hiddenPages.flatMap { it.items }
             val newApps = list.map { it.key }.filter { it !in known }
@@ -838,7 +911,7 @@ class HomeModel(
         scope.launch { badgeScale.animateTo(0f, Motion.badge.spec()) }
         // Duo [GEMESSEN 19:06:29, 11,97 → 11,98 s]: Knöpfe verschwinden in einem Bild
         editButtonsJob?.cancel(); editButtonsJob = scope.launch { editButtons.snapTo(0f) }
-        pages = pages.filter { it.isNotEmpty() }.ifEmpty { listOf(emptyList()) }
+        pages = pages.filterNot(GridPlacement::isBlank).map(GridPlacement::trim).ifEmpty { listOf(emptyList()) }
         save()
     }
 
@@ -846,8 +919,14 @@ class HomeModel(
     fun startDrag(key: String, pointer: Offset, iconTopLeftScreen: Offset) {
         val origin = when {
             key in dock -> DropTarget.Dock(dock.indexOf(key))
-            else -> pages.indexOfFirst { key in it }.let { p -> DropTarget.Page(p, pages[p].indexOf(key)) }
+            // aus der Mediathek: App liegt (noch) nirgends auf dem Homescreen → erst beim Überfahren einer Seite einsetzen
+            pages.none { key in it } -> null
+            // Ziel = Zelle (freie Platzierung); Ausgangszelle des Items
+            else -> pages.indexOfFirst { key in it }.let { p ->
+                DropTarget.Page(p, GridPlacement.place(pages[p], ::sizeOf).getOrElse(pages[p].indexOf(key)) { 0 }.coerceAtLeast(0))
+            }
         }
+        dragGap = GridPlacement.newGap()
         val d = DragState(key, pointer - iconTopLeftScreen, pointer, origin)
         drag = d
         scope.launch { d.lift.animateTo(DesignTokens.dragScale.value, Motion.dragLift.spec()) }
@@ -855,6 +934,8 @@ class HomeModel(
 
     private var pendingHover: DropTarget? = null
     private var hoverJob: Job? = null
+    /** Platzhalter, der beim Ziehen an der Ausgangsstelle bleibt (aktuelles iOS: die anderen rücken nicht nach). */
+    private var dragGap = GridPlacement.newGap()
 
     /** @param pagerPage aktuell sichtbare Seite (gerundet) */
     private var pendingMerge: String? = null
@@ -932,13 +1013,10 @@ class HomeModel(
             if (d.key !in dock && baseDock.size >= DOCK_MAX) return null
             return DropTarget.Dock(geo.dockIndexAt(center, baseDock.size))
         }
-        val basePage = pages.getOrNull(page)?.minus(d.key) ?: emptyList()
         val local = center - Offset(pagerOffsetPx, 0f)
-        // Zielzelle → Einfügeposition in der Liste: vor das erste Item, das an/nach dieser Zelle liegt
-        val targetCell = geo.slotAt(local, Int.MAX_VALUE)
-        val cells = GridPlacement.place(basePage, ::sizeOf)
-        val index = cells.indexOfFirst { it < 0 || it >= targetCell }.let { if (it < 0) basePage.size else it }
-        return DropTarget.Page(page, index)
+        // freie Platzierung: Ziel ist die Zelle unter dem Icon (Widget: Zelle oben links), nicht mehr eine Listenposition
+        val targetCell = geo.slotAt(local, Int.MAX_VALUE).coerceIn(0, DesignTokens.GRID_COLUMNS * DesignTokens.GRID_ROWS - 1)
+        return DropTarget.Page(page, targetCell)
     }
 
     /** Legt das gezogene Icon ab; Bildschirm→Container-Umrechnung, damit es vom Finger aus in den Platz fällt. */
@@ -948,8 +1026,11 @@ class HomeModel(
         mergeJob?.cancel()
         pendingHover = null
         pendingMerge = null
-        d.mergeTarget?.let { target -> mergeInto(d.key, target); drag = null; save(); return }
+        d.mergeTarget?.let { target -> mergeInto(d.key, target); drag = null; pruneEmptyPages(); save(); return }
         val result = computeDisplay()
+        // nirgends abgelegt (z. B. aus der Mediathek gezogen, aber nie über eine Seite) → bleibt, wo es war
+        if (result.pages.none { d.key in it } && d.key !in result.dock) { drag = null; pruneEmptyPages(); return }
+        hidden = hidden - appKeyOf(d.key) // aus der Mediathek wieder auf den Homescreen geholt
         val screenTopLeft = d.pointer - d.grabOffset
         val container = when {
             d.key in result.dock -> Container.Dock
@@ -963,9 +1044,10 @@ class HomeModel(
         anim.container = container
         scope.launch { anim.pos.snapTo(local) }
         anim.nextSpring = Motion.drop
-        pages = result.pages
+        pages = result.gapped.map(GridPlacement::trim)
         dock = result.dock
         drag = null
+        pruneEmptyPages() // z. B. vorne angelegte Seite, auf der dann doch nichts abgelegt wurde
         save()
     }
 
@@ -1017,7 +1099,7 @@ class HomeModel(
 
     /** Legt [key] in den Ordner [target] bzw. erzeugt aus App [target] + [key] einen neuen Ordner an dessen Platz. */
     private fun mergeInto(key: String, target: String) {
-        val basePages = pages.map { it - key }
+        val basePages = pagesWithHole(key)
         val baseDock = dock - key
         if (isWidget(key)) { // Widget auf Widget → Stapel; das hinzugefügte liegt oben (iOS zeigt es danach)
             val t = widgets.getValue(target); val k = widgets.getValue(key)
@@ -1115,6 +1197,9 @@ class HomeModel(
     /** Von HomeScreen gesetzt: Bildschirmrechteck des Icons einer App auf der sichtbaren Seite/im Dock/im Ordner. */
     var iconLocator: (android.content.ComponentName, android.os.UserHandle) -> androidx.compose.ui.geometry.Rect? = { _, _ -> null }
 
+    /** Zuletzt angetipptes Icon (bei mehreren Icons derselben App: genau dieses für Öffnen + Rückkehr), sonst null. */
+    var launchedIconKey: String? = null
+
     /** Icon, in das gerade ein App-Fenster fliegt: wird ausgeblendet (die Icon-Fläche des Systems steht an seiner Stelle). */
     var flyingKey by mutableStateOf<String?>(null)
 
@@ -1129,8 +1214,13 @@ class HomeModel(
             val app = apps.values.firstOrNull { it.component == c.component && it.user == c.user }
             // Ziel ist ein Widget (größer als ein Icon) → keine Icon-Fläche, das Widget selbst bleibt sichtbar
             val isIconSized = kotlin.math.abs(r.width - DesignTokens.iconSize.value * io.github.janhurn9400.liquidy.design.UiScale.density(repository.context)) < 2f
-            val inOpenFolder = openFolder?.let { of -> app?.key?.let { k -> folderFor(of.id)?.apps?.contains(k) } } == true
-            val target = app?.key?.takeIf { k -> isIconSized && (dock.contains(k) || pages.any { k in it } || inOpenFolder) }
+            fun visibleIcon(k: String) = dock.contains(k) || pages.any { k in it } ||
+                openFolder?.let { of -> folderFor(of.id)?.apps?.contains(k) } == true
+            // angetipptes Icon zuerst, sonst irgendein Icon dieser App (mehrere Icons derselben App möglich)
+            val target = app?.key?.let { base ->
+                launchedIconKey?.takeIf { appKeyOf(it) == base && visibleIcon(it) }
+                    ?: (listOf(base) + pages.flatten() + dock).firstOrNull { appKeyOf(it) == base && visibleIcon(it) }
+            }?.takeIf { isIconSized }
             flyingKey = target
             // Widget-Ziel: Bild des Widgets als Fläche, mit Widget-Ecken (wie beim Dock-Icon, nur in Widget-Größe)
             val widgetKey = io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetOrigins[c.component.packageName]?.takeIf { !isIconSized }
@@ -1198,10 +1288,25 @@ class HomeModel(
         shortcutPrefetch = key to scope.async(kotlinx.coroutines.Dispatchers.Default) { repository.shortcuts(app, px) }
     }
 
-    fun openContextMenu(key: String, iconTopLeft: Offset, density: Float, widgetRect: androidx.compose.ui.geometry.Rect? = null) {
+    /** App aus der Mediathek gezogen: Mediathek bleibt sichtbar, bis der Pager zur letzten Seite gewischt hat. */
+    var leavingLibrary by mutableStateOf(false)
+
+    fun openContextMenu(key: String, iconTopLeft: Offset, density: Float, widgetRect: androidx.compose.ui.geometry.Rect? = null,
+                        fromLibrary: Boolean = false) {
         haptic() // iOS: spürbar, wenn das Menü aufgeht
         val res = repository.context
-        val items = buildList {
+        val items = if (fromLibrary) buildList {
+            // Mediathek (iOS): kein „Vom Home-Bildschirm entfernen“/„Home-Bildschirm bearbeiten“ — App löschen, Info, Shortcuts
+            val app = apps[key]
+            if (app != null) {
+                add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.delete_app_menu), MenuGlyph.Remove, destructive = true) { deleteApp(key) })
+                add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.app_info), MenuGlyph.Info) { repository.showAppInfo(app, android.graphics.Rect()) })
+                val pre = shortcutPrefetch?.takeIf { it.first == key }?.second
+                @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+                val list = if (pre != null && pre.isCompleted) pre.getCompleted() else emptyList()
+                list.forEach { sc -> add(MenuItem(sc.label, MenuGlyph.Bitmap(sc.glyph)) { repository.startShortcut(sc, android.graphics.Rect()) }) }
+            }
+        } else buildList {
             val app = apps[key]
             // Ordner: kein „App entfernen“/App-Info (würde einen Lösch-Dialog ohne App öffnen)
             if (app != null) add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.remove_app_menu), MenuGlyph.Remove, destructive = true) { pendingRemoval = key })
@@ -1305,13 +1410,14 @@ class HomeModel(
     }
 
     private fun computeDisplay(): DisplayLayout {
-        val d = drag ?: return DisplayLayout(pages, dock)
-        val p = pages.map { it - d.key }.toMutableList()
+        val d = drag ?: return DisplayLayout(pages.map(GridPlacement::stripGaps), dock, pages)
+        // Ausgangsstelle bleibt als Lücke stehen (aktuelles iOS) — die anderen Icons rücken nicht nach
+        val p = pages.map { pg -> pg.map { if (it == d.key) dragGap else it } }.toMutableList()
         var dk = dock - d.key
         when (val h = d.hover) {
             is DropTarget.Page -> {
                 while (p.size <= h.page) p += emptyList<String>()
-                p[h.page] = p[h.page].toMutableList().apply { add(h.index.coerceIn(0, size), d.key) }
+                p[h.page] = GridPlacement.placeAt(p[h.page], d.key, h.index, ::sizeOf)
                 // Überlauf (nach Platz im Raster, Widgets belegen mehrere Zellen) auf die Folgeseiten schieben
                 val flowed = GridPlacement.flow(p, ::sizeOf)
                 p.clear(); p.addAll(flowed)
@@ -1319,7 +1425,7 @@ class HomeModel(
             is DropTarget.Dock -> dk = dk.toMutableList().apply { add(h.index.coerceIn(0, size), d.key) }
             null -> Unit
         }
-        return DisplayLayout(p, dk)
+        return DisplayLayout(p.map(GridPlacement::stripGaps), dk, p)
     }
 
     // ── Seitenübersicht („Seiten bearbeiten“, Bildschirmaufnahme 10-08 09:55) ─────
@@ -1332,6 +1438,24 @@ class HomeModel(
     /** Karte (Übersichts-Index), aus der beim Öffnen herausgezoomt bzw. in die beim Schließen hineingezoomt wird. */
     var overviewFocus by mutableStateOf(0)
         private set
+
+    /**
+     * Von der Seitenübersicht gesetzt: aktuelle Lage der Fokus-Karte und die Seitenfläche, der sie entspricht (beide px).
+     * Der echte Homescreen zoomt beim Öffnen/Schließen damit mit (wie Duo) — liegt so immer deckungsgleich unter der Karte.
+     */
+    /**
+     * Sichtbare Seite in der linken Bildschirmhälfte beim Öffnen/Schließen (−1 = Heute-Ansicht). Duo aufgeklappt wandert auch
+     * die Seite rechts daneben (+1) in ihre Karte — beide sichtbaren Seiten zoomen gleichzeitig.
+     */
+    var overviewLeftPage by mutableStateOf(0)
+
+    /** Je sichtbarer Seite: aktuelle Kartenlage + Bildschirmfläche der Seite (px), von der Übersicht gesetzt. */
+    // State-Map: der Zeichenblock der Seiten muss neu laufen, sobald die Übersicht ihre Karten einträgt
+    val overviewZoom = androidx.compose.runtime.mutableStateMapOf<Int, () -> Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>>()
+
+    /** Übersichts-Index → sichtbare Seitennummer (null = ausgeblendete Seite). */
+    fun overviewVisibleIndex(overviewIndex: Int): Int? =
+        overviewPages().takeIf { it.getOrNull(overviewIndex)?.visible == true }?.let { visibleIndexOf(overviewIndex) }
 
     /** Aus dem Bearbeiten-Menü angefordert (HomeScreen kennt die aktuelle Seite). */
     var pagesOverviewRequested by mutableStateOf(false)
@@ -1368,7 +1492,7 @@ class HomeModel(
         val target = toIndex.takeIf { ov.getOrNull(it)?.visible == true } ?: ov.indexOfFirst { it.visible }.coerceAtLeast(0)
         overviewFocus = target
         scope.launch {
-            pagesOverview.animateTo(0f, Motion.pagesOverview.spec())
+            pagesOverview.animateTo(0f, Motion.pagesOverview.spec(visibilityThreshold = OVERVIEW_SETTLE)) // fein auslaufen: Standard-Schwelle 0,01 sprang am Ende
             pagesOverviewOpen = false
         }
         onPage(visibleIndexOf(target))
@@ -1548,11 +1672,49 @@ class HomeModel(
 
     // ── Entfernen ─────────────────────────────────────────────────────────────
     fun removeFromHome(key: String) {
-        pages = pages.map { it - key }
+        pages = pagesWithHole(key)
         dock = dock - key
         folders = folders.mapValues { (_, f) -> f.copy(apps = f.apps - key) }
-        hidden = hidden + key
+        // „ausgeblendet“ gilt je App — nur, wenn kein weiteres Icon dieser App mehr auf dem Homescreen liegt
+        if (!onHome(appKeyOf(key))) hidden = hidden + appKeyOf(key)
+        pruneEmptyPages()
         save()
+    }
+
+    /** Seiten ohne [key]; an seiner Stelle bleibt eine Lücke (freie Platzierung — die anderen rücken nicht nach). */
+    private fun pagesWithHole(key: String): List<List<String>> =
+        pages.map { pg -> GridPlacement.trim(pg.map { if (it == key) GridPlacement.newGap() else it }) }
+
+    /**
+     * Beim Ziehen an den linken Rand der ersten Seite: neue leere Seite davor (wie rechts hinter der letzten).
+     * Hover-Ziele rücken mit. @return false, wenn vorne schon eine leere Seite liegt.
+     */
+    fun insertPageFront(): Boolean {
+        val d = drag ?: return false
+        if (pages.firstOrNull()?.let(GridPlacement::isBlank) == true) return false
+        pages = listOf(emptyList<String>()) + pages
+        (d.hover as? DropTarget.Page)?.let { d.hover = it.copy(page = it.page + 1) }
+        hoverJob?.cancel(); pendingHover = null
+        return true
+    }
+
+    /** Liegt irgendein Icon der App [appKey] auf dem Homescreen (Seiten, Dock, Ordner)? */
+    fun onHome(appKey: String): Boolean {
+        fun hit(k: String) = appKeyOf(k) == appKey
+        return pages.any { pg -> pg.any(::hit) } || dock.any(::hit) || folders.values.any { f -> f.apps.any(::hit) }
+    }
+
+    /** Key für ein neues Icon der App aus der Mediathek: liegt sie schon auf dem Homescreen → weiteres Icon. */
+    fun newIconKey(appKey: String): String =
+        if (onHome(appKey)) appKey + INSTANCE_SEP + java.util.UUID.randomUUID().toString().take(8) else appKey
+
+    /** Nimmt das Dock [key] auf? (Platz frei oder schon drin; Widgets nie) */
+    fun dockAccepts(key: String): Boolean = !isWidget(key) && (key in dock || dock.size < DOCK_MAX)
+
+    /** Leere Seiten sofort entfernen (nicht beim Ziehen — da ist die leere Seite am Ende das Ablageziel). */
+    fun pruneEmptyPages() {
+        if (drag != null) return
+        if (pages.any(GridPlacement::isBlank)) pages = pages.filterNot(GridPlacement::isBlank).ifEmpty { listOf(emptyList()) }
     }
 
     fun deleteApp(key: String) {
@@ -1577,3 +1739,6 @@ class HomeModel(
         const val DUO_LIB_LIST_DELAY_MS = 100f
     }
 }
+
+/** Auslauf-Schwelle der Seitenübersicht (Anteil 0…1): Karte gleitet bis auf Bruchteile eines Pixels an ihren Platz. */
+private const val OVERVIEW_SETTLE = 0.0005f

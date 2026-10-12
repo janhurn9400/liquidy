@@ -110,13 +110,15 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
             PickerEntry(context.getString(R.string.widget_weather), context.getString(R.string.widget_weather_desc), 4, 4, IosWidgetTypes.WEATHER),
             PickerEntry(context.getString(R.string.widget_photos), context.getString(R.string.widget_photos_desc), 2, 2, IosWidgetTypes.PHOTOS),
             PickerEntry(context.getString(R.string.widget_photos), context.getString(R.string.widget_photos_desc), 4, 4, IosWidgetTypes.PHOTOS),
+            PickerEntry(context.getString(R.string.widget_reminders), context.getString(R.string.widget_reminders_desc), 2, 2, IosWidgetTypes.REMINDERS),
+            PickerEntry(context.getString(R.string.widget_reminders), context.getString(R.string.widget_reminders_desc), 4, 2, IosWidgetTypes.REMINDERS),
+            PickerEntry(context.getString(R.string.widget_reminders), context.getString(R.string.widget_reminders_desc), 4, 4, IosWidgetTypes.REMINDERS),
         )
         val android = withContext(Dispatchers.IO) {
             host?.providers().orEmpty().map { p ->
                 val app = runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(p.provider.packageName, 0)).toString() }.getOrDefault("")
-                val (c, r) = host!!.iosSize(p)
-                PickerEntry(app, p.loadLabel(context.packageManager), c, r, provider = p)
-            }
+                host!!.iosSizes(p).map { (c, r) -> PickerEntry(app, p.loadLabel(context.packageManager), c, r, provider = p) }
+            }.flatten()
         }
         value = ios + android
     }
@@ -136,12 +138,13 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
     // Duo-Stil (auf- und zugeklappt): helles Blatt mit App-Liste + Detailblatt mit Größen-Karussell [Aufnahme 10:40, 31–46 s]
     if (io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle) {
         DuoWidgetPicker(
-            groups = shown.groupBy { it.title }.entries.map { it.key to it.value }.sortedBy { it.first.lowercase() },
+            // nach App getrennt: eigene iOS-Widgets und eine Android-App gleichen Namens (z. B. „Clock“) nicht mischen
+            groups = shown.groupBy { it.title to it.provider?.provider?.packageName }.entries.map { it.key.first to it.value }.sortedBy { it.first.lowercase() },
             query = query, onQuery = { query = it }, appear = { appear.value }, close = { close() },
             onAdd = { e, finished ->
                 val p = e.provider
                 if (p == null) { onAdd(WidgetSpec(e.iosType!!, e.cols, e.rows)); scope.launch { kotlinx.coroutines.delay(250); finished(); close() } }
-                else (context as? Activity)?.let { act -> host?.add(act, p) { spec -> if (spec != null) { onAdd(spec); finished(); close() } } }
+                else (context as? Activity)?.let { act -> host?.add(act, p, e.cols to e.rows) { spec -> if (spec != null) { onAdd(spec); finished(); close() } } }
             },
         )
         return
@@ -197,7 +200,7 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
                 val p = e.provider
                 if (p == null) { onAdd(WidgetSpec(e.iosType!!, e.cols, e.rows)); scope.launch { kotlinx.coroutines.delay(250); detailOut = true; close() } } // Blatt bleibt, bis das Widget sich gehoben hat
                 else (context as? Activity)?.let { act ->
-                    host?.add(act, p) { spec -> if (spec != null) { onAdd(spec); close() } }
+                    host?.add(act, p, e.cols to e.rows) { spec -> if (spec != null) { onAdd(spec); close() } }
                 }
             }
         }
