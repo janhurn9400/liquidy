@@ -78,7 +78,10 @@ class WallpaperEditorState(initial: WallpaperSettings, initialBitmap: ImageBitma
     var draft by mutableStateOf(initial)
     /** Bild zum Entwurf; startet mit dem aktuellen Wallpaper (nichts muss erst gerendert werden). */
     var draftBitmap by mutableStateOf(initialBitmap)
-    internal var renderedFor by mutableStateOf<WallpaperSettings?>(initial)
+    /** Vorschau ohne Blur: Blur wird in der Vorschau weich animiert darübergelegt ([blurAnim]), erst bei „Done“ eingerechnet. */
+    internal var renderedFor by mutableStateOf<WallpaperSettings?>(if (initial.blur) null else initial)
+    /** 0 = scharf, 1 = voll verwischt (Vorschau). */
+    val blurAnim = Animatable(if (initial.blur && initial.blurAvailable) 1f else 0f)
     val appear = Animatable(0f)
     val sheetAnim = Animatable(0f)
     var sheet by mutableStateOf<WallpaperKind?>(null)
@@ -87,7 +90,7 @@ class WallpaperEditorState(initial: WallpaperSettings, initialBitmap: ImageBitma
     internal var finishing = false
     internal var backdrop: com.kyant.backdrop.Backdrop? = null
     /** Entwurf ist fertig gerendert (Zuschnitt bleibt bis dahin stehen → kein Zwischenbild). */
-    val ready: Boolean get() = renderedFor == draft
+    val ready: Boolean get() = renderedFor == draft.copy(blur = false)
 }
 
 /**
@@ -142,6 +145,8 @@ internal class WpeLayout(
     val topY: Float, val topSide: Float, val doneLeft: Boolean,
     val barY: Float, val barFirstX: Float, val barPitch: Float, val dividerX: Float, val blurX: Float,
     val circle: Float, val labelY: Float,
+    /** Schrift der Cancel/Done-Knöpfe (sp); null = iPhone-Token. */
+    val buttonFont: Float? = null,
 )
 
 private const val PHONE_W = 402f
@@ -160,7 +165,7 @@ internal fun wpeLayout(screenW: Float, screenH: Float): WpeLayout {
             DUO_TOP_Y, DUO_TOP_CENTER - DesignTokens.wpeButtonW.value / 2, doneLeft = true,
             barY, screenW / 2 - half, pitch,
             screenW / 2 - half + 3 * pitch + DUO_BAR_GAP, screenW / 2 - half + 3 * pitch + 2 * DUO_BAR_GAP,
-            DUO_CIRCLE, barY + DUO_LABEL_BELOW)
+            DUO_CIRCLE, barY + DUO_LABEL_BELOW, buttonFont = DUO_BUTTON_FONT)
     }
     if (duo) {
         val dx = (screenW - PHONE_W) / 2; val dy = screenH - PHONE_H
@@ -201,19 +206,31 @@ fun WallpaperEditorChrome(
         scope.launch {
             state.sheet = null
             state.appear.animateTo(0f, Motion.wpeAppear.spec())
-            if (apply) onDone(state.draft, state.draftBitmap) else onCancel()
+            if (apply) {
+                // Blur jetzt fest einrechnen (Vorschau war scharfes Bild + animierter Blur)
+                val d = state.draft
+                val bmp = if (d.blur && d.blurAvailable) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    io.github.janhurn9400.liquidy.glass.WallpaperRenderer.blurredImage(state.draftBitmap)
+                } else state.draftBitmap
+                onDone(d, bmp)
+            } else onCancel()
         }
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = constraints.maxWidth; val h = constraints.maxHeight
         // Entwurf rendern; das bisherige Bild bleibt stehen, bis das neue fertig ist
-        LaunchedEffect(state.draft, w, h) {
-            val d = state.draft
+        LaunchedEffect(state.draft.copy(blur = false), w, h) {
+            val d = state.draft.copy(blur = false)
             if (state.renderedFor == d) return@LaunchedEffect
             val bmp = WallpaperRenderer.render(context, d, w, h)
             state.draftBitmap = bmp
             state.renderedFor = d
+        }
+        // Blur weich ein-/ausblenden statt von 0 auf 100 (Dauer geschätzt, keine iPhone-Aufnahme davon)
+        LaunchedEffect(state.draft.blur && state.draft.blurAvailable) {
+            state.blurAnim.animateTo(if (state.draft.blur && state.draft.blurAvailable) 1f else 0f,
+                androidx.compose.animation.core.tween(WPE_BLUR_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing))
         }
         val draft = state.draft
         val lay = wpeLayout(w / LocalDensity.current.density, h / LocalDensity.current.density)
@@ -284,7 +301,7 @@ internal fun TopButton(text: String, alignLeft: Boolean, layout: WpeLayout? = nu
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
                     contentAlignment = Alignment.Center,
                 ) {
-                    BasicText(text, style = TextStyle(fontFamily = Inter, fontSize = DesignTokens.wpeButtonFont.value.sp,
+                    BasicText(text, style = TextStyle(fontFamily = Inter, fontSize = (layout?.buttonFont ?: DesignTokens.wpeButtonFont.value).sp,
                         fontWeight = FontWeight.SemiBold, color = Color.White), maxLines = 1)
                     GlassRim(CircleShape, Modifier.matchParentSize())
                 }
@@ -419,7 +436,9 @@ private fun dropGlyph(scope: androidx.compose.ui.graphics.drawscope.DrawScope, c
 
 private const val DUO_PREVIEW_SCALE = 0.70f
 private const val DUO_PREVIEW_Y = 100f
-private const val DUO_TOP_Y = 35.5f
+private const val WPE_BLUR_MS = 450
+private const val DUO_TOP_Y = 34.3f // Textmitte [GEMESSEN c.mov 85 s: Versal 29,2–39,3 pt]
+private const val DUO_BUTTON_FONT = 14.5f // Versalhöhe 10,1 pt („Done“ 34,9 pt breit) statt 12 pt
 private const val DUO_TOP_CENTER = 37f      // Kapsel-Mitte vom Rand
 private const val DUO_BAR_FROM_BOTTOM = 63f // Duo: Kreis-Mitte 606 pt bei 669 pt Höhe
 private const val DUO_PREVIEW_GAP = 14f

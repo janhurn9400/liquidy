@@ -55,7 +55,9 @@ import kotlin.math.roundToInt
 /** Zwei Glas-Kapseln oben (T-EDIT-BTN): links Pinsel („Anpassen“), rechts Häkchen („Fertig“). */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun EditButtons(geo: HomeGeometry, wallpaper: ImageBitmap, density: Float, showLeft: Boolean = true, leftPlus: Boolean = false, scale: () -> Float) {
+fun EditButtons(geo: HomeGeometry, wallpaper: ImageBitmap, density: Float, showLeft: Boolean = true, leftPlus: Boolean = false,
+                /** Duo: Aufploppen 0…1 (ab ≈ 60 % Größe, mit Überschwingen) statt aus 0 wachsen. */
+                popIn: (() -> Float)? = null, scale: () -> Float) {
     // Die Buttons sitzen dort, wo sonst die Statusleiste ist: erst einblenden, wenn sie wirklich weg ist
     // (folgt der System-Animation; gelesen in der Zeichenphase → kein Neuaufbau je Frame)
     val statusBar = WindowInsets.statusBars
@@ -77,10 +79,16 @@ fun EditButtons(geo: HomeGeometry, wallpaper: ImageBitmap, density: Float, showL
                 .offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }
                 .size(Dp(r.width / density), Dp(r.height / density))
                 .graphicsLayer {
-                    val s = scale(); scaleX = s; scaleY = s
+                    val p = popIn?.invoke()
                     val full = statusBarFull.getTop(this).coerceAtLeast(1)
                     val gone = 1f - statusBar.getTop(this).toFloat() / full
-                    alpha = s.coerceIn(0f, 1f) * gone.coerceIn(0f, 1f)
+                    if (p != null) {
+                        val sc = POP_FROM + (1f - POP_FROM) * p; scaleX = sc; scaleY = sc
+                        alpha = (p * POP_ALPHA_RATE).coerceIn(0f, 1f) * gone.coerceIn(0f, 1f)
+                    } else {
+                        val s = scale(); scaleX = s; scaleY = s
+                        alpha = s.coerceIn(0f, 1f) * gone.coerceIn(0f, 1f)
+                    }
                 },
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -244,6 +252,8 @@ private fun AlertButton(text: String, color: Color, bold: Boolean, onClick: () -
 }
 
 // Duo-Bearbeiten-Knöpfe [GEMESSEN Video 4, 1 s]: Häkchen ≈ 17 × 13 pt, Strich ≈ 1,5 pt, weiß
+private const val POP_FROM = 0.6f // [GEMESSEN] erstes sichtbares Bild ≈ 60 % Größe, blass
+private const val POP_ALPHA_RATE = 2.5f
 internal const val DUO_GLYPH = 18f
 internal const val DUO_GLYPH_STROKE = 0.085f
 internal const val DUO_BTN_BLUR = 6f

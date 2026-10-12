@@ -603,6 +603,9 @@ class HomeModel(
     val jiggleAmount = Animatable(0f)
     /** Skalierung der Minus-Badges und Edit-Buttons (M-BADGE). */
     val badgeScale = Animatable(0f)
+    /** Duo: ✓/Pinsel oben rechts (eigener Verlauf, siehe enterEdit). 0 = weg, 1 = da. */
+    val editButtons = Animatable(0f)
+    private var editButtonsJob: kotlinx.coroutines.Job? = null
 
     val anims = HashMap<String, IconAnim>()
 
@@ -817,6 +820,14 @@ class HomeModel(
         haptic() // iOS: spürbar beim Beginn des Wackelns
         scope.launch { jiggleAmount.snapTo(1f) } // [GEMESSEN] kein Einblenden
         scope.launch { badgeScale.animateTo(1f, Motion.badge.spec()) }
+        // Duo [GEMESSEN Aufnahme 19:07:42, 6,54–6,75 s]: Statussymbole weg, ≈ 90 ms nichts, dann ploppen ✓/Pinsel aus
+        // ≈ 60 % Größe halb durchsichtig auf und federn mit leichtem Überschwingen auf volle Größe (≈ 120 ms)
+        editButtonsJob?.cancel()
+        editButtonsJob = scope.launch {
+            editButtons.snapTo(0f)
+            delay(EDIT_BUTTONS_DELAY_MS)
+            editButtons.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 900f))
+        }
     }
 
     fun exitEdit() {
@@ -825,6 +836,8 @@ class HomeModel(
         editing = false
         scope.launch { jiggleAmount.animateTo(0f, Motion.jiggleStop.spec()) }
         scope.launch { badgeScale.animateTo(0f, Motion.badge.spec()) }
+        // Duo [GEMESSEN 19:06:29, 11,97 → 11,98 s]: Knöpfe verschwinden in einem Bild
+        editButtonsJob?.cancel(); editButtonsJob = scope.launch { editButtons.snapTo(0f) }
         pages = pages.filter { it.isNotEmpty() }.ifEmpty { listOf(emptyList()) }
         save()
     }
@@ -1553,6 +1566,7 @@ class HomeModel(
         const val DOCK_MAX = DesignTokens.DOCK_SLOTS
         const val RECENTS_MAX = 8
         const val SMART_ROTATE_DELAY_MS = 700L
+        const val EDIT_BUTTONS_DELAY_MS = 90L
         const val WIDGET_CONFIG_OPEN_MS = 620
         const val WIDGET_CONFIG_CLOSE_MS = 550
         const val SMART_ROTATE_QUIET_MS = 15 * 60_000L

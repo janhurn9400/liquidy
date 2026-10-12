@@ -37,7 +37,7 @@ data class WallpaperSettings(
     val userChosen: Boolean = false,
 ) {
     /** Blur gibt es nur für Fotos (im Farb-/Verlaufsmodus ist der Schalter ausgegraut, recording6 25,2 s). */
-    val blurAvailable get() = kind == WallpaperKind.Photo
+    val blurAvailable get() = kind == WallpaperKind.Photo || kind == WallpaperKind.Pair
 
     companion object {
         const val DEFAULT_TONE = 0.5f
@@ -56,47 +56,58 @@ object WallpaperStore {
      */
     suspend fun syncSystemWallpaper(context: Context, s: WallpaperSettings, bmp: ImageBitmap) = withContext(Dispatchers.IO) {
         if (!s.userChosen) return@withContext // Android-Wallpaper des Nutzers nie ungefragt überschreiben
+        // „Pair“: Androids Bild ohne Blur bleibt unangetastet; mit Blur setzen wir das verwischte Bild so vorbereitet, dass
+        // Android es genau wie gezeigt darstellt (sonst würde es erneut zugeschnitten/gezoomt)
+        val pair = s.kind == WallpaperKind.Pair
+        if (pair && !s.blur && !systemIsOurs(context)) return@withContext
         if (testSuppressSync) return@withContext
-        val comp = emulatorFoldCompensation(context, bmp.width, bmp.height)
-        val key = "${s.hashCode()}@${bmp.width}x${bmp.height}" + (if (comp != null) "+comp" else "")
+        val key = "${s.hashCode()}@${bmp.width}x${bmp.height}:plain"
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val wm = android.app.WallpaperManager.getInstance(context)
         if (p.getString("systemSynced", null) == key && p.getInt("systemSyncedId", -1) == wm.getWallpaperId(android.app.WallpaperManager.FLAG_SYSTEM)) return@withContext
         runCatching {
-            val src = bmp.asAndroidBitmap()
-            val b = if (comp != null) compensated(src, comp) else src
+            val b = if (pair) shownAs(context, bmp.asAndroidBitmap()) else bmp.asAndroidBitmap()
             val id = wm.setBitmap(b, android.graphics.Rect(0, 0, b.width, b.height), true, android.app.WallpaperManager.FLAG_SYSTEM)
             p.edit().putString("systemSynced", key).putInt("systemSyncedId", id).apply()
         }.onFailure { android.util.Log.w("WallpaperStore", "System-Wallpaper nicht gesetzt", it) }
     }
 
     /**
-     * Nur Emulator (Pixel-Fold-Image mit Duo-Proportionen 2854 × 2007, aufgeklappt): Android schneidet das System-Wallpaper
-     * dort selbst zu und zeigt nur den Ausschnitt [GEMESSEN 10-11, Koordinaten-Rampe] x 0,0428·H … +h·W/H, y mittig,
-     * h = H / 1,5646 — unabhängig von der Bildbreite. Während der Wisch-nach-Hause-Geste sähe man so ein vergrößertes Bild.
-     * Ausgleich: unser Bild genau in diesen Ausschnitt legen. Auf echten Geräten (noch ungeprüft) bleibt alles unverändert.
+     * Unser Bild so, wie Android es als System-Wallpaper auf diesem Display zeigt (Zuschnitt + Zoom, WallpaperCropModel) —
+     * Quelle fürs Glas und für die selbst gezeichnete Unschärfe, damit beides deckungsgleich über Androids Bild liegt.
      */
-    private fun emulatorFoldCompensation(context: Context, w: Int, h: Int): android.graphics.Rect? {
-        if (android.os.Build.HARDWARE != "ranchu" && android.os.Build.HARDWARE != "goldfish") return null
-        if (w <= h || !io.github.janhurn9400.liquidy.data.FoldableStyle.isFoldable(context)) return null
-        val shownH = h / EMU_FOLD_ZOOM
-        val top = (h - shownH) / 2f
-        val left = h * EMU_FOLD_LEFT
-        return android.graphics.Rect(left.toInt(), top.toInt(), (left + shownH * w / h).toInt().coerceAtMost(w), (top + shownH).toInt())
+    fun asShownBySystem(context: Context, bmp: ImageBitmap): ImageBitmap {
+        val r = WallpaperCropModel.shownRegion(context, bmp.width, bmp.height, bmp.width, bmp.height) ?: return bmp
+        val out = android.graphics.Bitmap.createBitmap(bmp.width, bmp.height, android.graphics.Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(out).drawBitmap(bmp.asAndroidBitmap(),
+            android.graphics.Rect(kotlin.math.round(r.left).toInt(), kotlin.math.round(r.top).toInt(), kotlin.math.round(r.right).toInt(), kotlin.math.round(r.bottom).toInt()),
+            android.graphics.Rect(0, 0, bmp.width, bmp.height), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+        return out.asImageBitmap()
     }
 
-    /** Bild in [r] verkleinert; drumherum dasselbe Bild bildschirmfüllend (nur bei Übergängen/anderen Displays sichtbar). */
-    private fun compensated(src: android.graphics.Bitmap, r: android.graphics.Rect): android.graphics.Bitmap {
-        val out = android.graphics.Bitmap.createBitmap(src.width, src.height, android.graphics.Bitmap.Config.ARGB_8888)
-        val c = android.graphics.Canvas(out)
-        val p = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
-        c.drawBitmap(src, null, android.graphics.Rect(0, 0, src.width, src.height), p)
-        c.drawBitmap(src, null, r, p)
+    /**
+     * Grundbild für „Pair“: Androids Bild, wie es gezeigt wird — einmal gesichert, solange es noch nicht von uns stammt
+     * (sonst ginge das Original verloren, sobald wir die verwischte Fassung setzen).
+     */
+    fun pairBase(context: Context, w: Int, h: Int): android.graphics.Bitmap? {
+        val f = java.io.File(context.filesDir, "pair_base.png")
+        if (!systemIsOurs(context)) {
+            val cur = kotlinx.coroutines.runBlocking { SystemWallpaper.read(context, w, h) }?.asAndroidBitmap()
+            if (cur != null) { runCatching { f.outputStream().use { cur.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) } }; return cur }
+        }
+        return runCatching { android.graphics.BitmapFactory.decodeFile(f.path) }.getOrNull()
+            ?.let { if (it.width == w && it.height == h) it else android.graphics.Bitmap.createScaledBitmap(it, w, h, true) }
+    }
+
+    /** Umkehrung von [asShownBySystem]: Bild so vorbereiten, dass Android genau [shown] anzeigt. */
+    private fun shownAs(context: Context, shown: android.graphics.Bitmap): android.graphics.Bitmap {
+        val r = WallpaperCropModel.shownRegion(context, shown.width, shown.height, shown.width, shown.height) ?: return shown
+        val out = android.graphics.Bitmap.createBitmap(shown.width, shown.height, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(out); val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+        c.drawBitmap(shown, null, android.graphics.Rect(0, 0, shown.width, shown.height), paint) // Rand (nur bei Übergängen sichtbar)
+        c.drawBitmap(shown, null, android.graphics.RectF(r.left, r.top, r.right, r.bottom), paint)
         return out
     }
-
-    private const val EMU_FOLD_ZOOM = 1.5646f
-    private const val EMU_FOLD_LEFT = 86f / 2007f
 
     /** Ist das aktuelle System-Wallpaper genau das, das wir zuletzt gesetzt haben? */
     fun systemIsOurs(context: Context): Boolean =
@@ -169,7 +180,10 @@ object WallpaperRenderer {
 
     suspend fun render(context: Context, s: WallpaperSettings, w: Int, h: Int): ImageBitmap = withContext(Dispatchers.Default) {
         when (s.kind) {
-            WallpaperKind.Pair -> Wallpaper.generate(w, h)
+            // „Pair“ = das in Android eingestellte Bild (so wie Android es zeigt); ohne Lesezugriff/bei Live-Wallpaper unser eigenes
+            WallpaperKind.Pair -> (WallpaperStore.pairBase(context, w, h) ?: Wallpaper.generate(w, h).asAndroidBitmap()).let { b ->
+                (if (s.blur) blurred(b) else b).asImageBitmap()
+            }
             WallpaperKind.Colour -> solid(toned(s.color, s.tone), w, h)
             WallpaperKind.Gradient -> gradient(toned(s.color, s.tone), w, h)
             WallpaperKind.Photo -> photo(context, s, w, h) ?: Wallpaper.generate(w, h)
@@ -216,7 +230,14 @@ object WallpaperRenderer {
      * Starker, weicher Blur fürs Foto (iOS „Blur“, recording6 39,2 s): auf ¼ verkleinern, 3× Box-Blur (≈ Gauß), hochskalieren.
      * Zusätzlich leicht abgedunkelt — iOS dunkelt den verwischten Hintergrund für die Lesbarkeit ab [GESCHÄTZT].
      */
-    private fun blurred(src: Bitmap): Bitmap {
+    /** Fest eingerechneter Blur (wie bei der Vorschau-Animation am Ende). */
+    fun blurredImage(src: ImageBitmap): ImageBitmap = blurred(src.asAndroidBitmap()).asImageBitmap()
+
+    /** Vorschau: entsprechender Blur-Radius (px, RenderEffect) und Abdunkeln für [blurred]. */
+    const val PREVIEW_BLUR_RADIUS_PX = 72f // 3× Box r=10 bei ¼ Auflösung ≈ Gauß σ 42 px ≈ Radius 72
+    const val PREVIEW_DIM = 0.12f // = BLUR_DIM
+
+    internal fun blurred(src: Bitmap): Bitmap {
         val sw = src.width / BLUR_DOWNSCALE; val sh = src.height / BLUR_DOWNSCALE
         val small = Bitmap.createScaledBitmap(src, sw, sh, true)
         val px = IntArray(sw * sh).also { small.getPixels(it, 0, sw, 0, 0, sw, sh) }
@@ -308,11 +329,19 @@ object SystemWallpaper {
         runCatching {
             val d = android.app.WallpaperManager.getInstance(context).getDrawable(android.app.WallpaperManager.FLAG_SYSTEM) ?: return@runCatching null
             val iw = d.intrinsicWidth.coerceAtLeast(1); val ih = d.intrinsicHeight.coerceAtLeast(1)
-            val scale = max(w.toFloat() / iw, h.toFloat() / ih)
-            val dw = iw * scale; val dh = ih * scale
             val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             val c = Canvas(out)
-            d.setBounds(((w - dw) / 2).roundToInt(), ((h - dh) / 2).roundToInt(), ((w + dw) / 2).roundToInt(), ((h + dh) / 2).roundToInt())
+            // Android zeigt von seiner gespeicherten Datei nur einen Ausschnitt (+ Zoom) → genau diesen bildschirmfüllend nehmen,
+            // sonst zeichneten wir ein anders gezoomtes Bild als Android (sichtbar als Rahmen/Versatz bei der Geste)
+            val r = WallpaperCropModel.shownRegionInCroppedFile(context, w, h, iw, ih)
+            if (r != null) {
+                val sc = w / r.width()
+                d.setBounds((-r.left * sc).roundToInt(), (-r.top * sc).roundToInt(), ((iw - r.left) * sc).roundToInt(), ((ih - r.top) * sc).roundToInt())
+            } else {
+                val scale = max(w.toFloat() / iw, h.toFloat() / ih)
+                val dw = iw * scale; val dh = ih * scale
+                d.setBounds(((w - dw) / 2).roundToInt(), ((h - dh) / 2).roundToInt(), ((w + dw) / 2).roundToInt(), ((h + dh) / 2).roundToInt())
+            }
             d.draw(c)
             out.asImageBitmap()
         }.onFailure { android.util.Log.w("SystemWallpaper", "nicht lesbar", it) }.getOrNull()

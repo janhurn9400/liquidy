@@ -164,6 +164,7 @@ class MainActivity : ComponentActivity() {
             val baseDensity = androidx.compose.ui.platform.LocalDensity.current
             val win = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
             androidx.compose.runtime.SideEffect { io.github.janhurn9400.liquidy.data.FoldableStyle.updateWindow(this@MainActivity, win.width, win.height) }
+            androidx.compose.runtime.LaunchedEffect(win.width, win.height) { io.github.janhurn9400.liquidy.glass.WallpaperCropModel.rememberDisplay(this@MainActivity) }
             val uiScale = io.github.janhurn9400.liquidy.design.UiScale.compute(
                 io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle && io.github.janhurn9400.liquidy.data.FoldableStyle.supportsDuo(this@MainActivity),
                 win.width, win.height, baseDensity.density)
@@ -200,14 +201,18 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(systemWallpaperId, canReadSystemWallpaper, w, h) {
                     systemPixels = if (colorful) null else io.github.janhurn9400.liquidy.glass.SystemWallpaper.read(this@MainActivity, w, h)
                 }
-                // Immer selbst zeichnen: Android zeigt das System-Wallpaper mit eigenem, nicht auslesbarem Zuschnitt/Zoom
-                // (Foldable: 2133-px-Ausschnitt × 1,565, außermittig) → jede Kopie fürs Glas läge daneben. Mit eigenem Bild
-                // sind Hintergrund und Glas pixelgleich. Android behält das Bild für Sperrbildschirm/Übergänge.
-                val drawOwnWallpaper = true
-                // Ist das Android-Wallpaper unseres, nehmen wir fürs Glas unser eigenes Bild: genau die Pixel, die wir gesetzt
-                // haben. Androids gelesene Kopie ist auf Foldables für ein anderes Seitenverhältnis zugeschnitten (z. B.
-                // 2133 statt 2854 px breit) → Glas zeigte einen verschobenen/vergrößerten Ausschnitt.
-                val homeWallpaper = if (systemOurs || colorful) wallpaper else systemPixels ?: wallpaper
+                // Android zeichnet sein Wallpaper selbst hinter unserem durchsichtigen Fenster (so stimmt es auch während der
+                // Wisch-nach-Hause-Geste). Fürs Glas/die Unschärfe brauchen wir dieselben Pixel: Androids Zuschnitt + Zoom wird
+                // nachgerechnet (glass/WallpaperCropModel) und auf unsere Kopie angewandt.
+                val shownOurs = remember(wallpaper, w, h) { io.github.janhurn9400.liquidy.glass.WallpaperStore.asShownBySystem(this@MainActivity, wallpaper) }
+                val homeWallpaper = when {
+                    colorful -> wallpaper
+                    // „Pair“ ist bereits Androids gezeigter Ausschnitt → nicht noch einmal zuschneiden
+                    systemOurs && wpSettings.kind != io.github.janhurn9400.liquidy.glass.WallpaperKind.Pair -> shownOurs
+                    else -> systemPixels ?: wallpaper
+                }
+                // Selbst zeichnen nur, wenn wir Androids Bild weder kennen noch lesen dürfen (sonst passte Glas nicht dazu)
+                val drawOwnWallpaper = colorful || (!systemOurs && systemPixels == null)
                 val onLaunch: (io.github.janhurn9400.liquidy.data.AppEntry, androidx.compose.ui.geometry.Rect) -> Unit = { app, bounds ->
                         val r = android.graphics.Rect(
                             bounds.left.roundToInt(), bounds.top.roundToInt(),
@@ -242,7 +247,7 @@ class MainActivity : ComponentActivity() {
                 }
                 io.github.janhurn9400.liquidy.ui.wallpaper.WallpaperEditorFrame(editor) {
                     HomeScreen(model = homeModel, pager = pager, wallpaper = editor?.draftBitmap ?: homeWallpaper, onLaunch = onLaunch,
-                        drawWallpaper = editor != null || drawOwnWallpaper)
+                        drawWallpaper = editor != null || drawOwnWallpaper, wallpaperBlur = { editor?.blurAnim?.value ?: 0f })
                 }
                 editor?.let { e ->
                     io.github.janhurn9400.liquidy.ui.wallpaper.WallpaperEditorChrome(
@@ -422,9 +427,10 @@ class MainActivity : ComponentActivity() {
         if (testWp != null && (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             val crop = intent.getStringExtra("crop")?.split(',')?.map { it.trim().toInt() }?.let { android.graphics.Rect(it[0], it[1], it[2], it[3]) }
             intent.removeExtra("testwp"); intent.removeExtra("crop")
-            io.github.janhurn9400.liquidy.glass.WallpaperStore.testSuppressSync = true
+            io.github.janhurn9400.liquidy.glass.WallpaperStore.testSuppressSync = testWp != "clear"
             Thread {
                 runCatching {
+                    if (testWp == "clear") { android.app.WallpaperManager.getInstance(this).clear(android.app.WallpaperManager.FLAG_SYSTEM); return@runCatching }
                     val bmp = android.graphics.BitmapFactory.decodeFile(testWp)
                     val id = android.app.WallpaperManager.getInstance(this).setBitmap(bmp, crop, true, android.app.WallpaperManager.FLAG_SYSTEM)
                     android.util.Log.i("IosHome", "Test-Wallpaper gesetzt id=$id ${bmp.width}x${bmp.height} crop=$crop")

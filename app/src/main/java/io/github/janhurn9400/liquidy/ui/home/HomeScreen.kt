@@ -88,6 +88,8 @@ fun HomeScreen(
     onLaunch: (AppEntry, Rect) -> Unit,
     /** false: Android zeigt dasselbe Bild hinter dem Fenster → eigenes nur für Unschärfe-Effekte zeichnen. */
     drawWallpaper: Boolean = true,
+    /** Wallpaper-Editor: weich animierter Blur der Vorschau (0…1). */
+    wallpaperBlur: () -> Float = { 0f },
 ) {
     val hapticView = androidx.compose.ui.platform.LocalView.current
     androidx.compose.runtime.SideEffect { model.haptic = { io.github.janhurn9400.liquidy.data.Haptics.tick(hapticView) } }
@@ -441,19 +443,25 @@ fun HomeScreen(
             while (c is android.content.ContextWrapper && c !is android.app.Activity) c = c.baseContext
             (c as? android.app.Activity)?.window
         }
-        LaunchedEffect(window, drawWallpaper) {
-            if (drawWallpaper) { window?.setBackgroundBlurRadius(0); return@LaunchedEffect }
-            androidx.compose.runtime.snapshotFlow { backgroundBlurPx(includeToday = true).roundToInt() }.collect { window?.setBackgroundBlurRadius(it) }
-        }
-        // Nur ohne Zugriff aufs Android-Bild (Rückfall) bzw. im Editor als Vorschau: Bild selbst zeichnen
-        if (drawWallpaper) Canvas(
+        LaunchedEffect(window) { window?.setBackgroundBlurRadius(0) }
+        // In Ruhe zeigt Android sein Wallpaper hinter dem durchsichtigen Fenster. Sobald der Hintergrund verschwimmen soll
+        // (Ordner, Suche, Heute, Mediathek …) legen wir unsere deckungsgleiche Kopie (= Androids Ausschnitt) verwischt
+        // darüber — das sieht auf jedem Gerät gleich aus (Androids Fenster-Unschärfe ist nicht überall verfügbar).
+        // Selbst gezeichnet wird immer, wenn wir Androids Bild nicht kennen ([drawWallpaper]) und im Editor.
+        val blurNow by remember { derivedStateOf { backgroundBlurPx(includeToday = true) > 0.5f } }
+        if (drawWallpaper || blurNow) Canvas(
             Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    val r = backgroundBlurPx(includeToday = true)
+                    val r = maxOf(backgroundBlurPx(includeToday = true),
+                        wallpaperBlur() * io.github.janhurn9400.liquidy.glass.WallpaperRenderer.PREVIEW_BLUR_RADIUS_PX)
                     renderEffect = if (r > 0.5f) BlurEffect(r, r, TileMode.Clamp) else null
                 }
-        ) { drawImage(wallpaper) }
+        ) {
+            drawImage(wallpaper)
+            val k = wallpaperBlur()
+            if (k > 0f) drawRect(Color.Black.copy(alpha = io.github.janhurn9400.liquidy.glass.WallpaperRenderer.PREVIEW_DIM * k))
+        }
 
         // Homescreen-Inhalt (Icons, Dock, Pill): unscharf + bei der Suche verschoben/verkleinert. Decal = außen transparent.
         Box(
@@ -580,7 +588,8 @@ fun HomeScreen(
         // ── Edit-Buttons oben ─────────────────────────────────────────────────────
         if (model.editing || model.badgeScale.value > 0f) {
             // Duo: der Pinsel wird selbst zum Tropfen → solange das Menü offen ist, steht dort kein Knopf (Video 4)
-            EditButtons(geo, wallpaper, density, showLeft = !(geo.duo && model.editMenuOpen)) { model.badgeScale.value }
+            EditButtons(geo, wallpaper, density, showLeft = !(geo.duo && model.editMenuOpen),
+                popIn = if (geo.duo) ({ model.editButtons.value }) else null) { model.badgeScale.value }
         }
         // ── Heute-Ansicht (links von Seite 0) — im Homescreen-Inhalt: beim Herunterziehen für die Suche rutscht sie
         // genauso nach unten, schrumpft und wird unscharf wie die Icons (recording8 5–7 s)

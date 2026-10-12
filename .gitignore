@@ -12,3 +12,4 @@ shots/
 docs/reference/
 *.mp4
 *.mov
+.DS_Store
