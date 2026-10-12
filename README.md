@@ -1,4 +1,4 @@
-# iOS Home Launcher
+# Liquidy
 
 A faithful recreation of a modern iOS home screen for Android (Kotlin + Jetpack Compose) — not a theme or an icon pack,
 but a rebuild of how it *behaves*: the same grid geometry, the same spring curves and timings, the same Liquid Glass
@@ -46,7 +46,7 @@ so apps open straight out of their icon.
 
 1. Download the APK from [Releases](../../releases) and install it.
 2. Open it and follow the welcome flow; choose it as the default home app.
-3. Optional (root): flash `ioshome-magisk.zip` in Magisk → Modules, reboot.
+3. Optional (root): flash `liquidy-magisk.zip` in Magisk → Modules, reboot.
 
 ## Build
 
@@ -55,7 +55,7 @@ so apps open straight out of their icon.
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Magisk module: `tools/build-magisk-module.sh` → `build/ioshome-magisk.zip`.
+Magisk module: `tools/build-magisk-module.sh` → `build/liquidy-magisk.zip`.
 
 Project notes: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), measurements and motion values with sources in
 [`docs/RESEARCH.md`](docs/RESEARCH.md), glass rendering in [`docs/GLASS.md`](docs/GLASS.md).

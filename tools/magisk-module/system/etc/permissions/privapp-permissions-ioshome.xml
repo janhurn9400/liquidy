@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Erlaubt dem iOS-Home-Launcher die eigene Öffnen-Animation (Remote-Animation beim App-Start). -->
+<!-- Erlaubt dem Liquidy-Launcher die eigene Öffnen-Animation (Remote-Animation beim App-Start). -->
 <permissions>
     <privapp-permissions package="io.github.janhurn9400.liquidy">
         <permission name="android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS"/>

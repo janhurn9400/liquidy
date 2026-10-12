@@ -97,7 +97,7 @@
     <string name="welcome_look_body">Choose how your app icons look. You can change this anytime in Customize.</string>
     <string name="welcome_root_title">Smoother Animations</string>
     <string name="welcome_root_body">Your device is rooted. Would you like apps to open and close straight out of their icon? Our small Magisk module unlocks it.</string>
-    <string name="welcome_root_step1">Download “ioshome-magisk.zip” from %1$s.</string>
+    <string name="welcome_root_step1">Download “liquidy-magisk.zip” from %1$s.</string>
     <string name="welcome_root_github">our GitHub page</string>
     <string name="welcome_root_step2">Open Magisk and go to Modules.</string>
     <string name="welcome_root_step3">Tap “Install from storage” and choose the file.</string>
@@ -128,7 +128,7 @@
     <string name="settings_statusbar_footer_duo">Hides the Android status bar on the Home Screen and shows compact status symbols above the Dock (a full bar in the normal style). Swipe down from the top to see Android\'s.</string>
     <string name="welcome_status_title">Status Bar</string>
     <string name="welcome_status_body">Use the launcher\'s own status bar on the Home Screen? Time, battery, Wi-Fi and signal come from Android. You can change this anytime in Launcher Settings.</string>
-    <string name="settings_app_name">Home</string>
+    <string name="settings_app_name">Liquidy</string>
     <string name="settings_header_sub">Launcher · Version %1$s</string>
     <string name="settings_cat_appearance">Appearance</string>
     <string name="settings_cat_home">Home Screen &amp; App Library</string>

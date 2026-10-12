@@ -3,7 +3,7 @@
 PKG=io.github.janhurn9400.liquidy
 APK=$(pm path $PKG 2>/dev/null | head -n1 | sed 's/^package://')
 if [ -z "$APK" ] || [ ! -f "$APK" ]; then
-  abort "! Bitte zuerst die iOS-Home-App installieren."
+  abort "! Bitte zuerst die Liquidy-App installieren."
 fi
 ui_print "- Launcher gefunden: $APK"
 mkdir -p "$MODPATH/system/priv-app/IosHome"

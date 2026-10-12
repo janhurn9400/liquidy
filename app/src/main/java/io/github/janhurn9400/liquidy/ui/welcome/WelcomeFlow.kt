@@ -249,10 +249,10 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
 }
 
 /**
- * Download des Magisk-Moduls (GitHub-Release, lädt direkt die ZIP). Repo noch nicht angelegt → Adresse eintragen,
+ * Download des Magisk-Moduls (GitHub-Release, lädt direkt die ZIP). Repo ist privat: funktioniert erst,
  * sobald es öffentlich ist. Der Link in Schritt 1 und der Knopf „Modul herunterladen“ nutzen sie.
  */
-private const val MODULE_URL = "https://github.com/OWNER/REPO/releases/latest/download/ioshome-magisk.zip"
+private const val MODULE_URL = "https://github.com/janhurn9400/liquidy/releases/latest/download/liquidy-magisk.zip"
 
 private enum class Glyph { Home, Lock, Appearance, Fold, Sparkle, Check }
 

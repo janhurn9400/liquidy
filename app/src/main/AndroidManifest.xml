@@ -43,7 +43,7 @@
         tools:ignore="ProtectedPermissions" />
 
     <application
-        android:label="Home"
+        android:label="Liquidy"
         android:icon="@android:drawable/sym_def_app_icon"
         android:theme="@style/Theme.IosHome"
         android:supportsRtl="false">
@@ -71,7 +71,7 @@
         <service
             android:name=".data.NotificationBadges"
             android:exported="true"
-            android:label="Home"
+            android:label="Liquidy"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />

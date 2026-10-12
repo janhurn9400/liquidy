@@ -97,7 +97,7 @@
     <string name="welcome_look_body">Wähle, wie deine App-Icons aussehen. Du kannst das jederzeit unter „Anpassen“ ändern.</string>
     <string name="welcome_root_title">Schönere Animationen</string>
     <string name="welcome_root_body">Dein Gerät ist gerootet. Sollen Apps direkt aus ihrem Icon auf- und zugehen? Unser kleines Magisk-Modul schaltet das frei.</string>
-    <string name="welcome_root_step1">Lade „ioshome-magisk.zip“ von %1$s.</string>
+    <string name="welcome_root_step1">Lade „liquidy-magisk.zip“ von %1$s.</string>
     <string name="welcome_root_github">unserer GitHub-Seite</string>
     <string name="welcome_root_step2">Öffne Magisk und wechsle zu „Module“.</string>
     <string name="welcome_root_step3">Tippe auf „Aus Speicher installieren“ und wähle die Datei.</string>
@@ -128,7 +128,7 @@
     <string name="settings_statusbar_footer_duo">Blendet die Android-Statusleiste auf dem Home-Bildschirm aus und zeigt kompakte Statussymbole über dem Dock (im normalen Stil eine ganze Leiste). Wisch von oben zeigt die von Android.</string>
     <string name="welcome_status_title">Statusleiste</string>
     <string name="welcome_status_body">Eigene Statusleiste auf dem Home-Bildschirm verwenden? Uhrzeit, Akku, WLAN und Empfang kommen von Android. Jederzeit änderbar in den Launcher-Einstellungen.</string>
-    <string name="settings_app_name">Home</string>
+    <string name="settings_app_name">Liquidy</string>
     <string name="settings_header_sub">Launcher · Version %1$s</string>
     <string name="settings_cat_appearance">Darstellung</string>
     <string name="settings_cat_home">Home-Bildschirm &amp; App-Mediathek</string>
