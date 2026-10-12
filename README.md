@@ -1,7 +1,14 @@
 # iOS Home Launcher
 
-An Android launcher (Kotlin + Jetpack Compose) that recreates the look and feel of a modern iOS home screen —
-layout, Liquid Glass materials, spring physics and timing — plus a two-page **Duo style** for foldables.
+A faithful recreation of a modern iOS home screen for Android (Kotlin + Jetpack Compose) — not a theme or an icon pack,
+but a rebuild of how it *behaves*: the same grid geometry, the same spring curves and timings, the same Liquid Glass
+refraction and rim light, the same way folders open, widgets snap, pages rubber-band and menus grow out of their buttons.
+Plus a two-page **Duo style** for foldables.
+
+Nearly every value in this project was measured, not guessed: screen recordings of real devices were analysed frame by
+frame (positions, sizes, colours, motion per frame at 60–240 fps), turned into documented tokens with their source
+([`docs/RESEARCH.md`](docs/RESEARCH.md)), and then checked by laying emulator captures side by side with the reference
+until they matched — including the in-between frames of every transition, not just the end states.
 
 > Not affiliated with or endorsed by Apple. No Apple assets are used: the UI font is [Inter](docs/Inter-OFL.txt)
 > (SIL OFL), all glyphs, widgets and wallpapers are drawn in code, app icons come from Android.
@@ -60,8 +67,10 @@ Everything runs on the device. Network is only used for the weather (Open-Meteo)
 
 ## How this was made
 
-Built by janhurn9400 with AI pair programming (Claude). Motion and layout values were measured frame by frame from
-screen recordings and compared side by side against the emulator.
+Built by janhurn9400 with AI pair programming (Claude). The workflow for every screen and animation was the same:
+record it on the real device → measure it frame by frame → implement it with the measured values → capture the emulator
+at the same moments → compare side by side → repeat until there is no visible difference. Things that can't be matched
+on Android without system access (e.g. the system-owned app close gesture) are documented as such instead of faked.
 
 ## Status
 
