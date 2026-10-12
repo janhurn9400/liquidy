@@ -276,7 +276,7 @@ private fun Detail(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolea
                 }
             }
             Category.HomeScreen -> {
-                if (FoldableStyle.isFoldable(context)) Section(stringResource(R.string.settings_sec_layout), footer = stringResource(R.string.settings_duo_footer)) {
+                if (FoldableStyle.supportsDuo(context)) Section(stringResource(R.string.settings_sec_layout), footer = stringResource(R.string.settings_duo_footer)) {
                     ToggleRow(stringResource(R.string.settings_duo), FoldableStyle.duoStyle) { FoldableStyle.set(context, it) }
                 }
                 Section(stringResource(R.string.settings_sec_pages)) {

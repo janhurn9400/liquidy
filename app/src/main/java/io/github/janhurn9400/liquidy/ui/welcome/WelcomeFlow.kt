@@ -125,7 +125,7 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
             add(Step.Hello)
             if (!isDefaultHome()) add(Step.DefaultHome)
             add(Step.Permissions); add(Step.Appearance)
-            if (io.github.janhurn9400.liquidy.data.FoldableStyle.isFoldable(context)) add(Step.Foldable) // nur auf Foldables
+            if (io.github.janhurn9400.liquidy.data.FoldableStyle.supportsDuo(context)) add(Step.Foldable) // Foldables + Tablets
             add(Step.StatusBar)
             if (root) add(Step.Root) // mit Modul: „bereits aktiv“, sonst Anleitung
             add(Step.Done)
@@ -202,7 +202,7 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
                     Step.Foldable -> StepPage(
                         glyph = Glyph.Fold, showBack = showBack, onBack = ::back,
                         title = stringResource(R.string.welcome_fold_title),
-                        body = stringResource(R.string.welcome_fold_body),
+                        body = stringResource(if (io.github.janhurn9400.liquidy.data.FoldableStyle.isTablet(context)) R.string.welcome_fold_body_tablet else R.string.welcome_fold_body),
                         primary = stringResource(R.string.welcome_continue), onPrimary = { next() },
                     ) { FoldStyleChooser() }
                     Step.StatusBar -> StepPage(

@@ -114,7 +114,7 @@
     <string name="widget_calendar_long">Zeigt deine nächsten Termine auf einen Blick.</string>
     <string name="launcher_settings">Launcher-Einstellungen</string>
     <string name="settings_duo">Duo-Stil</string>
-    <string name="settings_duo_footer">Aufgeklappt zwei Seiten nebeneinander, Dock rechts.</string>
+    <string name="settings_duo_footer">Zwei Seiten nebeneinander im Querformat bzw. aufgeklappt, Dock rechts.</string>
     <string name="settings_android_wp_footer">Liest das in Android gewählte Wallpaper, damit Glaseffekte dazu passen.</string>
     <string name="settings_done">Fertig</string>
     <string name="settings_section_general">Allgemein</string>
@@ -214,4 +214,5 @@
     <string name="wcfg_my_location">Mein Standort</string>
     <string name="wcfg_your_locations">Deine Orte</string>
     <string name="wcfg_search">Suchen</string>
+    <string name="welcome_fold_body_tablet">Dein Tablet hat einen großen Bildschirm. Soll der Home-Bildschirm im Querformat das Duo-Layout nutzen – zwei Seiten nebeneinander, das Dock am Rand? Das kannst du jederzeit ändern.</string>
 </resources>

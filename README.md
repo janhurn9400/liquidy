@@ -3,7 +3,7 @@
 A faithful recreation of a modern iOS home screen for Android (Kotlin + Jetpack Compose) — not a theme or an icon pack,
 but a rebuild of how it *behaves*: the same grid geometry, the same spring curves and timings, the same Liquid Glass
 refraction and rim light, the same way folders open, widgets snap, pages rubber-band and menus grow out of their buttons.
-Plus a two-page **Duo style** for foldables.
+Plus a two-page **Duo style** for foldables and tablets.
 
 Nearly every value in this project was measured, not guessed: screen recordings of real devices were analysed frame by
 frame (positions, sizes, colours, motion per frame at 60–240 fps), turned into documented tokens with their source
@@ -22,11 +22,14 @@ until they matched — including the in-between frames of every transition, not 
 - Today view, App Library with categories and A–Z list
 - Own status bar (optional), haptics (optional)
 
-**Duo style (foldables)**
-- Unfolded: two pages side by side, vertical dock column with search button on the right
-- Folded: single page with the dock column; layout scales to the device so other foldables
-  (Galaxy Z Fold, Pixel Fold, …) keep the same proportions
+**Duo style (foldables & tablets)**
+- Two pages side by side with a vertical dock column and round search button on the right — on an unfolded foldable
+  or a tablet in landscape
+- Folded: single page with the dock column
+- The whole layout scales to the screen so every device keeps the same proportions — Galaxy Z Fold, Pixel Fold,
+  10–13" tablets — instead of squeezing or stretching icons
 - Status symbols avoid the camera cutout automatically
+- Tablets in portrait use the regular single-page layout
 
 **Widgets** — calendar, clock, batteries, weather (Open-Meteo, location or fixed place), photos, plus any Android widget
 
@@ -39,7 +42,7 @@ so apps open straight out of their icon.
 ## Requirements
 
 - Android 13 (API 33) or newer
-- For the Duo style: a foldable (hinge sensor)
+- For the Duo style: a foldable or a tablet (smallest width ≥ 600 dp)
 - Optional: root + Magisk for the open animation
 
 ## Install

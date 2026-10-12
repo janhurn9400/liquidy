@@ -14,18 +14,29 @@ import androidx.compose.runtime.setValue
 object FoldableStyle {
     private const val PREFS = "foldable"
 
-    /** Duo-Stil aktiv (nur sinnvoll auf Foldables). */
-    var duoStyle by mutableStateOf(false)
-        private set
+    /** Duo-Stil aktiv (Foldables; Tablets nur im Querformat). */
+    private var chosen by mutableStateOf(false)
+    /** Tablet im Hochformat: dort passt das Duo-Layout nicht (eine schmale Seite neben viel Leere) → normaler Stil. */
+    private var tabletPortrait by mutableStateOf(false)
+    val duoStyle: Boolean get() = chosen && !tabletPortrait
+
+    /** Von MainActivity bei jeder Größenänderung gesetzt. */
+    fun updateWindow(c: Context, widthPx: Int, heightPx: Int) { tabletPortrait = isTablet(c) && heightPx > widthPx }
 
     fun isFoldable(c: Context): Boolean = c.packageManager.hasSystemFeature(PackageManager.FEATURE_SENSOR_HINGE_ANGLE)
 
+    /** Tablet: kleinste Bildschirmbreite ≥ 600 dp (Android-Grenze für „große Bildschirme“). */
+    fun isTablet(c: Context): Boolean = c.resources.configuration.smallestScreenWidthDp >= 600 && !isFoldable(c)
+
+    /** Duo-Stil möglich: Foldables und Tablets (zwei Seiten nebeneinander im Querformat). */
+    fun supportsDuo(c: Context): Boolean = isFoldable(c) || isTablet(c)
+
     fun load(c: Context) {
-        duoStyle = isFoldable(c) && c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("duo", true) // auf Foldables vorausgewählt
+        chosen = supportsDuo(c) && c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("duo", true) // auf Foldables/Tablets vorausgewählt
     }
 
     fun set(c: Context, on: Boolean) {
-        duoStyle = on && isFoldable(c)
+        chosen = on && supportsDuo(c)
         c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("duo", on).apply()
     }
 }

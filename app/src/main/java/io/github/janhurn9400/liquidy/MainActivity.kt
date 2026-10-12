@@ -163,8 +163,9 @@ class MainActivity : ComponentActivity() {
             // Duo-Stil auf schmaleren Foldables: Oberfläche gleichmäßig auf Duo-Breite verkleinern (design/UiScale)
             val baseDensity = androidx.compose.ui.platform.LocalDensity.current
             val win = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
+            androidx.compose.runtime.SideEffect { io.github.janhurn9400.liquidy.data.FoldableStyle.updateWindow(this@MainActivity, win.width, win.height) }
             val uiScale = io.github.janhurn9400.liquidy.design.UiScale.compute(
-                io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle && io.github.janhurn9400.liquidy.data.FoldableStyle.isFoldable(this@MainActivity),
+                io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle && io.github.janhurn9400.liquidy.data.FoldableStyle.supportsDuo(this@MainActivity),
                 win.width, win.height, baseDensity.density)
             androidx.compose.runtime.SideEffect { io.github.janhurn9400.liquidy.design.UiScale.update(uiScale) }
             androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.ui.widgets.LocalAndroidWidgetHost provides widgetHost,
