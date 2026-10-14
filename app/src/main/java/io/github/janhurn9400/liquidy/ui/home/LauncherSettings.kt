@@ -422,56 +422,33 @@ private fun categoryTitle(c: Category) = stringResource(when (c) {
     Category.About -> R.string.settings_section_about
 })
 
-/** Farbiges Bereichs-Symbol (29 pt, abgerundet) mit eigener Vektor-Glyphe (keine SF Symbols). */
+/**
+ * Farbige Kategorie-Kachel wie in der iOS-Einstellungs-App: kontinuierliche Ecken (≈ 22,5 % der Kante), weiße Glyphe
+ * ≈ 62 % der Kachel. Glyphen: Material Symbols Rounded (SettingsGlyphs, Apache-2.0) — keine SF Symbols.
+ * Farben = iOS-Systemfarben der vergleichbaren Bereiche [GESCHÄTZT]: Allgemein grau, Darstellung blau, Home-Bildschirm
+ * indigo, Quirks orange, Datenschutz blau, Entwickler grau.
+ */
 @Composable
 private fun CategoryIcon(c: Category, sizePt: Float = ICON) {
-    val bg = when (c) {
-        Category.General -> Color(0xFF8E8E93); Category.Appearance -> Color(0xFF1C1C1E); Category.HomeScreen -> Color(0xFF0A84FF)
-        Category.Quirks -> Color(0xFFFF3B30)
-        Category.Permissions -> Color(0xFF34C759); Category.Advanced -> Color(0xFFAF52DE); Category.About -> Color(0xFF8E8E93)
+    val (bg, glyph) = when (c) {
+        Category.General -> Color(0xFF8E8E93) to SettingsGlyphs.Settings
+        Category.Appearance -> Color(0xFF007AFF) to SettingsGlyphs.Palette
+        Category.HomeScreen -> Color(0xFF5856D6) to SettingsGlyphs.GridView
+        Category.Quirks -> Color(0xFFFF9500) to SettingsGlyphs.Tune
+        Category.Permissions -> Color(0xFF007AFF) to SettingsGlyphs.PanTool
+        Category.Advanced -> Color(0xFF636366) to SettingsGlyphs.Build
+        Category.About -> Color(0xFF8E8E93) to SettingsGlyphs.Info
     }
-    Canvas(Modifier.size(sizePt.dp).clip(RoundedCornerShape((sizePt * 0.24f).dp)).background(bg)) {
-        val s = size.width; val sw = s * 0.08f; val cc = center
-        when (c) {
-            Category.General -> { // Zahnrad
-                drawCircle(Color.White, s * 0.16f, cc, style = Stroke(sw))
-                for (k in 0 until 8) { val a = Math.toRadians(k * 45.0); val d = Offset(kotlin.math.cos(a).toFloat(), kotlin.math.sin(a).toFloat())
-                    drawLine(Color.White, cc + d * (s * 0.24f), cc + d * (s * 0.33f), sw * 1.4f, StrokeCap.Round) }
-            }
-            Category.Appearance -> { // Kreis halb gefüllt
-                drawCircle(Color.White, s * 0.28f, cc, style = Stroke(sw))
-                drawArc(Color.White, 90f, 180f, true, Offset(cc.x - s * 0.28f, cc.y - s * 0.28f), Size(s * 0.56f, s * 0.56f))
-            }
-            Category.HomeScreen -> { // 2×2-Raster
-                val t = s * 0.18f; val g = s * 0.08f; val o = (s - 2 * t - g) / 2
-                for (r in 0..1) for (k in 0..1) drawRoundRect(Color.White, Offset(o + k * (t + g), o + r * (t + g)), Size(t, t), CornerRadius(t * 0.3f))
-            }
-            Category.Quirks -> { // Schalter: Kapsel mit Knopf rechts
-                val w = s * 0.6f; val h = s * 0.32f; val o = Offset((s - w) / 2, (s - h) / 2)
-                drawRoundRect(Color.White, o, Size(w, h), CornerRadius(h / 2), style = Stroke(sw))
-                drawCircle(Color.White, h * 0.32f, Offset(o.x + w - h / 2, cc.y))
-            }
-            Category.Permissions -> shield(s, sw)
-            Category.Advanced -> { // Funken
-                for (k in 0 until 4) { val a = Math.toRadians(45.0 + k * 90.0); val d = Offset(kotlin.math.cos(a).toFloat(), kotlin.math.sin(a).toFloat())
-                    drawLine(Color.White, cc + d * (s * 0.08f), cc + d * (s * 0.3f), sw * 1.3f, StrokeCap.Round) }
-                drawCircle(Color.White, s * 0.07f, cc)
-            }
-            Category.About -> { // „i“
-                drawCircle(Color.White, s * 0.06f, Offset(cc.x, s * 0.3f))
-                drawLine(Color.White, Offset(cc.x, s * 0.44f), Offset(cc.x, s * 0.72f), sw * 1.5f, StrokeCap.Round)
-            }
-        }
+    Box(
+        Modifier.size(sizePt.dp).clip(io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((sizePt * TILE_CORNER).dp)).background(bg),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.graphics.vector.rememberVectorPainter(glyph), contentDescription = null,
+            modifier = Modifier.size((sizePt * TILE_GLYPH).dp),
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
+        )
     }
-}
-
-private fun DrawScope.shield(s: Float, sw: Float) {
-    val p = androidx.compose.ui.graphics.Path().apply {
-        moveTo(s * 0.5f, s * 0.2f); lineTo(s * 0.74f, s * 0.3f); lineTo(s * 0.72f, s * 0.55f)
-        quadraticTo(s * 0.68f, s * 0.72f, s * 0.5f, s * 0.82f); quadraticTo(s * 0.32f, s * 0.72f, s * 0.28f, s * 0.55f)
-        lineTo(s * 0.26f, s * 0.3f); close()
-    }
-    drawPath(p, Color.White, style = Stroke(sw, join = androidx.compose.ui.graphics.StrokeJoin.Round))
 }
 
 // ── Bausteine ───────────────────────────────────────────────────────────────────────
@@ -797,6 +774,8 @@ private const val PREVIEW_GLASS_WHITE = 0.1f
 private val PREVIEW_DARK = Color(0xFF252321)
 private const val ROW_H = 52f
 private const val ICON = 29f
+private const val TILE_CORNER = 0.225f // Ecken der Kategorie-Kachel relativ zur Kante (iOS-Einstellungen)
+private const val TILE_GLYPH = 0.62f   // Glyphe relativ zur Kachel
 private const val GROUP_CORNER = 24f
 private const val SECTION_GAP = 26f
 private val SIDEBAR_BG = Color.White

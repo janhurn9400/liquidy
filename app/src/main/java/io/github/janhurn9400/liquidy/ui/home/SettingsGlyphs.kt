@@ -1,0 +1,316 @@
+package io.github.janhurn9400.liquidy.ui.home
+
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.unit.dp
+
+/*
+ * Symbole der Einstellungs-Kategorien — Pfade aus Material Symbols „Rounded“ (androidx.compose.material:material-icons,
+ * 1.7.8), Copyright The Android Open Source Project, Apache License 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+ * Nur diese sieben übernommen statt der ganzen Icon-Bibliothek. Keine Apple-Symbole (SF Symbols) — CLAUDE.md Regel 3.
+ */
+internal object SettingsGlyphs {
+    val Settings: ImageVector by lazy {
+        ImageVector.Builder("Settings", 24.dp, 24.dp, 24f, 24f).apply {
+        path(fill = SolidColor(Color.Black)) {
+                moveTo(19.5f, 12.0f)
+                curveToRelative(0.0f, -0.23f, -0.01f, -0.45f, -0.03f, -0.68f)
+                lineToRelative(1.86f, -1.41f)
+                curveToRelative(0.4f, -0.3f, 0.51f, -0.86f, 0.26f, -1.3f)
+                lineToRelative(-1.87f, -3.23f)
+                curveToRelative(-0.25f, -0.44f, -0.79f, -0.62f, -1.25f, -0.42f)
+                lineToRelative(-2.15f, 0.91f)
+                curveToRelative(-0.37f, -0.26f, -0.76f, -0.49f, -1.17f, -0.68f)
+                lineToRelative(-0.29f, -2.31f)
+                curveTo(14.8f, 2.38f, 14.37f, 2.0f, 13.87f, 2.0f)
+                horizontalLineToRelative(-3.73f)
+                curveTo(9.63f, 2.0f, 9.2f, 2.38f, 9.14f, 2.88f)
+                lineTo(8.85f, 5.19f)
+                curveToRelative(-0.41f, 0.19f, -0.8f, 0.42f, -1.17f, 0.68f)
+                lineTo(5.53f, 4.96f)
+                curveToRelative(-0.46f, -0.2f, -1.0f, -0.02f, -1.25f, 0.42f)
+                lineTo(2.41f, 8.62f)
+                curveToRelative(-0.25f, 0.44f, -0.14f, 0.99f, 0.26f, 1.3f)
+                lineToRelative(1.86f, 1.41f)
+                curveTo(4.51f, 11.55f, 4.5f, 11.77f, 4.5f, 12.0f)
+                reflectiveCurveToRelative(0.01f, 0.45f, 0.03f, 0.68f)
+                lineToRelative(-1.86f, 1.41f)
+                curveToRelative(-0.4f, 0.3f, -0.51f, 0.86f, -0.26f, 1.3f)
+                lineToRelative(1.87f, 3.23f)
+                curveToRelative(0.25f, 0.44f, 0.79f, 0.62f, 1.25f, 0.42f)
+                lineToRelative(2.15f, -0.91f)
+                curveToRelative(0.37f, 0.26f, 0.76f, 0.49f, 1.17f, 0.68f)
+                lineToRelative(0.29f, 2.31f)
+                curveTo(9.2f, 21.62f, 9.63f, 22.0f, 10.13f, 22.0f)
+                horizontalLineToRelative(3.73f)
+                curveToRelative(0.5f, 0.0f, 0.93f, -0.38f, 0.99f, -0.88f)
+                lineToRelative(0.29f, -2.31f)
+                curveToRelative(0.41f, -0.19f, 0.8f, -0.42f, 1.17f, -0.68f)
+                lineToRelative(2.15f, 0.91f)
+                curveToRelative(0.46f, 0.2f, 1.0f, 0.02f, 1.25f, -0.42f)
+                lineToRelative(1.87f, -3.23f)
+                curveToRelative(0.25f, -0.44f, 0.14f, -0.99f, -0.26f, -1.3f)
+                lineToRelative(-1.86f, -1.41f)
+                curveTo(19.49f, 12.45f, 19.5f, 12.23f, 19.5f, 12.0f)
+                close()
+                moveTo(12.04f, 15.5f)
+                curveToRelative(-1.93f, 0.0f, -3.5f, -1.57f, -3.5f, -3.5f)
+                reflectiveCurveToRelative(1.57f, -3.5f, 3.5f, -3.5f)
+                reflectiveCurveToRelative(3.5f, 1.57f, 3.5f, 3.5f)
+                reflectiveCurveTo(13.97f, 15.5f, 12.04f, 15.5f)
+                close()
+        }
+        }.build()
+    }
+
+    val Palette: ImageVector by lazy {
+        ImageVector.Builder("Palette", 24.dp, 24.dp, 24f, 24f).apply {
+        path(fill = SolidColor(Color.Black)) {
+                moveTo(12.0f, 2.0f)
+                curveTo(6.49f, 2.0f, 2.0f, 6.49f, 2.0f, 12.0f)
+                reflectiveCurveToRelative(4.49f, 10.0f, 10.0f, 10.0f)
+                curveToRelative(1.38f, 0.0f, 2.5f, -1.12f, 2.5f, -2.5f)
+                curveToRelative(0.0f, -0.61f, -0.23f, -1.2f, -0.64f, -1.67f)
+                curveToRelative(-0.08f, -0.1f, -0.13f, -0.21f, -0.13f, -0.33f)
+                curveToRelative(0.0f, -0.28f, 0.22f, -0.5f, 0.5f, -0.5f)
+                horizontalLineTo(16.0f)
+                curveToRelative(3.31f, 0.0f, 6.0f, -2.69f, 6.0f, -6.0f)
+                curveTo(22.0f, 6.04f, 17.51f, 2.0f, 12.0f, 2.0f)
+                close()
+                moveTo(17.5f, 13.0f)
+                curveToRelative(-0.83f, 0.0f, -1.5f, -0.67f, -1.5f, -1.5f)
+                curveToRelative(0.0f, -0.83f, 0.67f, -1.5f, 1.5f, -1.5f)
+                reflectiveCurveToRelative(1.5f, 0.67f, 1.5f, 1.5f)
+                curveTo(19.0f, 12.33f, 18.33f, 13.0f, 17.5f, 13.0f)
+                close()
+                moveTo(14.5f, 9.0f)
+                curveTo(13.67f, 9.0f, 13.0f, 8.33f, 13.0f, 7.5f)
+                curveTo(13.0f, 6.67f, 13.67f, 6.0f, 14.5f, 6.0f)
+                reflectiveCurveTo(16.0f, 6.67f, 16.0f, 7.5f)
+                curveTo(16.0f, 8.33f, 15.33f, 9.0f, 14.5f, 9.0f)
+                close()
+                moveTo(5.0f, 11.5f)
+                curveTo(5.0f, 10.67f, 5.67f, 10.0f, 6.5f, 10.0f)
+                reflectiveCurveTo(8.0f, 10.67f, 8.0f, 11.5f)
+                curveTo(8.0f, 12.33f, 7.33f, 13.0f, 6.5f, 13.0f)
+                reflectiveCurveTo(5.0f, 12.33f, 5.0f, 11.5f)
+                close()
+                moveTo(11.0f, 7.5f)
+                curveTo(11.0f, 8.33f, 10.33f, 9.0f, 9.5f, 9.0f)
+                reflectiveCurveTo(8.0f, 8.33f, 8.0f, 7.5f)
+                curveTo(8.0f, 6.67f, 8.67f, 6.0f, 9.5f, 6.0f)
+                reflectiveCurveTo(11.0f, 6.67f, 11.0f, 7.5f)
+                close()
+        }
+        }.build()
+    }
+
+    val GridView: ImageVector by lazy {
+        ImageVector.Builder("GridView", 24.dp, 24.dp, 24f, 24f).apply {
+        path(fill = SolidColor(Color.Black)) {
+                moveTo(5.0f, 11.0f)
+                horizontalLineToRelative(4.0f)
+                curveToRelative(1.1f, 0.0f, 2.0f, -0.9f, 2.0f, -2.0f)
+                verticalLineTo(5.0f)
+                curveToRelative(0.0f, -1.1f, -0.9f, -2.0f, -2.0f, -2.0f)
+                horizontalLineTo(5.0f)
+                curveTo(3.9f, 3.0f, 3.0f, 3.9f, 3.0f, 5.0f)
+                verticalLineToRelative(4.0f)
+                curveTo(3.0f, 10.1f, 3.9f, 11.0f, 5.0f, 11.0f)
+                close()
+        }
+        path(fill = SolidColor(Color.Black)) {
+                moveTo(5.0f, 21.0f)
+                horizontalLineToRelative(4.0f)
+                curveToRelative(1.1f, 0.0f, 2.0f, -0.9f, 2.0f, -2.0f)
+                verticalLineToRelative(-4.0f)
+                curveToRelative(0.0f, -1.1f, -0.9f, -2.0f, -2.0f, -2.0f)
+                horizontalLineTo(5.0f)
+                curveToRelative(-1.1f, 0.0f, -2.0f, 0.9f, -2.0f, 2.0f)
+                verticalLineToRelative(4.0f)
+                curveTo(3.0f, 20.1f, 3.9f, 21.0f, 5.0f, 21.0f)
+                close()
+        }
+        path(fill = SolidColor(Color.Black)) {
+                moveTo(13.0f, 5.0f)
+                verticalLineToRelative(4.0f)
+                curveToRelative(0.0f, 1.1f, 0.9f, 2.0f, 2.0f, 2.0f)
+                horizontalLineToRelative(4.0f)
+                curveToRelative(1.1f, 0.0f, 2.0f, -0.9f, 2.0f, -2.0f)
+                verticalLineTo(5.0f)
+                curveToRelative(0.0f, -1.1f, -0.9f, -2.0f, -2.0f, -2.0f)
+                horizontalLineToRelative(-4.0f)
+                curveTo(13.9f, 3.0f, 13.0f, 3.9f, 13.0f, 5.0f)
+                close()
+        }
+        path(fill = SolidColor(Color.Black)) {
+                moveTo(15.0f, 21.0f)
+                horizontalLineToRelative(4.0f)
+                curveToRelative(1.1f, 0.0f, 2.0f, -0.9f, 2.0f, -2.0f)
+                verticalLineToRelative(-4.0f)
+                curveToRelative(0.0f, -1.1f, -0.9f, -2.0f, -2.0f, -2.0f)
+                horizontalLineToRelative(-4.0f)
+                curveToRelative(-1.1f, 0.0f, -2.0f, 0.9f, -2.0f, 2.0f)
+                verticalLineToRelative(4.0f)
+                curveTo(13.0f, 20.1f, 13.9f, 21.0f, 15.0f, 21.0f)
+                close()
+        }
+        }.build()
+    }
+
+    val Tune: ImageVector by lazy {
+        ImageVector.Builder("Tune", 24.dp, 24.dp, 24f, 24f).apply {
+        path(fill = SolidColor(Color.Black)) {
+                moveTo(3.0f, 18.0f)
+                curveToRelative(0.0f, 0.55f, 0.45f, 1.0f, 1.0f, 1.0f)
+                horizontalLineToRelative(5.0f)
+                verticalLineToRelative(-2.0f)
+                lineTo(4.0f, 17.0f)
+                curveToRelative(-0.55f, 0.0f, -1.0f, 0.45f, -1.0f, 1.0f)
+                close()
+                moveTo(3.0f, 6.0f)
+                curveToRelative(0.0f, 0.55f, 0.45f, 1.0f, 1.0f, 1.0f)
+                horizontalLineToRelative(9.0f)
+                lineTo(13.0f, 5.0f)
+                lineTo(4.0f, 5.0f)
+                curveToRelative(-0.55f, 0.0f, -1.0f, 0.45f, -1.0f, 1.0f)
+                close()
+                moveTo(13.0f, 20.0f)
+                verticalLineToRelative(-1.0f)
+                horizontalLineToRelative(7.0f)
+                curveToRelative(0.55f, 0.0f, 1.0f, -0.45f, 1.0f, -1.0f)
+                reflectiveCurveToRelative(-0.45f, -1.0f, -1.0f, -1.0f)
+                horizontalLineToRelative(-7.0f)
+                verticalLineToRelative(-1.0f)
+                curveToRelative(0.0f, -0.55f, -0.45f, -1.0f, -1.0f, -1.0f)
+                reflectiveCurveToRelative(-1.0f, 0.45f, -1.0f, 1.0f)
+                verticalLineToRelative(4.0f)
+                curveToRelative(0.0f, 0.55f, 0.45f, 1.0f, 1.0f, 1.0f)
+                reflectiveCurveToRelative(1.0f, -0.45f, 1.0f, -1.0f)
+                close()
+                moveTo(7.0f, 10.0f)
+                verticalLineToRelative(1.0f)
+                lineTo(4.0f, 11.0f)
+                curveToRelative(-0.55f, 0.0f, -1.0f, 0.45f, -1.0f, 1.0f)
+                reflectiveCurveToRelative(0.45f, 1.0f, 1.0f, 1.0f)
+                horizontalLineToRelative(3.0f)
+                verticalLineToRelative(1.0f)
+                curveToRelative(0.0f, 0.55f, 0.45f, 1.0f, 1.0f, 1.0f)
+                reflectiveCurveToRelative(1.0f, -0.45f, 1.0f, -1.0f)
+                verticalLineToRelative(-4.0f)
+                curveToRelative(0.0f, -0.55f, -0.45f, -1.0f, -1.0f, -1.0f)
+                reflectiveCurveToRelative(-1.0f, 0.45f, -1.0f, 1.0f)
+                close()
+                moveTo(21.0f, 12.0f)
+                curveToRelative(0.0f, -0.55f, -0.45f, -1.0f, -1.0f, -1.0f)
+                horizontalLineToRelative(-9.0f)
+                verticalLineToRelative(2.0f)
+                horizontalLineToRelative(9.0f)
+                curveToRelative(0.55f, 0.0f, 1.0f, -0.45f, 1.0f, -1.0f)
+                close()
+                moveTo(16.0f, 9.0f)
+                curveToRelative(0.55f, 0.0f, 1.0f, -0.45f, 1.0f, -1.0f)
+                lineTo(17.0f, 7.0f)
+                horizontalLineToRelative(3.0f)
+                curveToRelative(0.55f, 0.0f, 1.0f, -0.45f, 1.0f, -1.0f)
+                reflectiveCurveToRelative(-0.45f, -1.0f, -1.0f, -1.0f)
+                horizontalLineToRelative(-3.0f)
+                lineTo(17.0f, 4.0f)
+                curveToRelative(0.0f, -0.55f, -0.45f, -1.0f, -1.0f, -1.0f)
+                reflectiveCurveToRelative(-1.0f, 0.45f, -1.0f, 1.0f)
+                verticalLineToRelative(4.0f)
+                curveToRelative(0.0f, 0.55f, 0.45f, 1.0f, 1.0f, 1.0f)
+                close()
+        }
+        }.build()
+    }
+
+    val PanTool: ImageVector by lazy {
+        ImageVector.Builder("PanTool", 24.dp, 24.dp, 24f, 24f).apply {
+        path(fill = SolidColor(Color.Black)) {
+                moveTo(21.5f, 4.0f)
+                curveToRelative(-0.83f, 0.0f, -1.5f, 0.67f, -1.5f, 1.5f)
+                verticalLineToRelative(5.0f)
+                curveToRelative(0.0f, 0.28f, -0.22f, 0.5f, -0.5f, 0.5f)
+                reflectiveCurveToRelative(-0.5f, -0.22f, -0.5f, -0.5f)
+                verticalLineToRelative(-8.0f)
+                curveToRelative(0.0f, -0.83f, -0.67f, -1.5f, -1.5f, -1.5f)
+                reflectiveCurveTo(16.0f, 1.67f, 16.0f, 2.5f)
+                verticalLineToRelative(8.0f)
+                curveToRelative(0.0f, 0.28f, -0.22f, 0.5f, -0.5f, 0.5f)
+                reflectiveCurveToRelative(-0.5f, -0.22f, -0.5f, -0.5f)
+                verticalLineToRelative(-9.0f)
+                curveToRelative(0.0f, -0.83f, -0.67f, -1.5f, -1.5f, -1.5f)
+                reflectiveCurveTo(12.0f, 0.67f, 12.0f, 1.5f)
+                verticalLineToRelative(8.99f)
+                curveToRelative(0.0f, 0.28f, -0.22f, 0.5f, -0.5f, 0.5f)
+                reflectiveCurveToRelative(-0.5f, -0.22f, -0.5f, -0.5f)
+                verticalLineTo(4.5f)
+                curveToRelative(0.0f, -0.83f, -0.67f, -1.5f, -1.5f, -1.5f)
+                reflectiveCurveTo(8.0f, 3.67f, 8.0f, 4.5f)
+                verticalLineToRelative(11.41f)
+                lineToRelative(-4.12f, -2.35f)
+                curveToRelative(-0.58f, -0.33f, -1.3f, -0.24f, -1.78f, 0.22f)
+                curveToRelative(-0.6f, 0.58f, -0.62f, 1.54f, -0.03f, 2.13f)
+                lineToRelative(6.78f, 6.89f)
+                curveToRelative(0.75f, 0.77f, 1.77f, 1.2f, 2.85f, 1.2f)
+                horizontalLineTo(19.0f)
+                curveToRelative(2.21f, 0.0f, 4.0f, -1.79f, 4.0f, -4.0f)
+                verticalLineTo(5.5f)
+                curveToRelative(0.0f, -0.83f, -0.67f, -1.5f, -1.5f, -1.5f)
+                close()
+        }
+        }.build()
+    }
+
+    val Build: ImageVector by lazy {
+        ImageVector.Builder("Build", 24.dp, 24.dp, 24f, 24f).apply {
+        path(fill = SolidColor(Color.Black)) {
+                moveTo(12.09f, 2.91f)
+                curveTo(10.08f, 0.9f, 7.07f, 0.49f, 4.65f, 1.67f)
+                lineTo(8.28f, 5.3f)
+                curveToRelative(0.39f, 0.39f, 0.39f, 1.02f, 0.0f, 1.41f)
+                lineTo(6.69f, 8.3f)
+                curveToRelative(-0.39f, 0.4f, -1.02f, 0.4f, -1.41f, 0.0f)
+                lineTo(1.65f, 4.67f)
+                curveTo(0.48f, 7.1f, 0.89f, 10.09f, 2.9f, 12.1f)
+                curveToRelative(1.86f, 1.86f, 4.58f, 2.35f, 6.89f, 1.48f)
+                lineToRelative(7.96f, 7.96f)
+                curveToRelative(1.03f, 1.03f, 2.69f, 1.03f, 3.71f, 0.0f)
+                curveToRelative(1.03f, -1.03f, 1.03f, -2.69f, 0.0f, -3.71f)
+                lineTo(13.54f, 9.9f)
+                curveToRelative(0.92f, -2.34f, 0.44f, -5.1f, -1.45f, -6.99f)
+                close()
+        }
+        }.build()
+    }
+
+    val Info: ImageVector by lazy {
+        ImageVector.Builder("Info", 24.dp, 24.dp, 24f, 24f).apply {
+        path(fill = SolidColor(Color.Black)) {
+                moveTo(12.0f, 2.0f)
+                curveTo(6.48f, 2.0f, 2.0f, 6.48f, 2.0f, 12.0f)
+                reflectiveCurveToRelative(4.48f, 10.0f, 10.0f, 10.0f)
+                reflectiveCurveToRelative(10.0f, -4.48f, 10.0f, -10.0f)
+                reflectiveCurveTo(17.52f, 2.0f, 12.0f, 2.0f)
+                close()
+                moveTo(12.0f, 17.0f)
+                curveToRelative(-0.55f, 0.0f, -1.0f, -0.45f, -1.0f, -1.0f)
+                verticalLineToRelative(-4.0f)
+                curveToRelative(0.0f, -0.55f, 0.45f, -1.0f, 1.0f, -1.0f)
+                reflectiveCurveToRelative(1.0f, 0.45f, 1.0f, 1.0f)
+                verticalLineToRelative(4.0f)
+                curveToRelative(0.0f, 0.55f, -0.45f, 1.0f, -1.0f, 1.0f)
+                close()
+                moveTo(13.0f, 9.0f)
+                horizontalLineToRelative(-2.0f)
+                lineTo(11.0f, 7.0f)
+                horizontalLineToRelative(2.0f)
+                verticalLineToRelative(2.0f)
+                close()
+        }
+        }.build()
+    }
+}
