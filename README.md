@@ -1,63 +1,63 @@
 # Liquidy
 
-A faithful recreation of a modern iOS home screen for Android (Kotlin + Jetpack Compose) — not a theme or an icon pack,
-but a rebuild of how it *behaves*: the same grid geometry, the same spring curves and timings, the same Liquid Glass
-refraction and rim light, the same way folders open, widgets snap, pages rubber-band and menus grow out of their buttons.
-Plus a two-page **Duo style** for foldables and tablets.
+An iOS-inspired home screen launcher for Android (Kotlin + Jetpack Compose), built as a faithful recreation —
+not a theme, not an icon pack. The goal is that it doesn't just *look* like the original, but *moves* like it.
 
-Nearly every value in this project was measured, not guessed: screen recordings of real devices were analysed frame by
-frame (positions, sizes, colours, motion per frame at 60–240 fps), turned into documented tokens with their source
-([`docs/RESEARCH.md`](docs/RESEARCH.md)), and then checked by laying emulator captures side by side with the reference
-until they matched — including the in-between frames of every transition, not just the end states.
+> Not affiliated with or endorsed by Apple. No Apple assets: the font is [Inter](docs/Inter-OFL.txt) (SIL OFL),
+> glyphs, widgets and wallpapers are drawn in code, app icons come from Android or your icon pack.
 
-> Not affiliated with or endorsed by Apple. No Apple assets are used: the UI font is [Inter](docs/Inter-OFL.txt)
-> (SIL OFL), all glyphs, widgets and wallpapers are drawn in code, app icons come from Android.
+## What makes it different
+
+**Measured, not guessed.** Every screen and every animation was recorded on a real iPhone (and the foldable "Duo"),
+analysed frame by frame — positions, sizes, colours, motion per frame — and turned into documented values with their
+source in [`docs/RESEARCH.md`](docs/RESEARCH.md). Spring response and damping are fitted to the recordings, not
+eyeballed.
+
+**Checked frame by frame.** Emulator captures are laid next to the reference at the same moments and compared until
+there is no visible difference — including the in-between frames of a transition, not only where it starts and ends.
+
+**Motion that behaves.** Everything that moves is an interruptible spring and inherits your finger's velocity:
+paging with rubber-band, folders that morph out of and back into their icon, apps that fly into a folder's free spot,
+icons that wait before moving out of the way, minus badges that shrink and grow instead of popping.
+
+**Liquid Glass.** Real refraction, rim light and blur on dock, folders, menus and search — reading the content
+behind it, live. Includes the *Clear ↔ Tinted* setting with a preview, values measured on a real device.
+
+**Duo style for foldables and tablets.** Two pages side by side with a vertical dock column, single page when folded,
+scaled so every device keeps the same proportions.
+
+## 🍎 Quirks
+
+The original has rules that can feel restrictive — e.g. 2-row widgets only snap into row pairs, never a single row of
+apps above a widget, and the dock holds four apps. Liquidy keeps these **on by default**, because they are part of why
+the home screen looks the way it does.
+
+*Launcher Settings › 🍎 Quirks* lets you relax them one by one, each clearly marked as *not like the original*:
+
+- **Widgets in Any Row** — place widgets in any row
+- **More Apps in Dock** (Duo style) — as many apps as fit in the dock column
 
 ## Features
 
-**Home screen**
-- 4×6 icon grid, dock, page dots, rubber-band paging, edit mode with jiggle, drag & drop, folders, page overview
-- Folders like the original: drop an app in and it flies into its spot, pages inside folders, rename, drag apps out
-- 🍎 Quirks: optional relaxations of the original's rules (widgets in any row, more apps in the Duo dock)
-- Free placement like current iOS: icons stay where you drop them, gaps allowed; drag to the left/right edge to flip or create pages
-- The same app can be on several pages; drag apps out of the App Library (also from an open category)
-- Context menus with app shortcuts, widget stacks with swipe and *Smart Rotate*
-- Liquid Glass (refraction, rim light, blur) on dock, folders, menus and search — with the Clear ↔ Tinted setting and a live preview
+- 4×6 grid with free placement, dock, page dots, page overview, edit mode with jiggle, drag & drop across pages
+- Folders: create by holding an app over another, paging inside, reorder, rename, drag apps out
+- Context menus with Android app shortcuts, widget stacks with Smart Rotate
 - Today view, App Library with categories and A–Z list
-- Own status bar (optional), haptics (optional)
-
-**Duo style (foldables & tablets)**
-- Two pages side by side with a vertical dock column and round search button on the right — on an unfolded foldable
-  or a tablet in landscape
-- Folded: single page with the dock column
-- Optional: more than four apps in the dock column (as many as fit)
-- The whole layout scales to the screen so every device keeps the same proportions — Galaxy Z Fold, Pixel Fold,
-  10–13" tablets — instead of squeezing or stretching icons
-- Status symbols avoid the camera cutout automatically
-- Tablets in portrait use the regular single-page layout
-
-**Widgets** — calendar (choose calendars), clock, batteries, weather (Open-Meteo, location or fixed place), photos (choose album),
-reminders (own list), plus any Android widget — offered in every iOS size it fits and fitted to the iOS frame
-
-**Icon packs** — any icon pack in the common ADW/Nova format, chosen with a live preview in Launcher Settings
-
-**Search** — apps, calculator, contacts, Android settings, photos (name, album, month/year), files and web suggestions
-(Google suggestions can be turned off in Launcher Settings)
-
-**Smoother app animations (optional)** — with root, the included Magisk module installs the launcher as a system app
-so apps open straight out of their icon.
-
-## Requirements
-
-- Android 13 (API 33) or newer
-- For the Duo style: a foldable or a tablet (smallest width ≥ 600 dp)
-- Optional: root + Magisk for the open animation
+- Widgets: calendar, clock, batteries, weather, photos, reminders — plus any Android widget, fitted to iOS sizes
+- Search: apps, calculator, contacts, settings, photos, files, optional web suggestions
+- Icon packs (ADW/Nova format), icon styles Default / Dark / Clear / Tinted
+- Optional own status bar and haptics
 
 ## Install
 
+Requires Android 13 or newer.
+
 1. Download the APK from [Releases](../../releases) and install it.
-2. Open it and follow the welcome flow; choose it as the default home app.
-3. Optional (root): flash `liquidy-magisk.zip` in Magisk → Modules, reboot.
+2. Follow the welcome flow and set it as the default home app.
+
+**Optional – Animation Module (root/Magisk).** Android only lets system apps open apps with their own animation.
+The small module in each release (`liquidy-magisk.zip`) adds the installed launcher as a system app — nothing else.
+Install it in Magisk › Modules and reboot. Status and steps: *Launcher Settings › Advanced › Animation Module*.
 
 ## Build
 
@@ -66,23 +66,18 @@ so apps open straight out of their icon.
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Magisk module: `tools/build-magisk-module.sh` → `build/liquidy-magisk.zip`.
-
-Project notes: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), measurements and motion values with sources in
-[`docs/RESEARCH.md`](docs/RESEARCH.md), glass rendering in [`docs/GLASS.md`](docs/GLASS.md).
+Docs: [`ARCHITECTURE.md`](docs/ARCHITECTURE.md), measured values in [`RESEARCH.md`](docs/RESEARCH.md),
+glass rendering in [`GLASS.md`](docs/GLASS.md).
 
 ## Privacy
 
-Everything runs on the device. Network is only used for the weather (Open-Meteo) and — if enabled — search suggestions
-(Google). Usage access, contacts, calendar, photos and location are optional and only used for the matching feature.
+Everything runs on the device. Network is only used for weather (Open-Meteo) and, if enabled, web search suggestions.
+All permissions are optional and explained in the settings. Bug reports: *Settings › Advanced › Copy Diagnostics*
+(technical info only, nothing is sent).
 
-## How this was made
+## How it was made
 
-Built by [janhurn9400](https://github.com/janhurn9400) with AI pair programming (Claude). The workflow for every screen and animation was the same:
-record it on the real device → measure it frame by frame → implement it with the measured values → capture the emulator
-at the same moments → compare side by side → repeat until there is no visible difference. Things that can't be matched
-on Android without system access (e.g. the system-owned app close gesture) are documented as such instead of faked.
+Built by [janhurn9400](https://github.com/janhurn9400) with AI pair programming (Claude): record on the real device →
+measure frame by frame → implement with the measured values → compare emulator and reference side by side → repeat.
 
-## Status
-
-Early preview (0.x). Expect rough edges, especially on real hardware performance.
+Early preview (0.x) — expect rough edges.
