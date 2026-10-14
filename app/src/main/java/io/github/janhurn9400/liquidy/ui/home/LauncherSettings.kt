@@ -1,5 +1,9 @@
 package io.github.janhurn9400.liquidy.ui.home
 
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
@@ -221,12 +225,7 @@ private fun HeaderCard(compact: Boolean) {
             .padding(horizontal = if (compact) 4.dp else 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Canvas(Modifier.size(58.dp)) { // Launcher-Symbol: 3×3-Raster aus Kacheln
-            drawRoundRect(Color(0xFF1C1C1E), cornerRadius = CornerRadius(size.width * 0.22f))
-            val cell = size.width / 4.2f; val gap = (size.width - 3 * cell) / 4
-            for (r in 0..2) for (c in 0..2) drawRoundRect(TILE_COLORS[(r * 3 + c) % TILE_COLORS.size],
-                Offset(gap + c * (cell + gap), gap + r * (cell + gap)), Size(cell, cell), CornerRadius(cell * 0.25f))
-        }
+        LiquidyAppIcon(58f)
         Spacer(Modifier.width(14.dp))
         Column {
             BasicText(stringResource(R.string.settings_app_name), style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, color = Color.Black))
@@ -250,6 +249,7 @@ private fun Detail(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolea
             when (sub) {
                 SubPage.IconPacks -> IconPackPage(categoryTitle(c)) { subPage = SubPage.None }
                 SubPage.Glass -> GlassPage(categoryTitle(c)) { subPage = SubPage.None }
+                SubPage.Module -> ModulePage(categoryTitle(c), tick) { subPage = SubPage.None }
                 SubPage.None -> DetailBody(c, model, tick, inlineTitle) { subPage = it }
             }
         }
@@ -378,26 +378,11 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
             }
             Category.Advanced -> {
                 val module = remember(tick) { context.checkSelfPermission("android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS") == android.content.pm.PackageManager.PERMISSION_GRANTED }
-                // Animationsmodul: offen erklären, was es ist und tut — mit festem Download-Link (immer neuestes Release) und
-                // derselben Anleitung wie im Willkommen; installiert → „Aktiv“
-                Section(stringResource(R.string.settings_sec_module), footer = stringResource(R.string.settings_module_footer)) {
-                    ValueRow(stringResource(R.string.settings_module), stringResource(if (module) R.string.settings_active else R.string.settings_module_missing))
-                }
-                if (!module) {
-                    io.github.janhurn9400.liquidy.ui.welcome.RootSteps(active = false)
-                    Spacer(Modifier.height(10.dp))
-                    Group {
-                        LinkRow(stringResource(R.string.welcome_root_download)) {
-                            open(context, android.content.Intent(android.content.Intent.ACTION_VIEW,
-                                android.net.Uri.parse(io.github.janhurn9400.liquidy.ui.welcome.MODULE_URL)))
-                        }
-                        val magisk = remember { context.packageManager.getLaunchIntentForPackage("com.topjohnwu.magisk") }
-                        if (magisk != null) {
-                            Divider()
-                            LinkRow(stringResource(R.string.welcome_root_open_magisk)) { open(context, magisk) }
-                        }
+                // Animationsmodul: eigene Unterseite (Erklärung, Status, Anleitung) — hier nur Zeile mit Status
+                Section(null) {
+                    LinkRow(stringResource(R.string.settings_module), stringResource(if (module) R.string.settings_active else R.string.settings_module_missing)) {
+                        openSub(SubPage.Module)
                     }
-                    Spacer(Modifier.height(SECTION_GAP.dp))
                 }
                 // Für Bug-Reports: Gerät, Android, Displays, Wallpaper-Berechnung — nur in die Zwischenablage, nichts wird gesendet
                 var copied by remember { mutableStateOf(false) }
@@ -440,33 +425,101 @@ private fun categoryTitle(c: Category) = stringResource(when (c) {
     Category.About -> R.string.settings_section_about
 })
 
+/** Das App-Icon (res/mipmap ic_launcher) als Kachel: Hintergrund + Vordergrund wie das adaptive Icon (sichtbar 72 von 108). */
+@Composable
+private fun LiquidyAppIcon(sizePt: Float) {
+    Box(Modifier.size(sizePt.dp).clip(io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((sizePt * TILE_CORNER).dp)), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_background), null,
+            Modifier.requiredSize((sizePt * ADAPTIVE_SCALE).dp))
+        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.ic_launcher_foreground), null,
+            Modifier.requiredSize((sizePt * ADAPTIVE_SCALE).dp))
+    }
+}
+
 /**
- * Farbige Kategorie-Kachel wie in der iOS-Einstellungs-App: kontinuierliche Ecken (≈ 22,5 % der Kante), weiße Glyphe
- * ≈ 62 % der Kachel. Glyphen: Material Symbols Rounded (SettingsGlyphs, Apache-2.0) — keine SF Symbols.
- * Farben = iOS-Systemfarben der vergleichbaren Bereiche [GESCHÄTZT]: Allgemein grau, Darstellung blau, Home-Bildschirm
- * indigo, Quirks orange, Datenschutz blau, Entwickler grau.
+ * Kategorie-Kachel wie in den iOS-27-Einstellungen [GEMESSEN Nutzer-Screenshot 10-15]: kontinuierliche Ecken (≈ 23 % der
+ * Kante), leichter Verlauf nach unten (≈ 6 % dunkler) und ein feiner heller Lichtrand oben/unten; weiße Glyphe.
+ * Zahnrad und Darstellung selbst gezeichnet im iOS-Stil, übrige Glyphen Material Symbols Rounded (Apache-2.0) —
+ * keine SF Symbols. Farben aus dem Screenshot (Blau 2/140/252, Grau 155→141, Schwarz 9→0), Orange/Indigo [GESCHÄTZT].
  */
 @Composable
 private fun CategoryIcon(c: Category, sizePt: Float = ICON) {
-    val (bg, glyph) = when (c) {
-        Category.General -> Color(0xFF8E8E93) to SettingsGlyphs.Settings
-        Category.Appearance -> Color(0xFF007AFF) to SettingsGlyphs.Palette
-        Category.HomeScreen -> Color(0xFF5856D6) to SettingsGlyphs.GridView
-        Category.Quirks -> Color(0xFFFF9500) to SettingsGlyphs.Tune
-        Category.Permissions -> Color(0xFF007AFF) to SettingsGlyphs.PanTool
-        Category.Advanced -> Color(0xFF636366) to SettingsGlyphs.Build
-        Category.About -> Color(0xFF8E8E93) to SettingsGlyphs.Info
+    val bg = when (c) {
+        Category.General, Category.About -> Color(0xFF99989E)
+        Category.Appearance -> Color(0xFF0A0A0A)
+        Category.HomeScreen, Category.Permissions -> Color(0xFF028CFC)
+        Category.Quirks -> Color(0xFFFF9500)
+        Category.Advanced -> Color(0xFF636366)
     }
+    val bottom = Color(bg.red * TILE_SHADE, bg.green * TILE_SHADE, bg.blue * TILE_SHADE)
+    val shape = io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((sizePt * TILE_CORNER).dp)
     Box(
-        Modifier.size(sizePt.dp).clip(io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((sizePt * TILE_CORNER).dp)).background(bg),
+        Modifier.size(sizePt.dp).clip(shape).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(bg, bottom)))
+            .drawWithContent {
+                drawContent()
+                // Lichtrand: oben und unten heller, seitlich kaum (Liquid Glass)
+                val outline = shape.createOutline(size, layoutDirection, this)
+                drawOutline(outline, androidx.compose.ui.graphics.Brush.verticalGradient(
+                    0f to Color.White.copy(alpha = TILE_RIM), 0.25f to Color.Transparent, 0.75f to Color.Transparent, 1f to Color.White.copy(alpha = TILE_RIM * 0.6f)),
+                    style = Stroke(TILE_RIM_W.dp.toPx() * 2))
+            },
         contentAlignment = Alignment.Center,
     ) {
-        androidx.compose.foundation.Image(
-            androidx.compose.ui.graphics.vector.rememberVectorPainter(glyph), contentDescription = null,
-            modifier = Modifier.size((sizePt * TILE_GLYPH).dp),
-            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
-        )
+        when (c) {
+            Category.General -> Canvas(Modifier.size((sizePt * GEAR_SIZE).dp)) { iosGear() }
+            Category.Appearance -> Canvas(Modifier.size((sizePt * GEAR_SIZE).dp)) { contrastGlyph() }
+            else -> androidx.compose.foundation.Image(
+                androidx.compose.ui.graphics.vector.rememberVectorPainter(when (c) {
+                    Category.HomeScreen -> SettingsGlyphs.GridView
+                    Category.Quirks -> SettingsGlyphs.Tune
+                    Category.Permissions -> SettingsGlyphs.PanTool
+                    Category.Advanced -> SettingsGlyphs.Build
+                    else -> SettingsGlyphs.Info
+                }), contentDescription = null,
+                modifier = Modifier.size((sizePt * TILE_GLYPH).dp),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
+            )
+        }
     }
+}
+
+/** Zahnrad wie die iOS-Einstellungen [Screenshot 10-15]: ≈ 26 feine Zähne, Innenring, drei Speichen, Nabe. */
+private fun DrawScope.iosGear() {
+    val s = size.minDimension; val c = center
+    val teeth = GEAR_TEETH
+    val ro = s * 0.5f; val rt = s * 0.43f // Zahnspitze / Zahnfuß
+    val ring = androidx.compose.ui.graphics.Path().apply {
+        for (k in 0 until teeth) {
+            val a0 = (k.toFloat() / teeth) * 2 * Math.PI.toFloat()
+            val step = 2 * Math.PI.toFloat() / teeth
+            fun pt(r: Float, a: Float) = Offset(c.x + r * kotlin.math.cos(a), c.y + r * kotlin.math.sin(a))
+            val p0 = pt(rt, a0); val p1 = pt(ro, a0 + step * 0.18f); val p2 = pt(ro, a0 + step * 0.48f); val p3 = pt(rt, a0 + step * 0.66f)
+            if (k == 0) moveTo(p0.x, p0.y) else lineTo(p0.x, p0.y)
+            lineTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y)
+        }
+        close()
+        // Loch: Innenring bleibt als schmaler Kranz stehen
+        addOval(androidx.compose.ui.geometry.Rect(c, s * 0.355f))
+        fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
+    }
+    drawPath(ring, Color.White)
+    drawCircle(Color.White, s * 0.30f, c, style = Stroke(s * 0.045f))
+    // drei Speichen (rechts oben, links oben, unten) von der Nabe zum Innenring
+    for (a in listOf(-30f, -150f, 90f)) {
+        val r = Math.toRadians(a.toDouble()); val d = Offset(kotlin.math.cos(r).toFloat(), kotlin.math.sin(r).toFloat())
+        drawLine(Color.White, c, c + d * (s * 0.30f), s * 0.05f, StrokeCap.Round)
+    }
+    drawCircle(Color.White, s * 0.06f, c)
+}
+
+/** Darstellung wie iOS [Screenshot 10-15]: Kreis links weiß gefüllt, rechts nur Rand; kleiner Innenkreis umgekehrt. */
+private fun DrawScope.contrastGlyph() {
+    val s = size.minDimension; val c = center; val r = s * 0.44f; val w = s * 0.085f
+    drawCircle(Color.White, r - w / 2, c, style = Stroke(w))
+    drawArc(Color.White, 90f, 180f, true, Offset(c.x - r, c.y - r), Size(2 * r, 2 * r))
+    val ri = r * 0.38f
+    drawArc(Color.Black, 90f, 180f, true, Offset(c.x - ri, c.y - ri), Size(2 * ri, 2 * ri))
+    drawArc(Color.White, -90f, 180f, true, Offset(c.x - ri, c.y - ri), Size(2 * ri, 2 * ri))
 }
 
 // ── Bausteine ───────────────────────────────────────────────────────────────────────
@@ -613,7 +666,7 @@ private fun LinkRow(label: String, value: String? = null, onClick: () -> Unit) {
     }
 }
 
-private enum class SubPage { None, IconPacks, Glass }
+private enum class SubPage { None, IconPacks, Glass, Module }
 
 /**
  * Unterseite „Liquid Glass“ wie iOS (Einstellungen › Darstellung › Liquid Glass, Nutzer-Screenshot 10-14): Vorschaukarte
@@ -709,6 +762,83 @@ private fun GlassPreviewCard(modifier: Modifier) {
     }
 }
 
+/**
+ * Unterseite „Animationsmodul“ wie ein iOS-Untermenü (Nutzer-Screenshot WLAN 10-15): oben eine Karte mit großem Symbol,
+ * fettem Titel, Erklärung + Link, darunter in derselben Karte die Zeile mit dem Status (statt Schalter). Darunter immer die
+ * Installationsschritte, Download (fester Link aufs neueste Release) und „Magisk öffnen“.
+ */
+@Composable
+private fun ModulePage(backLabel: String, tick: Int, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val noRipple = remember { MutableInteractionSource() }
+    val active = remember(tick) { context.checkSelfPermission("android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS") == android.content.pm.PackageManager.PERMISSION_GRANTED }
+    fun view(url: String) = open(context, android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+        Spacer(Modifier.height(TOP_PAD.dp))
+        Row(Modifier.clickable(noRipple, null, onClick = onBack).padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Canvas(Modifier.size(10.dp, 17.dp)) {
+                val sw = 2.4.dp.toPx(); val c = Color(0xFF007AFF)
+                drawLine(c, Offset(size.width * 0.9f, size.height * 0.05f), Offset(size.width * 0.1f, size.height * 0.5f), sw, StrokeCap.Round)
+                drawLine(c, Offset(size.width * 0.1f, size.height * 0.5f), Offset(size.width * 0.9f, size.height * 0.95f), sw, StrokeCap.Round)
+            }
+            Spacer(Modifier.width(6.dp))
+            BasicText(backLabel, style = LABEL.copy(color = Color(0xFF007AFF)))
+        }
+        // Karte: Symbol, Titel, Erklärung + Link, Status
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(GROUP_CORNER.dp)).background(Color.White)) {
+            Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 14.dp)) {
+                ModuleTile(MODULE_HERO)
+                Spacer(Modifier.height(14.dp))
+                BasicText(stringResource(R.string.settings_module), style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color.Black))
+                Spacer(Modifier.height(6.dp))
+                val more = stringResource(R.string.settings_module_github)
+                val body = stringResource(R.string.settings_module_about)
+                BasicText(androidx.compose.ui.text.buildAnnotatedString {
+                    append(body); append(" ")
+                    withLink(androidx.compose.ui.text.LinkAnnotation.Url(GITHUB_URL,
+                        androidx.compose.ui.text.TextLinkStyles(androidx.compose.ui.text.SpanStyle(color = Color(0xFF007AFF))))) { append(more) }
+                }, style = TextStyle(fontFamily = Inter, fontSize = 16.sp, lineHeight = 21.sp, color = GREY))
+            }
+            Divider()
+            Row(Modifier.fillMaxWidth().height(ROW_H.dp).padding(start = 20.dp, end = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                BasicText(stringResource(R.string.settings_module), Modifier.weight(1f), style = LABEL)
+                BasicText(stringResource(if (active) R.string.settings_active else R.string.settings_module_missing),
+                    style = LABEL.copy(color = if (active) Color(0xFF34C759) else GREY, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal))
+            }
+        }
+        BasicText(stringResource(R.string.settings_module_footer), Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp),
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = GREY))
+        Spacer(Modifier.height(SECTION_GAP.dp))
+        // Anleitung (immer sichtbar)
+        BasicText(stringResource(R.string.settings_module_install), Modifier.padding(start = 20.dp, bottom = 8.dp),
+            style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = GREY))
+        // Willkommen hat eigene Kartenfarbe → hier wie die übrigen Gruppen weiß
+        io.github.janhurn9400.liquidy.ui.welcome.RootSteps(active = false, cardColor = Color.White, cardCorner = GROUP_CORNER)
+        Spacer(Modifier.height(10.dp))
+        Group {
+            LinkRow(stringResource(R.string.welcome_root_download)) { view(io.github.janhurn9400.liquidy.ui.welcome.MODULE_URL) }
+            val magisk = remember { context.packageManager.getLaunchIntentForPackage("com.topjohnwu.magisk") }
+            if (magisk != null) {
+                Divider()
+                LinkRow(stringResource(R.string.welcome_root_open_magisk)) { open(context, magisk) }
+            }
+        }
+        Spacer(Modifier.height(40.dp))
+    }
+}
+
+/** Kachel des Animationsmoduls (Funkeln auf Indigo) im Stil der Kategorie-Kacheln. */
+@Composable
+private fun ModuleTile(sizePt: Float) {
+    val bg = Color(0xFF5856D6)
+    val shape = io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((sizePt * TILE_CORNER).dp)
+    Box(Modifier.size(sizePt.dp).clip(shape).background(androidx.compose.ui.graphics.Brush.verticalGradient(
+        listOf(bg, Color(bg.red * TILE_SHADE, bg.green * TILE_SHADE, bg.blue * TILE_SHADE)))), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Image(androidx.compose.ui.graphics.vector.rememberVectorPainter(SettingsGlyphs.AutoAwesome), null,
+            Modifier.size((sizePt * TILE_GLYPH).dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White))
+    }
+}
+
 /** Symbol am Glas-Regler (iOS): zwei versetzte abgerundete Flächen — links nur Umriss (klar), rechts gefüllt (getönt). */
 @Composable
 private fun GlassStyleGlyph(filled: Boolean) = Canvas(Modifier.size(26.dp, 22.dp)) {
@@ -794,6 +924,14 @@ private const val ROW_H = 52f
 private const val ICON = 29f
 private const val TILE_CORNER = 0.225f // Ecken der Kategorie-Kachel relativ zur Kante (iOS-Einstellungen)
 private const val TILE_GLYPH = 0.62f   // Glyphe relativ zur Kachel
+private const val TILE_SHADE = 0.94f   // Kachel unten ≈ 6 % dunkler [GEMESSEN] iOS-27-Einstellungen
+private const val TILE_RIM = 0.22f     // Lichtrand oben (unten 60 %) [GEMESSEN qualitativ]
+private const val TILE_RIM_W = 0.6f    // dp Breite des Lichtrands
+private const val GEAR_SIZE = 0.72f    // Zahnrad/Darstellung relativ zur Kachel [GEMESSEN]
+private const val GEAR_TEETH = 26
+private const val MODULE_HERO = 60f    // pt Symbol oben auf der Modul-Seite (iOS-Untermenü-Kopf)
+private const val GITHUB_URL = "https://github.com/janhurn9400/liquidy"
+private const val ADAPTIVE_SCALE = 1.5f // adaptives Icon: 108 dp Ebene, davon 72 sichtbar
 private const val GROUP_CORNER = 24f
 private const val SECTION_GAP = 26f
 private val SIDEBAR_BG = Color.White
@@ -806,4 +944,3 @@ private const val PREVIEW_ICON = 54f
 /** T-ICON-R / Icon-Größe (16,33 / 60). */
 private const val ICON_CORNER_SHARE = 16.33f / 60f
 private val LABEL = TextStyle(fontFamily = Inter, fontSize = 17.sp, color = Color.Black)
-private val TILE_COLORS = listOf(Color(0xFF34C759), Color(0xFF0A84FF), Color(0xFFFF9F0A), Color(0xFFFF375F), Color(0xFFBF5AF2), Color(0xFF64D2FF))

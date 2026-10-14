@@ -183,8 +183,11 @@
     <string name="settings_diagnostics_footer">For bug reports: copies device, Android version, displays and how the launcher calculates the wallpaper to the clipboard. No apps or personal data, nothing is sent.</string>
     <string name="settings_sec_module">Animation Module</string>
     <string name="settings_module">Animation Module</string>
-    <string name="settings_module_footer">Optional, needs root (Magisk). Android only lets system apps open apps with their own animation, so this small module adds Liquidy as a system app — then apps grow out of their icon like on iPhone. Without it, Android uses its standard animation. It changes nothing else and sends nothing; its contents are on GitHub.</string>
+    <string name="settings_module_footer">Optional, needs root (Magisk). Without the module Android uses its standard animation. It changes nothing else and sends nothing; its contents are open on GitHub.</string>
     <string name="settings_module_missing">Not installed</string>
+    <string name="settings_module_about">Lets apps open and close straight out of their icon, like on iPhone. Android only allows this for system apps, so this small module adds the installed Liquidy app as one.</string>
+    <string name="settings_module_github">View on GitHub…</string>
+    <string name="settings_module_install">Install</string>
     <string name="settings_active">Active</string>
     <string name="settings_inactive">Not active</string>
     <string name="settings_device">Device</string>

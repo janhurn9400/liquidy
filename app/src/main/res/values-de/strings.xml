@@ -183,8 +183,11 @@
     <string name="settings_diagnostics_footer">Für Fehlerberichte: kopiert Gerät, Android-Version, Displays und wie der Launcher das Hintergrundbild berechnet in die Zwischenablage. Keine Apps oder persönlichen Daten, es wird nichts gesendet.</string>
     <string name="settings_sec_module">Animationsmodul</string>
     <string name="settings_module">Animationsmodul</string>
-    <string name="settings_module_footer">Optional, braucht Root (Magisk). Android erlaubt nur System-Apps, Apps mit eigener Animation zu öffnen – dieses kleine Modul bindet Liquidy deshalb als System-App ein, dann wachsen Apps wie am iPhone aus ihrem Icon. Ohne Modul nutzt Android seine Standard-Animation. Es ändert sonst nichts und sendet nichts; der Inhalt liegt offen auf GitHub.</string>
+    <string name="settings_module_footer">Optional, braucht Root (Magisk). Ohne Modul nutzt Android seine Standard-Animation. Es ändert sonst nichts und sendet nichts; der Inhalt liegt offen auf GitHub.</string>
     <string name="settings_module_missing">Nicht installiert</string>
+    <string name="settings_module_about">Lässt Apps wie am iPhone direkt aus ihrem Icon auf- und zugehen. Android erlaubt das nur System-Apps, deshalb bindet dieses kleine Modul die installierte Liquidy-App als System-App ein.</string>
+    <string name="settings_module_github">Auf GitHub ansehen…</string>
+    <string name="settings_module_install">Installieren</string>
     <string name="settings_active">Aktiv</string>
     <string name="settings_inactive">Nicht aktiv</string>
     <string name="settings_device">Gerät</string>

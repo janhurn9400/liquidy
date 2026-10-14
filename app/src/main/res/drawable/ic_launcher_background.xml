@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Liquidy App-Icon (Platzhalter bis zum eigenen Entwurf): Nachtblau → Indigo mit weichem Lichtschein -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="20" android:startY="0" android:endX="88" android:endY="108"
+                android:startColor="#FF101A3F" android:centerColor="#FF1B1F5C" android:endColor="#FF35217A" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="40" android:centerY="34" android:gradientRadius="60"
+                android:startColor="#552E8CFF" android:endColor="#002E8CFF" />
+        </aapt:attr>
+    </path>
+</vector>

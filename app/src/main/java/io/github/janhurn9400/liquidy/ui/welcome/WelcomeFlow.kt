@@ -439,8 +439,8 @@ private fun FoldPreview(duo: Boolean, modifier: Modifier) {
 
 /** Anleitung fürs Magisk-Modul als nummerierte Liste (iOS-Zellen); ist das Modul aktiv, nur ein Haken. */
 @Composable
-internal fun RootSteps(active: Boolean) {
-    Card {
+internal fun RootSteps(active: Boolean, cardColor: Color = CELL, cardCorner: Float = CARD_R.toFloat()) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(cardCorner.dp)).background(cardColor)) {
         if (active) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Canvas(Modifier.size(26.dp)) {
@@ -452,7 +452,7 @@ internal fun RootSteps(active: Boolean) {
                 Spacer(Modifier.width(14.dp))
                 BasicText(stringResource(R.string.welcome_root_active), style = TextStyle(fontFamily = Inter, fontSize = 17.sp, letterSpacing = (-0.35).sp, color = LABEL))
             }
-            return@Card
+            return@Column
         }
         listOf(R.string.welcome_root_step1, R.string.welcome_root_step2, R.string.welcome_root_step3, R.string.welcome_root_step4).forEachIndexed { i, res ->
             if (i > 0) Box(Modifier.padding(start = 56.dp).fillMaxWidth().height(0.5.dp).background(Color(0x1F000000)))
