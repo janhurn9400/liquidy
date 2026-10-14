@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.width
@@ -179,6 +180,12 @@ fun HomeScreen(
         LaunchedEffect(duo) { DesignTokens.iconSize.tunable.value = if (duo) DUO_ICON else DesignTokens.iconSize.tunable.default }
         val geo = remember(w, h, density, navBarPx, duo) { HomeGeometry(density, w, h, navBarPx, duo) }
         geo.dockCount = model.display.dock.size
+        // Plätze im Dock: Duo mit „Mehr Apps im Dock“ so viele, wie in die rechte Spalte passen, sonst 4 wie iOS
+        model.dockMax = if (geo.duo && io.github.janhurn9400.liquidy.data.FoldableStyle.moreDockApps) geo.duoDockCapacity else DesignTokens.DOCK_SLOTS
+        // Duo: Dock-Glas wächst/schrumpft mit derselben Feder wie die ausweichenden Icons (M-REFLOW) statt zu springen
+        val dockSlots = remember { androidx.compose.animation.core.Animatable(model.display.dock.size.toFloat()) }
+        val dockSize = model.display.dock.size
+        LaunchedEffect(dockSize) { dockSlots.animateTo(dockSize.toFloat(), Motion.reflow.spec()) }
         /** Blätter-Schritt: eine Seite (aufgeklappt 448 pt, sonst Bildschirmbreite). */
         val pw = geo.pageWidth
         // Duo: Glas-Quelle der Mediathek-Kacheln (sie liegen außerhalb der Haupt-Quelle, über dem Dock)
@@ -675,15 +682,17 @@ fun HomeScreen(
             val b = lib * DUO_LIB_PAGE_BLUR * density
             renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
         }) {
-        val dockRect = geo.dockRect
         LiquidGlass(
             // Duo: schmale senkrechte Glasleiste mit eigenem Radius (Kachel-Ecken ≈ 22 pt)
             shape = glassRect(if (geo.duo) androidx.compose.ui.unit.Dp(DUO_DOCK_CORNER) else DesignTokens.dockCorner.dp),
             // Duo: deutlicher heller Lichtsaum rundherum (Referenz 10:40, 13 s)
             rimAlpha = if (geo.duo) DUO_DOCK_RIM else null,
-            modifier = Modifier
-                .offset { IntOffset(dockRect.left.roundToInt(), dockRect.top.roundToInt()) }
-                .size(pxToDp(dockRect.width, density), pxToDp(dockRect.height, density)),
+            // Rahmen erst beim Layout lesen: die Feder läuft dann ohne Neuaufbau des Homescreens
+            modifier = Modifier.layout { m, _ ->
+                val r = geo.dockRectFor(dockSlots.value)
+                val p = m.measure(androidx.compose.ui.unit.Constraints.fixed(r.width.roundToInt(), r.height.roundToInt()))
+                layout(p.width, p.height) { p.place(r.left.roundToInt(), r.top.roundToInt()) }
+            },
         )
         display.dock.forEachIndexed { i, key ->
             if (key != model.drag?.key) key(key) {
@@ -810,6 +819,17 @@ fun HomeScreen(
         }
 
         // ── Gezogenes Icon (über allem) ──────────────────────────────────────────
+        // Duo: über dem Dock hat es Dock-Größe (48 pt), sonst Raster-Größe — weich umblenden, damit es beim Ablegen
+        // bzw. Herausziehen nicht springt; beim Aufnehmen aus dem Dock startet es in Dock-Größe
+        val dragKey = model.drag?.key
+        val dragOverDock by remember { derivedStateOf { geo.duo && model.drag?.hover is DropTarget.Dock } }
+        val dragDockScale = remember { androidx.compose.animation.core.Animatable(1f) }
+        val dragScaleFor = remember { arrayOfNulls<String>(1) }
+        LaunchedEffect(dragKey, dragOverDock) {
+            val t = if (dragOverDock) DUO_DOCK_ICON / DesignTokens.iconSize.value else 1f
+            if (dragKey != dragScaleFor[0]) { dragScaleFor[0] = dragKey; dragDockScale.snapTo(t) }
+            else dragDockScale.animateTo(t, Motion.reflow.spec())
+        }
         model.drag?.let { d ->
             model.widgets[d.key]?.let { spec ->
                 Box(
@@ -820,25 +840,30 @@ fun HomeScreen(
                     WidgetCell(d.key, spec, geo, density, wallpaper, jiggle = { 0f }, clockSeconds = { 0f }, badgeScale = { 0f }, showBadge = false, pressAlpha = { 0f })
                 }
             }
-            model.apps[d.key]?.let { app ->
-                Box(
-                    Modifier
-                        .offset {
-                            val tl = d.pointer - d.grabOffset
-                            IntOffset(cellOffsetX(tl.x, density).roundToInt(), tl.y.roundToInt())
-                        }
-                        .graphicsLayer {
-                            val s = d.lift.value
-                            scaleX = s; scaleY = s
-                            transformOrigin = TransformOrigin(0.5f, 0.5f)
-                        }
-                ) {
-                    AppIconView(
-                        app = app, showLabel = false, wallpaper = wallpaper,
-                        pressAlpha = { 0f }, jiggle = { 0f }, clockSeconds = { 0f },
-                        badgeScale = { 0f }, showBadge = false,
-                    )
-                }
+            // App bzw. Ordner (Ordner fehlten hier → beim Ziehen war nichts zu sehen)
+            val app = model.apps[d.key]
+            val folder = model.folders[d.key]
+            if (app != null || folder != null) Box(
+                Modifier
+                    .offset {
+                        val tl = d.pointer - d.grabOffset
+                        IntOffset(cellOffsetX(tl.x, density).roundToInt(), tl.y.roundToInt())
+                    }
+                    .graphicsLayer {
+                        val s = d.lift.value * dragDockScale.value
+                        scaleX = s; scaleY = s
+                        transformOrigin = TransformOrigin(0.5f, 0.5f)
+                    }
+            ) {
+                if (app != null) AppIconView(
+                    app = app, showLabel = false, wallpaper = wallpaper,
+                    pressAlpha = { 0f }, jiggle = { 0f }, clockSeconds = { 0f },
+                    badgeScale = { 0f }, showBadge = false,
+                ) else if (folder != null) FolderIconView(
+                    id = d.key, folder = folder, apps = model.apps, showLabel = false, wallpaper = wallpaper,
+                    pressAlpha = { 0f }, jiggle = { 0f }, clockSeconds = { 0f }, mergeHint = false,
+                    liveBackdrop = true,
+                )
             }
         }
 
@@ -952,7 +977,8 @@ fun HomeScreen(
                                     hit is Hit.Icon -> {
                                         pressJob?.cancel()
                                         model.openContextMenu(hit.key, hit.iconTopLeft, density,
-                                            model.widgets[hit.key]?.let { geo.widgetRect(hit.iconTopLeft, it.cols, it.rows) })
+                                            model.widgets[hit.key]?.let { geo.widgetRect(hit.iconTopLeft, it.cols, it.rows) },
+                                            iconScale = if (geo.duo && hit.key in model.display.dock) DUO_DOCK_ICON / DesignTokens.iconSize.value else 1f)
                                         mode = Mode.Menu
                                     }
                                     hit is Hit.Empty && !model.editing -> { model.enterEdit(); mode = Mode.Consumed }

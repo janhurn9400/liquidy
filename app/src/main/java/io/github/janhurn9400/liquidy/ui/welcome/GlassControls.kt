@@ -223,7 +223,7 @@ private fun GlassThumb(track: com.kyant.backdrop.Backdrop, press: Animatable<Flo
             shape = { Capsule() },
             effects = {
                 val p = press.value
-                if (p > 0.02f) lens(refractionHeight = 10.dp.toPx() * p, refractionAmount = 18.dp.toPx() * p, chromaticAberration = true)
+                if (p > 0.02f) lens(refractionHeight = 10.dp.toPx() * p, refractionAmount = 18.dp.toPx() * p, chromaticAberration = false)
             },
             highlight = {
                 Highlight(width = 1.2.dp, alpha = 0.25f + 0.6f * press.value,

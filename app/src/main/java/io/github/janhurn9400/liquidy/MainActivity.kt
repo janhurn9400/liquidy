@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
         io.github.janhurn9400.liquidy.data.Haptics.load(this)
         io.github.janhurn9400.liquidy.data.FoldableStyle.load(this)
         io.github.janhurn9400.liquidy.data.OwnStatusBar.load(this)
+        io.github.janhurn9400.liquidy.glass.GlassClarity.load(this)
         io.github.janhurn9400.liquidy.data.UniversalSearch.WebSuggestions.load(this)
         androidWidgets = io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetHost(this) // vor onStart (startListening)
         android.app.WallpaperManager.getInstance(this).addOnColorsChangedListener(colorsListener, android.os.Handler(mainLooper))

@@ -156,7 +156,6 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
             shape = glassCapsule(),
             thickness = DesignTokens.libSearchHeight.value / DesignTokens.dockHeight.value,
             // Duo: fast klares Glas, nur ein Hauch heller als die Umgebung [Video 2, 3,5 s]; iPhone: milchiger (recording2)
-            dispersion = if (geo.duo) false else null, // Duo: keine Regenbogen-Säume an den Kacheln
             whiteTint = if (geo.duo) DUO_SEARCH_TINT + (DUO_LIST_FIELD_TINT - DUO_SEARCH_TINT) * model.libListDim.value
                 else DesignTokens.libSearchTint.value + (DesignTokens.libListFieldTint.value - DesignTokens.libSearchTint.value) * model.libListDim.value,
             modifier = Modifier.size(Dp(wDp), Dp(s.height / density)),

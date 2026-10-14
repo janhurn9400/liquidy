@@ -42,7 +42,6 @@ fun DuoSearchButton(model: HomeModel, geo: HomeGeometry, density: Float) {
             .graphicsLayer { alpha = (1f - model.badgeScale.value.coerceIn(0f, 1f)) * (1f - searchFade) },
         whiteTint = 0.85f * model.duoLupePress.value,
         blackTint = 0f,
-        dispersion = false,
         rimAlpha = LUPE_RIM,
     ) {
         Canvas(Modifier.fillMaxSize()) {
@@ -84,7 +83,7 @@ fun DuoDots(geo: HomeGeometry, pager: PagerState, density: Float, dotCount: Int,
             modifier = Modifier.offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }
                 .size(Dp(r.width / density), Dp(r.height / density))
                 .graphicsLayer { alpha = e; scaleX = 0.8f + 0.2f * e; scaleY = 0.8f + 0.2f * e },
-            whiteTint = 0.08f, blackTint = 0f, dispersion = false, rimAlpha = LUPE_RIM,
+            whiteTint = 0.08f, blackTint = 0f, rimAlpha = LUPE_RIM,
         )
     }
     Canvas(Modifier.fillMaxSize()) {

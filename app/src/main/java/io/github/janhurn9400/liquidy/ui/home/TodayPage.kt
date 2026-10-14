@@ -271,7 +271,7 @@ private fun TodayScrollPanel(model: HomeModel, geo: HomeGeometry, density: Float
             glassRect(TODAY_PANEL_CORNER.dp),
             Modifier.offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }
                 .size((r.width / density).dp, (r.height / density).dp),
-            blur = 0.dp, whiteTint = TODAY_PANEL_WHITE, blackTint = 0f, dispersion = false,
+            blur = 0.dp, whiteTint = TODAY_PANEL_WHITE, blackTint = 0f,
         )
         val content = TodayLayout.contentHeight(rects, density, duoUnfolded = true)
         val hPx = geo.height

@@ -154,21 +154,31 @@ class HomeGeometry(
     /** Anzahl Dock-Icons (für das senkrechte Duo-Dock, dessen Höhe davon abhängt) — von HomeScreen gesetzt. */
     var dockCount: Int = 4
 
-    val dockRect: Rect
+    val dockRect: Rect get() = dockRectFor(dockCount.toFloat())
+
+    /** Dock-Glas für [slots] Plätze — Duo: Kommazahl, damit die Leiste beim Hinzufügen/Entfernen weich wächst/schrumpft. */
+    fun dockRectFor(slots: Float): Rect {
+        if (duo) { // senkrechte Glasleiste in der rechten Spalte, Mitte bei 56,7 % der Höhe
+            // 4 Plätze → 263 pt, 1 Platz → 71 pt [GEMESSEN]: h = pitch·(n−1) + 71
+            val n = slots.coerceAtLeast(1f)
+            val h = px(DUO_DOCK_PITCH * (n - 1) + DUO_DOCK_SINGLE)
+            val w = px(DUO_DOCK_W); val cy = height * DUO_DOCK_CY
+            return Rect(duoColumnX - w / 2, cy - h / 2, duoColumnX + w / 2, cy + h / 2)
+        }
+        val side = px(DesignTokens.dockSideInset.value)
+        val h = px(DesignTokens.dockHeight.value)
+        // iPhone: 17 pt Abstand (dort ohne Home-Leiste auf dem Homescreen). Android zeigt die Gestenleiste immer →
+        // Dock mindestens DOCK_ABOVE_NAV pt über ihr, sonst klebt die Leiste am Dock
+        val bottom = height - maxOf(px(DesignTokens.dockBottomInset.value), navBarPx + px(DOCK_ABOVE_NAV))
+        return Rect(side, bottom - h, width - side, bottom)
+    }
+
+    /** Duo: wie viele Dock-Plätze passen zwischen Pinsel-Knopf (oben) und Suchknopf (unten), mit Abstand [DUO_DOCK_CLEAR]. */
+    val duoDockCapacity: Int
         get() {
-            if (duo) { // senkrechte Glasleiste in der rechten Spalte, Mitte bei 56,7 % der Höhe
-                // 4 Plätze → 263 pt, 1 Platz → 71 pt [GEMESSEN]: h = pitch·(n−1) + 71
-                val n = dockCount.coerceAtLeast(1)
-                val h = px(DUO_DOCK_PITCH * (n - 1) + DUO_DOCK_SINGLE)
-                val w = px(DUO_DOCK_W); val cy = height * DUO_DOCK_CY
-                return Rect(duoColumnX - w / 2, cy - h / 2, duoColumnX + w / 2, cy + h / 2)
-            }
-            val side = px(DesignTokens.dockSideInset.value)
-            val h = px(DesignTokens.dockHeight.value)
-            // iPhone: 17 pt Abstand (dort ohne Home-Leiste auf dem Homescreen). Android zeigt die Gestenleiste immer →
-            // Dock mindestens DOCK_ABOVE_NAV pt über ihr, sonst klebt die Leiste am Dock
-            val bottom = height - maxOf(px(DesignTokens.dockBottomInset.value), navBarPx + px(DOCK_ABOVE_NAV))
-            return Rect(side, bottom - h, width - side, bottom)
+            val cy = height * DUO_DOCK_CY
+            val half = minOf(cy - editButtonRect(left = true).bottom, pillRect.top - cy) - px(DUO_DOCK_CLEAR)
+            return (((2 * half - px(DUO_DOCK_SINGLE)) / px(DUO_DOCK_PITCH)).toInt() + 1).coerceIn(DesignTokens.DOCK_SLOTS, DUO_DOCK_SLOTS_LIMIT)
         }
 
     /** Dock-Icons sind als Gruppe zentriert (iOS: 3 Icons → mittig). */
@@ -268,6 +278,9 @@ private const val DUO_DOCK_W = 73f
 private const val DUO_DOCK_SINGLE = 71f       // Höhe der Glasfläche mit einem Icon
 private const val DUO_DOCK_PITCH = 64f
 private const val DUO_DOCK_CY = 0.567f         // Dock-Mitte als Anteil der Höhe
+private const val DUO_DOCK_CLEAR = 16f        // pt Mindestabstand des erweiterten Docks zu Pinsel/Suchknopf [GESCHÄTZT]
+/** Obergrenze „Mehr Apps im Dock“ (eigene Erweiterung, am Duo gibt es höchstens 4). */
+const val DUO_DOCK_SLOTS_LIMIT = 8
 private const val DUO_SEARCH_D = 48f
 private const val DUO_SEARCH_FIELD_W = 428f
 private const val DUO_SEARCH_FIELD_FROM_BOTTOM = 33f

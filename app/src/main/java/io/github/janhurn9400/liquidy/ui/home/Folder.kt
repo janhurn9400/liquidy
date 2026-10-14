@@ -55,6 +55,8 @@ fun FolderIconView(
     clockSeconds: () -> Float,
     mergeHint: Boolean,
     modifier: Modifier = Modifier,
+    /** Gezogenes Icon (liegt über der Glasquelle): bricht live die Icons darunter statt nur das Wallpaper. */
+    liveBackdrop: Boolean = false,
 ) {
     val phases = androidx.compose.runtime.remember(id) { jigglePhases(id) }
     val density = androidx.compose.ui.platform.LocalDensity.current.density
@@ -72,9 +74,12 @@ fun FolderIconView(
     ) {
         MergeHintBackdrop(mergeHint, wallpaper)
         // Dasselbe Liquid Glass wie das Dock (Linse, Licht, Tönung) — Quelle nur das Wallpaper, weil das Icon selbst
-        // in der aufgenommenen Icon-Ebene liegt
+        // in der aufgenommenen Icon-Ebene liegt; beim Ziehen liegt es darüber → echte Quelle (Wallpaper + Icons)
         val wb = io.github.janhurn9400.liquidy.glass.LocalWallpaperBlur.current
-        val backdrop = androidx.compose.runtime.remember(wallpaper, wb) { io.github.janhurn9400.liquidy.glass.WallpaperBackdrop(wallpaper, wb.blurred, wb.amount) }
+        val live = io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current
+        val backdrop = androidx.compose.runtime.remember(wallpaper, wb, liveBackdrop, live) {
+            if (liveBackdrop && live != null) live else io.github.janhurn9400.liquidy.glass.WallpaperBackdrop(wallpaper, wb.blurred, wb.amount)
+        }
         androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop provides backdrop) {
             io.github.janhurn9400.liquidy.glass.LiquidGlass(
                 shape = io.github.janhurn9400.liquidy.glass.glassRect(DesignTokens.iconCorner.dp),
@@ -322,7 +327,7 @@ private fun FolderNameField(model: HomeModel, open: OpenFolder, geo: FolderGeome
     ) {
         // hell-milchig wie im Original (nicht dunkel/verzerrt): stark verwischt, aufgehellt, ohne Farbsaum
         LiquidGlass(shape = io.github.janhurn9400.liquidy.glass.glassCapsule(), modifier = Modifier.matchParentSize(),
-            blur = DesignTokens.folderPanelBlur.dp, whiteTint = NAME_TINT, blackTint = 0f, dispersion = false)
+            blur = DesignTokens.folderPanelBlur.dp, whiteTint = NAME_TINT, blackTint = 0f)
         androidx.compose.foundation.layout.Row(
             Modifier.matchParentSize().padding(start = 20.dp, end = 14.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,

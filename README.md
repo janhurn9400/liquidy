@@ -20,7 +20,7 @@ until they matched — including the in-between frames of every transition, not 
 - Free placement like current iOS: icons stay where you drop them, gaps allowed; drag to the left/right edge to flip or create pages
 - The same app can be on several pages; drag apps out of the App Library (also from an open category)
 - Context menus with app shortcuts, widget stacks with swipe and *Smart Rotate*
-- Liquid Glass (refraction, rim light, blur) on dock, folders, menus and search
+- Liquid Glass (refraction, rim light, blur) on dock, folders, menus and search — with the Clear ↔ Tinted setting and a live preview
 - Today view, App Library with categories and A–Z list
 - Own status bar (optional), haptics (optional)
 
@@ -28,6 +28,7 @@ until they matched — including the in-between frames of every transition, not 
 - Two pages side by side with a vertical dock column and round search button on the right — on an unfolded foldable
   or a tablet in landscape
 - Folded: single page with the dock column
+- Optional: more than four apps in the dock column (as many as fit)
 - The whole layout scales to the screen so every device keeps the same proportions — Galaxy Z Fold, Pixel Fold,
   10–13" tablets — instead of squeezing or stretching icons
 - Status symbols avoid the camera cutout automatically

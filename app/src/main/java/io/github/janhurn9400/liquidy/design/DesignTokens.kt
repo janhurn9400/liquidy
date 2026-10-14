@@ -69,7 +69,6 @@ object DesignTokens {
     val glassRefractionAmount = tunable("T-GLASS.amount", "Brechungsstärke (× Höhe)", "Glas", 3f, 0f, 6f, "×") // Nutzer: Brechung war kaum sichtbar
     val glassRefractionCornerShare = tunable("T-GLASS.cornerShare", "Brechungszone max. Anteil am Eckenradius", "Glas", 0.8f, 0.2f, 1f)
     val glassDepth = tunable("T-GLASS.depth", "Tiefeneffekt (0/1)", "Glas", 1f, 0f, 1f)
-    val glassDispersion = tunable("T-GLASS.dispersion", "Farbsäume/Dispersion (0/1)", "Glas", 1f, 0f, 1f)
     val glassSaturation = tunable("T-GLASS.saturation", "Farbverstärkung", "Glas", 1.2f, 0.5f, 2.5f, "×") // [GEMESSEN] recording7: Sättigung im Dock ≈ 1,28× außen (vorher 1,5 → zu orange)
     val glassLightAngle = tunable("T-GLASS.lightAngle", "Lichtrichtung", "Glas", 90f, 0f, 180f, "°") // 90° = oben/unten hell [GEMESSEN]
     val glassLightFalloff = tunable("T-GLASS.lightFalloff", "Licht-Abfall", "Glas", 1f, 0f, 4f)
@@ -80,6 +79,14 @@ object DesignTokens {
     val glassShadowAlpha = tunable("T-GLASS.shadowA", "Schatten-Deckkraft", "Glas", 0.06f, 0f, 0.4f)
     val glassInnerShadowRadius = dpToken("T-GLASS.innerR", "Innerer Schatten Radius", "Glas", 6f, 0f, 30f)
     val glassInnerShadowAlpha = tunable("T-GLASS.innerA", "Innerer Schatten Deckkraft", "Glas", 0.06f, 0f, 0.4f)
+    // Regler „Klar ↔ Getönt“ (glass/GlassClarity) [GEMESSEN] Nutzer-iPhone 10-14, Dock-Detail gegen weichgezeichnetes Wallpaper:
+    // Mitte σ ≈ 1,3 pt → Radius ≈ 1,4 dp; getönt σ ≥ 4 pt, Inneres völlig glatt → 13 dp [Untergrenze GEMESSEN, Wert GESCHÄTZT]
+    val glassFrostMid = dpToken("T-GLASS.frostMid", "Glas-Regler Mitte: Unschärfe", "Glas", 1.4f, 0f, 10f)
+    val glassFrostTinted = dpToken("T-GLASS.frostTinted", "Glas-Regler getönt: Unschärfe", "Glas", 13f, 0f, 40f)
+    // Getönt = neutral-grauer Schleier: Helles wird dunkler, Dunkles heller, Farben blasser [GEMESSEN] Nutzer-iPhone 10-14:
+    // Dock 204 → 196, Suchfeld 44 → 54, Mediathek-Feld blau 252 → 224 → Grau ≈ 140 (0,55) bei ≈ 15 % Deckkraft
+    val glassTintedVeil = tunable("T-GLASS.tintedVeil", "Glas-Regler getönt: grauer Schleier", "Glas", 0.15f, 0f, 0.6f)
+    val glassTintedGrey = tunable("T-GLASS.tintedGrey", "Glas-Regler getönt: Helligkeit des Schleiers", "Glas", 0.55f, 0f, 1f)
     val glassTint = tunable("T-GLASS.tint", "Glas-Abdunkelung", "Glas", 0.08f, 0f, 0.5f)
     val glassWhiteTint = tunable("T-GLASS.white", "Glas-Aufhellung", "Glas", 0.0f, 0f, 0.5f)
     val glassRimWidth = dpToken("T-GLASS.rim", "Rand-Breite", "Glas", 1.33f, 0f, 3f) // [GEMESSEN] recording7: weicher Übergang ≈ 10 px statt Strich

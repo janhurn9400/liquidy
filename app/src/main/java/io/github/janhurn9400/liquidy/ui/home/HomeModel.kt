@@ -116,6 +116,8 @@ class ContextMenuState(
     /** Widget: Rahmen auf dem Bildschirm + wählbare Größen (Größenleiste oben im Menü, recording8 15 s). */
     val widgetRect: androidx.compose.ui.geometry.Rect? = null,
     val sizes: List<Pair<Int, Int>> = emptyList(),
+    /** Grundgröße des Icons relativ zum Raster-Icon (Duo-Dock: 48/60) — das angehobene Icon bleibt so groß wie sein Platz. */
+    val iconScale: Float = 1f,
 ) {
     val menu = Animatable(0f)
     val dim = Animatable(0f)
@@ -863,7 +865,7 @@ class HomeModel(
             widgets = saved.widgets
             today = saved.today?.filter { it in saved.widgets } ?: defaultToday()
             fun keep(id: String) = appKeyOf(id) in valid || id in folders || (id in widgets && id !in today) || GridPlacement.isGap(id)
-            dock = saved.dock.filter(::keep).take(DOCK_MAX)
+            dock = saved.dock.filter(::keep).take(DUO_DOCK_SLOTS_LIMIT) // „Mehr Apps im Dock“: angezeigt werden höchstens dockMax
             hidden = saved.hidden.filter { it in valid }.toSet()
             dock = dock.filterNot(::isWidget)
             val p = saved.pages.map { GridPlacement.trim(it.filter(::keep)) }.filterNot(GridPlacement::isBlank).toMutableList()
@@ -1013,7 +1015,7 @@ class HomeModel(
         val center = iconTopLeft + Offset(geo.icon / 2, geo.icon / 2)
         val baseDock = dock - d.key
         if (geo.inDockZone(d.pointer) && !isWidget(d.key)) {
-            if (d.key !in dock && baseDock.size >= DOCK_MAX) return null
+            if (d.key !in dock && baseDock.size >= dockMax) return null
             return DropTarget.Dock(geo.dockIndexAt(center, baseDock.size))
         }
         val local = center - Offset(pagerOffsetPx, 0f)
@@ -1313,7 +1315,7 @@ class HomeModel(
     var leavingLibrary by mutableStateOf(false)
 
     fun openContextMenu(key: String, iconTopLeft: Offset, density: Float, widgetRect: androidx.compose.ui.geometry.Rect? = null,
-                        fromLibrary: Boolean = false) {
+                        fromLibrary: Boolean = false, iconScale: Float = 1f) {
         haptic() // iOS: spürbar, wenn das Menü aufgeht
         val res = repository.context
         val items = if (fromLibrary) buildList {
@@ -1352,7 +1354,7 @@ class HomeModel(
             }
         }
         shortcutPrefetch = null
-        val m = ContextMenuState(key, iconTopLeft, items, widgetRect, if (isWidget(key)) WIDGET_SIZES else emptyList())
+        val m = ContextMenuState(key, iconTopLeft, items, widgetRect, if (isWidget(key)) WIDGET_SIZES else emptyList(), iconScale)
         contextMenu = m
         scope.launch { pressAlpha.snapTo(0f); pressedKey = null }
         // Widgets heben sich kaum (große Fläche) — Icons wie gemessen 1,15× und 10 pt
@@ -1431,10 +1433,10 @@ class HomeModel(
     }
 
     private fun computeDisplay(): DisplayLayout {
-        val d = drag ?: return DisplayLayout(pages.map(GridPlacement::stripGaps), dock, pages)
+        val d = drag ?: return DisplayLayout(pages.map(GridPlacement::stripGaps), dock.take(dockMax), pages)
         // Ausgangsstelle bleibt als Lücke stehen (aktuelles iOS) — die anderen Icons rücken nicht nach
         val p = pages.map { pg -> pg.map { if (it == d.key) dragGap else it } }.toMutableList()
-        var dk = dock - d.key
+        var dk = (dock - d.key).take(dockMax)
         when (val h = d.hover) {
             is DropTarget.Page -> {
                 while (p.size <= h.page) p += emptyList<String>()
@@ -1729,8 +1731,23 @@ class HomeModel(
     fun newIconKey(appKey: String): String =
         if (onHome(appKey)) appKey + INSTANCE_SEP + java.util.UUID.randomUUID().toString().take(8) else appKey
 
+    /** Plätze im Dock: 4 wie iOS; Duo mit „Mehr Apps im Dock“ so viele, wie in die Spalte passen — von HomeScreen gesetzt.
+     *  Liegen mehr Apps im Dock (Layout wechselt, z. B. Tablet hochkant), bleiben sie gespeichert und werden nur nicht gezeigt. */
+    var dockMax by mutableStateOf(DOCK_MAX)
+
+    /** „Mehr Apps im Dock“ ausgeschaltet: Apps über [max] wandern ans Ende des Homescreens statt zu verschwinden. */
+    fun trimDock(max: Int) {
+        if (dock.size <= max) return
+        val p = pages.toMutableList()
+        dock.drop(max).forEach { key ->
+            if (p.isEmpty() || !GridPlacement.fits(p.last() + key, ::sizeOf)) p += listOf(key) else p[p.lastIndex] = p.last() + key
+        }
+        pages = p; dock = dock.take(max)
+        save()
+    }
+
     /** Nimmt das Dock [key] auf? (Platz frei oder schon drin; Widgets nie) */
-    fun dockAccepts(key: String): Boolean = !isWidget(key) && (key in dock || dock.size < DOCK_MAX)
+    fun dockAccepts(key: String): Boolean = !isWidget(key) && (key in dock || dock.size < dockMax)
 
     /** Leere Seiten sofort entfernen (nicht beim Ziehen — da ist die leere Seite am Ende das Ablageziel). */
     fun pruneEmptyPages() {

@@ -64,7 +64,8 @@ fun ContextMenuOverlay(
 ) {
     val iconPx = DesignTokens.iconSize.value * density
     val isWidgetMenu = m.widgetRect != null
-    val rest = m.widgetRect ?: Rect(m.iconTopLeft, Size(iconPx, iconPx))
+    // Ruhelage des Icons: um die Zellmitte auf seine echte Größe verkleinert (Duo-Dock 48 statt 60 pt)
+    val rest = m.widgetRect ?: Rect(m.iconTopLeft + Offset(iconPx, iconPx) * ((1f - m.iconScale) / 2), Size(iconPx * m.iconScale, iconPx * m.iconScale))
     val above = rest.center.y > screenH / 2
     // App-Aktionen (Rang 0) liegen immer am nächsten zum Icon, System-Einträge außen
     val system = m.items.filter { it.glyph !is MenuGlyph.Bitmap }
@@ -84,7 +85,7 @@ fun ContextMenuOverlay(
             Modifier
                 .offset { IntOffset(cellOffsetX(m.iconTopLeft.x, density).roundToInt(), m.iconTopLeft.y.roundToInt()) }
                 .graphicsLayer {
-                    val s = m.lift.value
+                    val s = m.lift.value * m.iconScale
                     scaleX = s; scaleY = s
                     translationY = -m.liftY.value * density
                     // Ursprung: Icon-Mitte bzw. Widget-Mitte (Zelle ist breiter/höher als das Icon)
@@ -99,7 +100,8 @@ fun ContextMenuOverlay(
         val lifted = if (isWidgetMenu) rest else run {
             val s = Motion.ctxLiftScale.value
             val c = rest.center - Offset(0f, Motion.ctxLiftY.value * density)
-            Rect(c - Offset(iconPx * s / 2, iconPx * s / 2), Size(iconPx * s, iconPx * s))
+            val ls = rest.width * s
+            Rect(c - Offset(ls / 2, ls / 2), Size(ls, ls))
         }
         Layout(
             content = {

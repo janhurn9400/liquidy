@@ -73,7 +73,6 @@ fun EditButtons(geo: HomeGeometry, wallpaper: ImageBitmap, density: Float, showL
             blur = if (geo.duo) DUO_BTN_BLUR.dp else FROST_BLUR.dp,
             whiteTint = if (geo.duo) DUO_BTN_WHITE else if (DesignTokens.wallpaperIsDark) FROST_WHITE_DARK else FROST_WHITE,
             blackTint = 0f,
-            dispersion = if (geo.duo) false else null,
             rimAlpha = if (geo.duo) DUO_BTN_RIM else null,
             modifier = Modifier
                 .offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }

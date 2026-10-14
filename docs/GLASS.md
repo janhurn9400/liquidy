@@ -47,7 +47,7 @@ ggf. Kotlin anheben. Fallback: eigenes AGSL nach obigem Rezept.
 ## Umsetzung (2026-10-06)
 - `io.github.kyant0:backdrop:2.0.1` + `io.github.kyant0:shapes:1.2.1` (G2-Ecken, von der Linse unterstützt). Kotlin dafür auf 2.4.10 angehoben
   (backdrop ist mit Kotlin 2.4 gebaut; AGP-9-built-in-Kotlin per `buildscript { classpath(kotlin-gradle-plugin) }` überschrieben, laut AGP-9-Release-Notes).
-- `glass/LiquidGlass.kt`: colorControls(Sättigung) → blur → lens(Höhe ≤ Eckenradius, Dispersion, Tiefeneffekt) + Highlight (Licht 90° = oben/unten hell)
+- `glass/LiquidGlass.kt`: colorControls(Sättigung) → blur → lens(Höhe ≤ Eckenradius, Tiefeneffekt; ohne Dispersion, s. Fallstricke 4) + Highlight (Licht 90° = oben/unten hell)
   + innerer/äußerer Schatten + dunkler Seitenrand (GlassRim, nur dunkler Anteil). Alle Werte `T-GLASS.*` in DesignTokens.
 - Glas-Quelle: Wallpaper + Seiten-Icons per `Modifier.layerBackdrop` (HomeScreen), bereitgestellt über `LocalGlassBackdrop`.
 - Echtes Glas: Dock, Pill, Edit-Buttons, Ordner-Panel, Lösch-Dialog. **Noch altes Glas** (liegt selbst in der aufgenommenen Ebene → würde sich selbst aufnehmen):
@@ -59,6 +59,8 @@ ggf. Kotlin anheben. Fallback: eigenes AGSL nach obigem Rezept.
    ergab einen veralteten Beschnitt (große Startecken) ≠ Lichtkante → „Form in der Form“. Lösung: konstanter Radius, Animation nur über Skalierung.
 2. Lens braucht `RoundedRectangularShape` (Kyant Shapes) oder `AbsoluteRoundedCornerShape`; unsere eigene ContinuousRoundedShape geht dort nicht.
 3. Zu große Brechungszone (Dicke 2 → 24 pt) wirkt wie ein Doppelrand; iOS-Ordner hat eine schmale Zone → `T-GLASS.thickLarge = 1`.
+4. **Keine Farbsäume (Dispersion)** (2026-10-14): Apples Liquid Glass hat keine Regenbogen-Ecken (Nutzer am echten iPhone geprüft).
+   Kyants `lens(chromaticAberration = true)` gab kräftige Säume → überall `chromaticAberration = false`, Token `T-GLASS.dispersion` entfernt.
 
 ## Weitere Quellen
 - QWEA0/Liquid-Glass-Android (MIT, View-System): Ideen für später — Brechungsabfall `∝ (1 + x/k)^-p`, Lagesensor-Lichtreflex,

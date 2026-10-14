@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -238,19 +240,24 @@ private fun HeaderCard(compact: Boolean) {
 @Composable
 private fun Detail(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolean) {
     val context = LocalContext.current
-    var iconPackPage by remember { mutableStateOf(false) }
-    androidx.activity.compose.BackHandler(enabled = iconPackPage) { iconPackPage = false }
-    AnimatedContent(iconPackPage, transitionSpec = {
-        if (targetState) slideInHorizontally(spring(1f, 380f)) { it } togetherWith slideOutHorizontally(spring(1f, 380f)) { -it / 3 }
+    var subPage by remember { mutableStateOf(SubPage.None) }
+    androidx.activity.compose.BackHandler(enabled = subPage != SubPage.None) { subPage = SubPage.None }
+    AnimatedContent(subPage, transitionSpec = {
+        if (targetState != SubPage.None) slideInHorizontally(spring(1f, 380f)) { it } togetherWith slideOutHorizontally(spring(1f, 380f)) { -it / 3 }
         else slideInHorizontally(spring(1f, 380f)) { -it / 3 } togetherWith slideOutHorizontally(spring(1f, 380f)) { it }
     }, label = "sub") { sub ->
-        if (sub) Box(Modifier.fillMaxSize().background(DETAIL_BG)) { IconPackPage(categoryTitle(c)) { iconPackPage = false } }
-        else Box(Modifier.fillMaxSize().background(DETAIL_BG)) { DetailBody(c, model, tick, inlineTitle) { iconPackPage = true } }
+        Box(Modifier.fillMaxSize().background(DETAIL_BG)) {
+            when (sub) {
+                SubPage.IconPacks -> IconPackPage(categoryTitle(c)) { subPage = SubPage.None }
+                SubPage.Glass -> GlassPage(categoryTitle(c)) { subPage = SubPage.None }
+                SubPage.None -> DetailBody(c, model, tick, inlineTitle) { subPage = it }
+            }
+        }
     }
 }
 
 @Composable
-private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolean, openIconPacks: () -> Unit) {
+private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolean, openSub: (SubPage) -> Unit) {
     val context = LocalContext.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(TOP_PAD.dp))
@@ -288,7 +295,16 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                     // Icon-Pakete: eigene Unterseite mit Vorschau je Paket
                     val chosen = io.github.janhurn9400.liquidy.data.IconPacks.selected
                     val label = remember(chosen) { chosen?.let { io.github.janhurn9400.liquidy.data.IconPacks.available(context).firstOrNull { p -> p.packageName == it }?.label } }
-                    LinkRow(stringResource(R.string.settings_sec_iconpack), label ?: stringResource(R.string.settings_iconpack_system)) { openIconPacks() }
+                    LinkRow(stringResource(R.string.settings_sec_iconpack), label ?: stringResource(R.string.settings_iconpack_system)) { openSub(SubPage.IconPacks) }
+                }
+                // wie iOS: Einstellungen › Darstellung › Liquid Glass (eigene Seite mit Vorschau + Regler klar ↔ getönt)
+                Section(null) {
+                    val t = io.github.janhurn9400.liquidy.glass.GlassClarity.amount
+                    LinkRow(stringResource(R.string.settings_sec_glass), stringResource(when {
+                        t < 0.25f -> R.string.settings_glass_clear
+                        t > 0.75f -> R.string.settings_glass_tinted
+                        else -> R.string.settings_glass_between
+                    })) { openSub(SubPage.Glass) }
                 }
                 Section(stringResource(R.string.settings_sec_statusbar),
                     footer = stringResource(if (FoldableStyle.duoStyle) R.string.settings_statusbar_footer_duo else R.string.settings_statusbar_footer)) {
@@ -298,6 +314,13 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
             Category.HomeScreen -> {
                 if (FoldableStyle.supportsDuo(context)) Section(stringResource(R.string.settings_sec_layout), footer = stringResource(R.string.settings_duo_footer)) {
                     ToggleRow(stringResource(R.string.settings_duo), FoldableStyle.duoStyle) { FoldableStyle.set(context, it) }
+                }
+                // eigene Erweiterung: senkrechtes Duo-Dock mit mehr als 4 Apps; beim Ausschalten wandern überzählige auf den Homescreen
+                if (FoldableStyle.duoStyle) Section(stringResource(R.string.settings_sec_dock), footer = stringResource(R.string.settings_more_dock_footer)) {
+                    ToggleRow(stringResource(R.string.settings_more_dock), FoldableStyle.moreDockApps) {
+                        FoldableStyle.setMoreDockApps(context, it)
+                        if (!it) model.trimDock(io.github.janhurn9400.liquidy.design.DesignTokens.DOCK_SLOTS)
+                    }
                 }
                 Section(stringResource(R.string.settings_sec_pages)) {
                     LinkRow(stringResource(R.string.edit_pages)) { model.closeSettings(); model.pagesOverviewRequested = true }
@@ -309,21 +332,35 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                 }
             }
             Category.Permissions -> {
-                val cal = remember(tick) { context.checkSelfPermission(android.Manifest.permission.READ_CALENDAR) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+                fun granted(p: String) = context.checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                val cal = remember(tick) { granted(android.Manifest.permission.READ_CALENDAR) }
+                // Fotos: auch „nur ausgewählte Fotos“ (Android 14) zählt als erlaubt
+                val photos = remember(tick) { granted(android.Manifest.permission.READ_MEDIA_IMAGES) || granted(android.Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) }
+                val contacts = remember(tick) { granted(android.Manifest.permission.READ_CONTACTS) }
+                val location = remember(tick) { granted(android.Manifest.permission.ACCESS_COARSE_LOCATION) }
                 val badges = remember(tick) { io.github.janhurn9400.liquidy.data.NotificationBadges.hasAccess(context) }
                 val files = remember(tick) { io.github.janhurn9400.liquidy.glass.SystemWallpaper.canRead() }
                 val usage = remember(tick) { model.hasUsageAccess() }
+                // Jede Zeile sagt, wofür die Erlaubnis gebraucht wird — niemand soll blind etwas freigeben
                 Section(stringResource(R.string.settings_sec_access), footer = stringResource(R.string.settings_perm_footer)) {
-                    LinkRow(stringResource(R.string.welcome_perm_calendar), allowed(cal)) { openAppSettings(context) }
+                    PermissionRow(stringResource(R.string.welcome_perm_calendar), cal, stringResource(R.string.settings_perm_calendar_why)) { openAppSettings(context) }
                     Divider()
-                    LinkRow(stringResource(R.string.welcome_perm_badges), allowed(badges)) { io.github.janhurn9400.liquidy.data.NotificationBadges.requestAccess(context) }
+                    PermissionRow(stringResource(R.string.welcome_perm_photos), photos, stringResource(R.string.settings_perm_photos_why)) { openAppSettings(context) }
                     Divider()
-                    LinkRow(stringResource(R.string.settings_usage_access), allowed(usage)) {
+                    PermissionRow(stringResource(R.string.settings_perm_contacts), contacts, stringResource(R.string.settings_perm_contacts_why)) { openAppSettings(context) }
+                    Divider()
+                    PermissionRow(stringResource(R.string.settings_perm_location), location, stringResource(R.string.settings_perm_location_why)) { openAppSettings(context) }
+                    Divider()
+                    PermissionRow(stringResource(R.string.welcome_perm_badges), badges, stringResource(R.string.settings_perm_badges_why)) {
+                        io.github.janhurn9400.liquidy.data.NotificationBadges.requestAccess(context)
+                    }
+                    Divider()
+                    PermissionRow(stringResource(R.string.settings_usage_access), usage, stringResource(R.string.settings_perm_usage_why)) {
                         open(context, android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS,
                             android.net.Uri.fromParts("package", context.packageName, null)))
                     }
                     Divider()
-                    LinkRow(stringResource(R.string.use_android_wallpaper), allowed(files)) {
+                    PermissionRow(stringResource(R.string.settings_perm_files), files, stringResource(R.string.settings_perm_files_why)) {
                         open(context, android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                             android.net.Uri.fromParts("package", context.packageName, null)))
                     }
@@ -557,6 +594,135 @@ private fun LinkRow(label: String, value: String? = null, onClick: () -> Unit) {
     }
 }
 
+private enum class SubPage { None, IconPacks, Glass }
+
+/**
+ * Unterseite „Liquid Glass“ wie iOS (Einstellungen › Darstellung › Liquid Glass, Nutzer-Screenshot 10-14): Vorschaukarte
+ * (Bild oben, dunkler Textteil, darüber runder Glasknopf + Glas-Suchfeld, die den Text darunter live brechen), darunter der
+ * Regler klar ↔ getönt und die Erklärung. Bild = eigenes Wallpaper (keine Apple-Bilder), sonst farbiger Ersatz.
+ */
+@Composable
+private fun GlassPage(backLabel: String, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val noRipple = remember { MutableInteractionSource() }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+        Spacer(Modifier.height(TOP_PAD.dp))
+        Row(Modifier.clickable(noRipple, null, onClick = onBack).padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Canvas(Modifier.size(10.dp, 17.dp)) {
+                val sw = 2.4.dp.toPx(); val c = Color(0xFF007AFF)
+                drawLine(c, Offset(size.width * 0.9f, size.height * 0.05f), Offset(size.width * 0.1f, size.height * 0.5f), sw, StrokeCap.Round)
+                drawLine(c, Offset(size.width * 0.1f, size.height * 0.5f), Offset(size.width * 0.9f, size.height * 0.95f), sw, StrokeCap.Round)
+            }
+            Spacer(Modifier.width(6.dp))
+            BasicText(backLabel, style = LABEL.copy(color = Color(0xFF007AFF)))
+        }
+        BasicText(stringResource(R.string.settings_sec_glass), Modifier.padding(bottom = 18.dp),
+            style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 28.sp, color = Color.Black))
+        GlassPreviewCard(Modifier.widthIn(max = PREVIEW_MAX_W.dp).fillMaxWidth().align(Alignment.CenterHorizontally))
+        Spacer(Modifier.height(24.dp))
+        Group {
+            Row(Modifier.fillMaxWidth().height(ROW_H.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                GlassStyleGlyph(filled = false)
+                io.github.janhurn9400.liquidy.ui.welcome.GlassSlider(
+                    io.github.janhurn9400.liquidy.glass.GlassClarity.amount,
+                    { io.github.janhurn9400.liquidy.glass.GlassClarity.set(context, it) },
+                    Modifier.weight(1f).padding(horizontal = 12.dp),
+                )
+                GlassStyleGlyph(filled = true)
+            }
+        }
+        BasicText(stringResource(R.string.settings_glass_footer), Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 30.dp),
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = GREY))
+    }
+}
+
+/** Vorschaukarte: Bild + Text bilden die Glasquelle, Knopf und Suchfeld darüber sind echtes LiquidGlass (folgt dem Regler). */
+@Composable
+private fun GlassPreviewCard(modifier: Modifier) {
+    val wallpaper = LocalWallpaper.current
+    val fallback = remember { if (wallpaper == null) io.github.janhurn9400.liquidy.glass.Wallpaper.generateColorful(800, 800) else null }
+    val image = wallpaper ?: fallback!!
+    val source = rememberLayerBackdrop()
+    Box(modifier.aspectRatio(1f).clip(RoundedCornerShape(PREVIEW_CORNER.dp)).background(PREVIEW_DARK)) {
+        // Glasquelle: Bild (oben ≈ 55 %) + dunkler Textteil
+        Column(Modifier.matchParentSize().layerBackdrop(source)) {
+            androidx.compose.foundation.Image(image, null, Modifier.fillMaxWidth().weight(PREVIEW_IMAGE_SHARE),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            Column(Modifier.fillMaxWidth().weight(1f - PREVIEW_IMAGE_SHARE).background(PREVIEW_DARK).padding(horizontal = 18.dp, vertical = 14.dp)) {
+                BasicText(stringResource(R.string.settings_glass_preview_title), maxLines = 1,
+                    style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color.White))
+                BasicText(stringResource(R.string.settings_glass_preview_sub), maxLines = 1,
+                    style = TextStyle(fontFamily = Inter, fontSize = 22.sp, color = Color.White.copy(alpha = 0.55f)))
+                Spacer(Modifier.height(8.dp))
+                BasicText(stringResource(R.string.settings_glass_preview_body),
+                    style = TextStyle(fontFamily = Inter, fontSize = 17.sp, lineHeight = 22.sp, color = Color.White))
+            }
+        }
+        // Glas über dem Text: runder Knopf (Filter) + Suchfeld, wie in der iOS-Vorschau
+        CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop provides source) {
+            Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = PREVIEW_CONTROLS_BOTTOM.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                io.github.janhurn9400.liquidy.glass.LiquidGlass(io.github.janhurn9400.liquidy.glass.glassCapsule(), Modifier.size(PREVIEW_CONTROL_H.dp),
+                    whiteTint = PREVIEW_GLASS_WHITE, blackTint = 0f) {
+                    Canvas(Modifier.matchParentSize()) { // Filter-Symbol: drei kürzer werdende Linien
+                        val sw = 2.dp.toPx(); val cx = size.width / 2; val cy = size.height / 2
+                        listOf(16f, 11f, 6f).forEachIndexed { i, len ->
+                            val y = cy + (i - 1) * 6.dp.toPx(); val half = len.dp.toPx() / 2
+                            drawLine(Color.White, Offset(cx - half, y), Offset(cx + half, y), sw, StrokeCap.Round)
+                        }
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                io.github.janhurn9400.liquidy.glass.LiquidGlass(io.github.janhurn9400.liquidy.glass.glassCapsule(), Modifier.weight(1f).height(PREVIEW_CONTROL_H.dp),
+                    whiteTint = PREVIEW_GLASS_WHITE, blackTint = 0f) {
+                    Row(Modifier.matchParentSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Canvas(Modifier.size(18.dp)) { // Lupe
+                            val sw = 2.dp.toPx(); val r = size.width * 0.33f; val c = Offset(size.width * 0.42f, size.height * 0.42f)
+                            drawCircle(Color.White, r, c, style = Stroke(sw))
+                            drawLine(Color.White, c + Offset(r * 0.72f, r * 0.72f), Offset(size.width * 0.92f, size.height * 0.92f), sw, StrokeCap.Round)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        BasicText(stringResource(R.string.search_placeholder_glass), style = TextStyle(fontFamily = Inter, fontSize = 17.sp, color = Color.White.copy(alpha = 0.85f)))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Symbol am Glas-Regler (iOS): zwei versetzte abgerundete Flächen — links nur Umriss (klar), rechts gefüllt (getönt). */
+@Composable
+private fun GlassStyleGlyph(filled: Boolean) = Canvas(Modifier.size(26.dp, 22.dp)) {
+    val w = 18.dp.toPx(); val h = 13.dp.toPx(); val r = CornerRadius(4.dp.toPx()); val sw = 1.6.dp.toPx()
+    val back = Offset(size.width - w, 0f); val front = Offset(0f, size.height - h)
+    if (filled) {
+        drawRoundRect(GREY.copy(alpha = 0.55f), back, Size(w, h), r)
+        drawRoundRect(GREY, front, Size(w, h), r)
+    } else {
+        drawRoundRect(GREY, back, Size(w, h), r, style = Stroke(sw))
+        drawRoundRect(Color.White, front, Size(w, h), r)
+        drawRoundRect(GREY, front, Size(w, h), r, style = Stroke(sw))
+    }
+}
+
+/** Berechtigung: Name + Status, darunter in Grau, wofür sie gebraucht wird. */
+@Composable
+private fun PermissionRow(label: String, granted: Boolean, why: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = ROW_H.dp)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
+            .padding(start = 20.dp, end = 18.dp, top = 11.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            BasicText(label, style = LABEL)
+            BasicText(why, Modifier.padding(top = 3.dp, end = 12.dp), style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 17.sp, color = GREY))
+        }
+        BasicText(allowed(granted), style = LABEL.copy(color = GREY)); Spacer(Modifier.width(8.dp))
+        Chevron()
+    }
+}
+
 @Composable
 private fun Chevron() = Canvas(Modifier.size(8.dp, 14.dp)) {
     val sw = 2.dp.toPx()
@@ -596,6 +762,15 @@ private const val DUO_BUTTON_Y = 190f
 private const val TOP_PAD = 34f
 private const val SIDEBAR_TOP = 86f   // Kopfkarte ≈ 100 pt [GEMESSEN]
 private const val HERO_TOP = 46f
+// Liquid-Glass-Vorschau [GEMESSEN] Nutzer-Screenshot 10-14 (920 px = 402 pt): Karte ≈ 370 × 370 pt, Ecken ≈ 26 pt, Bild ≈ 55 %,
+// Knopf/Suchfeld 46 pt hoch, Unterkante ≈ 44 pt über dem Kartenrand
+private const val PREVIEW_MAX_W = 420f
+private const val PREVIEW_CORNER = 26f
+private const val PREVIEW_IMAGE_SHARE = 0.55f
+private const val PREVIEW_CONTROL_H = 46f
+private const val PREVIEW_CONTROLS_BOTTOM = 44f
+private const val PREVIEW_GLASS_WHITE = 0.1f
+private val PREVIEW_DARK = Color(0xFF252321)
 private const val ROW_H = 52f
 private const val ICON = 29f
 private const val GROUP_CORNER = 24f

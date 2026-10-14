@@ -154,7 +154,7 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
     io.github.janhurn9400.liquidy.glass.LiquidGlass(
         shape = io.github.janhurn9400.liquidy.glass.glassCapsule(),
         modifier = Modifier.padding(start = SIDE.dp, end = SIDE.dp, top = SEARCH_Y.dp).fillMaxWidth().height(SEARCH_H.dp),
-        blur = FIELD_BLUR.dp, whiteTint = FIELD_WHITE, blackTint = 0f, dispersion = false, rimAlpha = FIELD_RIM,
+        blur = FIELD_BLUR.dp, whiteTint = FIELD_WHITE, blackTint = 0f, rimAlpha = FIELD_RIM,
     ) {
         // feine graue Kante wie im Original (auf Weiß sonst kaum Kontur)
         Box(Modifier.matchParentSize().border(0.75.dp, FIELD_OUTLINE, CircleShape))

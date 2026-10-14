@@ -10,12 +10,14 @@ Ziel: Android-Launcher (Kotlin + Compose, minSdk 33), der sich 1:1 wie der iOS-2
 1. Alle Animationswerte nur in `motion/Motion.kt` (mit RESEARCH-ID `M-…`), alle Design-Werte nur in `design/DesignTokens.kt` (`T-…`). Keine Magic Numbers im UI-Code.
 2. Alles Animierte ist ein unterbrechbares `Animatable`, Gesten-Geschwindigkeit fließt als `initialVelocity` ein.
 3. Keine Apple-Assets (Schrift Inter, eigene/freie Wallpaper, App-Icons nur per Squircle-Maske).
-4. Nach jeder Änderung: bauen, im Emulator installieren, starten, `adb exec-out screencap -p > shot.png` prüfen, dann kurz berichten + worauf am iPhone achten. Bei Feedback wenige Werte gezielt ändern und nennen.
+4. Nach jeder Änderung: bauen, im Emulator installieren, kurz prüfen, dass es startet (ein Screenshot reicht), dann kurz berichten + worauf am iPhone achten. Der Nutzer beurteilt selbst — keine langen Screenshot-Testserien. Bei Feedback wenige Werte gezielt ändern und nennen.
 5. Emulator = 60 Hz + Maus → beim Beurteilen von Ruckeln/Flings berücksichtigen.
 
 ## Bauen & Testen
-- Emulator: AVD `iOSHome_API36` (API 36, 1206×2622 @480 dpi = 402×874 dp wie das Nutzer-iPhone, GPU host).
-  Start: `~/Library/Android/sdk/emulator/emulator -avd iOSHome_API36 -gpu host -no-boot-anim`
+- Emulator: AVD `Pixel_10_Pro_Fold` in iPhone-Duo-Auflösung (2854×2007 @480 dpi, Scharnier bei x = 1427 px, GPU host).
+  Start: `~/Library/Android/sdk/emulator/emulator -avd Pixel_10_Pro_Fold -gpu host -no-boot-anim`
+  Zwei Displays → Screenshot nur mit Display-ID: `adb exec-out screencap -p -d 4619827259835644672 > shot.png` (innen, aufgeklappt).
+  Nach jeder Neuinstallation hängt der Emulator anfangs (Shader-Kompilierung, ANR-Dialog möglich) — kurz warten, kein App-Fehler.
 - `./gradlew :app:assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk`
   Als Home setzen: `adb shell cmd package set-home-activity io.github.janhurn9400.liquidy/.MainActivity`
 - Debug-Panel: 3-Finger-Long-Press (Gerät), Taste **D** (Emulator), oder
@@ -23,7 +25,7 @@ Ziel: Android-Launcher (Kotlin + Compose, minSdk 33), der sich 1:1 wie der iOS-2
   „Export“ → Zwischenablage + Logcat-Tag `Tuning` (`adb logcat -s Tuning`).
 - Vergleich: Screenshots nach `shots/` (gitignored), Messskripte in `tools/measure/`, Referenzen in `docs/reference/iphone/`.
 
-## Stand (2026-10-06)
+## Stand (2026-10-14, v0.3.2)
 - Phase 0: abgeschlossen. Phase 1–4 funktional gebaut, Feinabgleich läuft (Nutzer tunt NICHT selbst — Werte aus seinen Videos ableiten, Emulator-Aufnahme frameweise danebenlegen).
 - Phase 1: Raster/Labels/Dock/Pill ±1 px; Pager M-PAGE verifiziert (0,362 s / 0,904).
 - Phase 2: Bearbeitungsmodus (Long-Press, Wackeln gemessen, Badges, Edit-Buttons, Ziehen + Ausweichen, Dock ↔ Raster, Rand-Seitenwechsel inkl. neuer Seite, Lösch-Dialog, persistentes Layout `LayoutStore`). Offen: Kontextmenü beim Long-Press auf Icon (iOS 27), Blasenmenü im Bearbeitungsmodus.
@@ -43,6 +45,9 @@ Ziel: Android-Launcher (Kotlin + Compose, minSdk 33), der sich 1:1 wie der iOS-2
 - GestureNavContract (Wisch nach Hause → Fenster fliegt ins Icon) mit Icon-Surface wie Launcher3 FloatingSurfaceView; Teststart: `adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME` (am start -n leitet auf den Home-Task um).
 - App öffnen/schließen Scharf/Unscharf: Code da (launchBlur/returnBlur in HomeModel), in backgroundBlurPx deaktiviert — Nutzer will es später mit iPhone-Video genauer prüfen.
 - Root-Weg (optional): Magisk-Modul tools/magisk-module (Build: tools/build-magisk-module.sh → build/ioshome-magisk.zip) blendet die installierte App als priv-app ein + Berechtigung CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS + Hidden-API-Freigabe. Dann öffnet AppLaunchTransition (RemoteTransition, Stubs in :hiddenapi, compileOnly) Apps mit eigener Feder aus dem Icon. Emulator: rootAVD-Ramdisk gepatcht (Magisk 26.4). Play Store: App darf das Modul nicht selbst laden/installieren — nur Link + „Magisk öffnen“.
-- Offen als Nächstes: Hinweis/Knopf „Android-Hintergrund verwenden“ (MANAGE_EXTERNAL_STORAGE anfragen), iOS-Video für App-Schließen (M-HOME-RETURN kalibrieren), Wetter-Widget (braucht Internet + Standort — Nutzer fragen), Heute-Ansicht bearbeiten (Widgets dort hinzufügen/ziehen), App-Öffnen-Animation (Phase 6), Icon-Stil auch für Ordner-Icons/Mediathek, Icon-Stil in Mediathek-Kacheln/Liste prüfen.
+- Duo-Stil (Foldables/Tablets) ist Hauptziel: zwei Seiten + Dock-Spalte rechts. Dock-Glas federt mit der Anzahl (M-REFLOW); „Mehr Apps im Dock“ (Launcher-Einstellungen, eigene Erweiterung) erlaubt so viele, wie in die Spalte passen.
+- Liquid Glass: keine Farbsäume (Apple hat keine). Regler „Klar ↔ Getönt“ (glass/GlassClarity, Unterseite mit Vorschau in Darstellung): getönt = mehr Unschärfe, keine Brechung, grauer Schleier.
+- Berechtigungen-Seite erklärt jede Erlaubnis. Wetter-Widget (Open-Meteo) gebaut.
+- Offen als Nächstes: Einstellungen schließen springt auf erste Seite; Ordner ohne Minus-Badge im Bearbeitungsmodus; Kalender-Icon dynamisch; Ordner umbenennen/Paging/Umsortieren; Heute-Ansicht bearbeiten; App-Öffnen/-Schließen (Phase 6, iPhone-Video für M-HOME-RETURN und Scharf/Unscharf); Icon-Stil für Ordner-Icons/Mediathek; Widgets bei „Getönt“ am iPhone prüfen.
 - Architektur: eine zentrale Gesten-Arena in `ui/home/HomeScreen.kt`; Geometrie nur in `HomeGeometry`/`FolderGeometry`/`LibraryGeometry`; Layout-Zustand in `HomeModel`.
 - Lektion: Bewegungen IMMER frameweise gegen die Referenz analysieren (Montage + Tracking), nicht nur Einzelwerte — sonst wirkt es „schlampig“ (Suche Rev. 1/2).

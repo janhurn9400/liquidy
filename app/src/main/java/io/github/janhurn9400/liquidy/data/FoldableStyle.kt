@@ -31,8 +31,19 @@ object FoldableStyle {
     /** Duo-Stil möglich: Foldables und Tablets (zwei Seiten nebeneinander im Querformat). */
     fun supportsDuo(c: Context): Boolean = isFoldable(c) || isTablet(c)
 
+    /** Eigene Erweiterung (nicht wie am Duo): senkrechtes Dock nimmt mehr als 4 Apps auf, so viele wie in die Spalte passen. */
+    var moreDockApps by mutableStateOf(false)
+        private set
+
     fun load(c: Context) {
-        chosen = supportsDuo(c) && c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("duo", true) // auf Foldables/Tablets vorausgewählt
+        val prefs = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        chosen = supportsDuo(c) && prefs.getBoolean("duo", true) // auf Foldables/Tablets vorausgewählt
+        moreDockApps = prefs.getBoolean("moreDock", false)
+    }
+
+    fun setMoreDockApps(c: Context, on: Boolean) {
+        moreDockApps = on
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("moreDock", on).apply()
     }
 
     fun set(c: Context, on: Boolean) {
