@@ -96,7 +96,7 @@
     <string name="welcome_look_title">Appearance</string>
     <string name="welcome_look_body">Choose how your app icons look. You can change this anytime in Customize.</string>
     <string name="welcome_root_title">Smoother Animations</string>
-    <string name="welcome_root_body">Your device is rooted. Would you like apps to open and close straight out of their icon? Our small Magisk module unlocks it.</string>
+    <string name="welcome_root_body">Your device is rooted. Would you like the launcher to use its own animations when you open and close apps? Our small Magisk module unlocks it.</string>
     <string name="welcome_root_step1">Download “liquidy-magisk.zip” from %1$s.</string>
     <string name="welcome_root_github">our GitHub page</string>
     <string name="welcome_root_step2">Open Magisk and go to Modules.</string>
@@ -185,7 +185,7 @@
     <string name="settings_module">Animation Module</string>
     <string name="settings_module_footer">Optional, needs root (Magisk). Without the module Android uses its standard animation. It changes nothing else and sends nothing; its contents are open on GitHub.</string>
     <string name="settings_module_missing">Not installed</string>
-    <string name="settings_module_about">Lets apps open and close straight out of their icon, like on iPhone. Android only allows this for system apps, so this small module adds the installed Liquidy app as one.</string>
+    <string name="settings_module_about">Lets the launcher use its own animations when you open and close apps. Android only allows this for system apps, so this small module adds the installed Liquidy app as one.</string>
     <string name="settings_module_github">View on GitHub…</string>
     <string name="settings_module_install">Install</string>
     <string name="settings_active">Active</string>

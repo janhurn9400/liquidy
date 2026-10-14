@@ -3,4 +3,4 @@ name=Liquidy Animation Module
 version=1.2
 versionCode=3
 author=janhurn9400
-description=Lets the Liquidy launcher open apps with its own animation (apps grow out of their icon). Android only allows this for system apps, so the module adds the installed Liquidy app as a system app. Changes nothing else. Source: github.com/janhurn9400/liquidy
+description=Lets the Liquidy launcher use its own animations when opening and closing apps. Android only allows this for system apps, so the module adds the installed Liquidy app as a system app. Changes nothing else. Source: github.com/janhurn9400/liquidy
