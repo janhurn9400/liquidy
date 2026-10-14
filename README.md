@@ -8,20 +8,16 @@ not a theme, not an icon pack. The goal is that it doesn't just *look* like the 
 
 ## What makes it different
 
-**Measured, not guessed.** Every screen and every animation was recorded on a real iPhone (and the foldable "Duo"),
-analysed frame by frame — positions, sizes, colours, motion per frame — and turned into documented values with their
-source in [`docs/RESEARCH.md`](docs/RESEARCH.md). Spring response and damping are fitted to the recordings, not
-eyeballed.
-
-**Checked frame by frame.** Emulator captures are laid next to the reference at the same moments and compared until
-there is no visible difference — including the in-between frames of a transition, not only where it starts and ends.
+**Matched to the original.** Layout, behaviour and animations are matched to the real thing as closely as
+Android allows — sizes, spacing, colours, timing and spring feel. Measured values are documented in
+[`docs/RESEARCH.md`](docs/RESEARCH.md).
 
 **Motion that behaves.** Everything that moves is an interruptible spring and inherits your finger's velocity:
 paging with rubber-band, folders that morph out of and back into their icon, apps that fly into a folder's free spot,
 icons that wait before moving out of the way, minus badges that shrink and grow instead of popping.
 
 **Liquid Glass.** Real refraction, rim light and blur on dock, folders, menus and search — reading the content
-behind it, live. Includes the *Clear ↔ Tinted* setting with a preview, values measured on a real device.
+behind it, live. Includes the *Clear ↔ Tinted* setting with a preview, matched to the original.
 
 **Duo style for foldables and tablets.** Two pages side by side with a vertical dock column, single page when folded,
 scaled so every device keeps the same proportions.
@@ -77,7 +73,6 @@ All permissions are optional and explained in the settings. Bug reports: *Settin
 
 ## How it was made
 
-Built by [janhurn9400](https://github.com/janhurn9400) with AI pair programming (Claude): record on the real device →
-measure frame by frame → implement with the measured values → compare emulator and reference side by side → repeat.
+Built by [janhurn9400](https://github.com/janhurn9400) with AI pair programming (Claude).
 
 Early preview (0.x) — expect rough edges.
