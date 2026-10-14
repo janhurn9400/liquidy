@@ -21,7 +21,8 @@ import kotlin.math.sqrt
  *     die Vereinigung aller Zuschnitte gekürzt; gezeigt wird getCrop(Display, gekürzte Größe, keine Vorgaben).
  *  2. WallpaperController.updateWallpaperOffset: breiterer Zuschnitt = Parallax-Rand, Lage nach Wallpaper-Offset
  *     (wir setzen 0,5); dazu Zoom zoomOutToScale(0) = config_wallpaperMaxScale (Standard 1,10), mittig.
- * [GEPRÜFT] Emulator Pixel Fold: Duo-Display (2854 × 2007) Versatz Homescreen ↔ Geste ≤ 1 px, Z-Fold-Größe (2160 × 1856) 0 px.
+ * [GEPRÜFT] Emulator Pixel Fold: Duo-Display (2854 × 2007) Versatz Homescreen ↔ Geste ≤ 1 px, Z-Fold-Größe (2160 × 1856) 0 px,
+ * Außendisplay (1398 × 2034, mit Parallax-Rand → kein Zoom) ±2 px.
  * Displaygrößen: versteckte WindowManager-Methode, sonst DisplayManager (alle Displays inkl. ausgeschaltetem), sonst gemerkt.
  * Hersteller mit eigener Wallpaper-Logik können abweichen.
  */
@@ -51,7 +52,7 @@ object WallpaperCropModel {
             val h = crop.width() / sr; val t = crop.top + (crop.height() - h) * 0.5f
             RectF(crop.left.toFloat(), t, crop.right.toFloat(), t + h)
         }
-        val z = maxScale(context)
+        val z = zoomFor(context, helper, Point(screenW, screenH))
         val cx = vis.centerX(); val cy = vis.centerY(); val hw = vis.width() / 2 / z; val hh = vis.height() / 2 / z
         val r = RectF(cx - hw + hint.left, cy - hh + hint.top, cx + hw + hint.left, cy + hh + hint.top)
         // nichts zu tun, wenn Android das Bild 1:1 zeigt
@@ -75,10 +76,19 @@ object WallpaperCropModel {
             val h = crop.width() / sr; val t = crop.top + (crop.height() - h) * 0.5f
             RectF(crop.left.toFloat(), t, crop.right.toFloat(), t + h)
         }
-        val z = maxScale(context)
+        val z = zoomFor(context, helper, Point(screenW, screenH))
         val cx = vis.centerX(); val cy = vis.centerY(); val hw = vis.width() / 2 / z; val hh = vis.height() / 2 / z
         return RectF(cx - hw, cy - hh, cx + hw, cy + hh)
     }
+
+    /**
+     * Zoom, den Android auf den sichtbaren Ausschnitt legt: aufgeklappt bzw. auf normalen Displays config_wallpaperMaxScale,
+     * auf dem zugeklappten Display eines Foldables keiner — dort rendert ImageWallpaper breiter als das Display (1831 statt
+     * 1398 px, Parallax-Rand) und zeigt ungezoomt die Mitte [GEMESSEN Emulator Pixel Fold 10-14: zugeklappt ohne Zoom ±2 px,
+     * aufgeklappt mit Zoom 0,4 Grauwerte Abweichung].
+     */
+    private fun zoomFor(context: Context, h: Helper, screen: Point): Float =
+        if (h.isFoldedDisplay(screen)) 1f else maxScale(context)
 
     private fun maxScale(context: Context): Float {
         val id = android.content.res.Resources.getSystem().getIdentifier("config_wallpaperMaxScale", "dimen", "android")
@@ -86,8 +96,12 @@ object WallpaperCropModel {
     }
 
     // ── WallpaperDisplayHelper ────────────────────────────────────────────────
-    private class Helper(val sizes: Map<Int, Point>, val pairs: List<Pair<Int, Int>>) {
+    /** [foldedArea] = Pixelfläche des zugeklappten Displays eines Foldables (0 = kein Foldable-Paar bekannt). */
+    private class Helper(val sizes: Map<Int, Point>, val pairs: List<Pair<Int, Int>>, val foldedArea: Long = 0) {
         fun unfolded(o: Int) = pairs.firstOrNull { it.first == o }?.second ?: U
+        /** [screen] ist das (kleinere) zugeklappte Display eines Foldables — nach Fläche, nicht Ausrichtung (die Paare gibt es
+         *  auch gedreht, dann sähe das große Display im Querformat wie „zugeklappt“ aus). */
+        fun isFoldedDisplay(screen: Point) = foldedArea > 0 && screen.x.toLong() * screen.y <= foldedArea
         fun folded(o: Int) = pairs.firstOrNull { it.second == o }?.first ?: U
     }
 
@@ -161,7 +175,8 @@ object WallpaperCropModel {
                 }
             }
         }
-        return Helper(sizes, pairs)
+        val folded = if (populate) metrics.minOf { it.w.toLong() * it.h } else 0L
+        return Helper(sizes, pairs, folded)
     }
 
     // ── WallpaperCropper ──────────────────────────────────────────────────────

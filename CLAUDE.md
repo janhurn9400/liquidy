@@ -15,7 +15,10 @@ Ziel: Android-Launcher (Kotlin + Compose, minSdk 33), der sich 1:1 wie der iOS-2
 
 ## Bauen & Testen
 - Emulator: AVD `Pixel_10_Pro_Fold` in iPhone-Duo-Auflösung (2854×2007 @480 dpi, Scharnier bei x = 1427 px, GPU host).
-  Start: `~/Library/Android/sdk/emulator/emulator -avd Pixel_10_Pro_Fold -gpu host -no-boot-anim`
+  Start: `~/Library/Android/sdk/emulator/emulator -avd Pixel_10_Pro_Fold -gpu host -no-boot-anim -writable-system`
+  (`-writable-system` IMMER: Liquidy liegt dort als System-App in `/system/priv-app/Liquidy` + Berechtigung/Hidden-API-XML aus
+  tools/magisk-module — ohne Magisk per `adb root && adb remount`. Nur so läuft die eigene App-Öffnen-Animation. `adb install -r`
+  danach wie gewohnt, das Update bleibt privilegiert.)
   Zwei Displays → Screenshot nur mit Display-ID: `adb exec-out screencap -p -d 4619827259835644672 > shot.png` (innen, aufgeklappt).
   Nach jeder Neuinstallation hängt der Emulator anfangs (Shader-Kompilierung, ANR-Dialog möglich) — kurz warten, kein App-Fehler.
 - `./gradlew :app:assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk`

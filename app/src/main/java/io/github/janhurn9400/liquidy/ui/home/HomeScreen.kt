@@ -633,7 +633,8 @@ fun HomeScreen(
         // Selbst gezeichnet wird immer, wenn wir Androids Bild nicht kennen ([drawWallpaper]) und im Editor.
         // Schlüssel: sonst bliebe die Rechnung vom ersten Aufbau (z. B. auf-/zugeklappt) eingefroren
         val blurNow by remember(geo, screenIsWide) { derivedStateOf { backgroundBlurPx(includeToday = true) > 0.5f } }
-        if (drawWallpaper || blurNow) Canvas(
+        val forceCopy = io.github.janhurn9400.liquidy.tuning.DebugOptions.wallpaperCopy.value >= 0.5f
+        if (drawWallpaper || blurNow || forceCopy) Canvas(
             Modifier
                 .fillMaxSize()
                 .graphicsLayer {

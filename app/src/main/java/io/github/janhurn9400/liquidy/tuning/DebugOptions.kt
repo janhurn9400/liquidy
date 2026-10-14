@@ -9,5 +9,8 @@ object DebugOptions {
     // 0 = grauer Referenz-Wallpaper (wie Nutzer-iPhone), 1 = farbiger Test-Wallpaper (macht Glas-Brechung sichtbar)
     val wallpaperStyle = tunable("DBG.wallpaper", "Wallpaper: 0 grau (Referenz) / 1 farbig (Glas-Test)", "Debug", 0f, 0f, 1f)
 
+    // 1 = eigene Wallpaper-Kopie immer (scharf) über Androids Bild legen — prüft, ob unser Zuschnitt deckungsgleich ist
+    val wallpaperCopy = tunable("DBG.wallpaperCopy", "Wallpaper-Kopie immer zeigen (Zuschnitt prüfen)", "Debug", 0f, 0f, 1f)
+
     fun touch() = Unit
 }
