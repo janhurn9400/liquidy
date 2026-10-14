@@ -90,6 +90,16 @@ object WallpaperCropModel {
     private fun zoomFor(context: Context, h: Helper, screen: Point): Float =
         if (h.isFoldedDisplay(screen)) 1f else maxScale(context)
 
+    /** Für die Diagnose (Launcher-Einstellungen › Erweitert): was das Modell für dieses Display annimmt. */
+    fun describe(context: Context, screenW: Int, screenH: Int): String {
+        val h = helper(context) ?: return "crop model: no display metrics"
+        val screen = Point(screenW, screenH)
+        val folded = h.isFoldedDisplay(screen)
+        val displays = metrics(context).joinToString(", ") { "${it.w}x${it.h}@${it.density}" }
+        return "displays: $displays\nfoldable pair: ${h.foldedArea > 0} · this display folded: $folded\n" +
+            "maxScale (config): ${maxScale(context)} · zoom used: ${zoomFor(context, h, screen)}"
+    }
+
     private fun maxScale(context: Context): Float {
         val id = android.content.res.Resources.getSystem().getIdentifier("config_wallpaperMaxScale", "dimen", "android")
         return if (id != 0) runCatching { android.content.res.Resources.getSystem().getFloat(id) }.getOrDefault(1.1f) else 1.1f

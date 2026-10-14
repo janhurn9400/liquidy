@@ -177,7 +177,11 @@
     <string name="settings_perm_footer">Alles ist freiwillig: Ohne Erlaubnis fehlt nur die jeweilige Funktion. Deine Daten bleiben auf dem Gerät – nur das Wetter-Widget schickt seinen Ort (ungefährer Standort oder der gewählte Ort) an Open-Meteo.</string>
     <string name="settings_allowed">Erlaubt</string>
     <string name="settings_not_allowed">Aus</string>
-    <string name="settings_sec_module">Magisk-Modul</string>
+    <string name="settings_sec_diagnostics">Diagnose</string>
+    <string name="settings_diagnostics_copy">Diagnose kopieren</string>
+    <string name="settings_diagnostics_copied">Kopiert</string>
+    <string name="settings_diagnostics_footer">Für Fehlerberichte: kopiert Gerät, Android-Version, Displays und wie der Launcher das Hintergrundbild berechnet in die Zwischenablage. Keine Apps oder persönlichen Daten, es wird nichts gesendet.</string>
+    <string name="settings_sec_module">App-Öffnen-Animation</string>
     <string name="settings_module">System-Modul</string>
     <string name="settings_module_footer">Mit dem Modul läuft der Launcher als System-App: Apps wachsen aus ihrem Symbol.</string>
     <string name="settings_active">Aktiv</string>

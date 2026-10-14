@@ -381,6 +381,13 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                 Section(stringResource(R.string.settings_sec_module), footer = stringResource(R.string.settings_module_footer)) {
                     ValueRow(stringResource(R.string.settings_module), stringResource(if (module) R.string.settings_active else R.string.settings_inactive))
                 }
+                // Für Bug-Reports: Gerät, Android, Displays, Wallpaper-Berechnung — nur in die Zwischenablage, nichts wird gesendet
+                var copied by remember { mutableStateOf(false) }
+                Section(stringResource(R.string.settings_sec_diagnostics), footer = stringResource(R.string.settings_diagnostics_footer)) {
+                    LinkRow(stringResource(R.string.settings_diagnostics_copy), if (copied) stringResource(R.string.settings_diagnostics_copied) else null) {
+                        io.github.janhurn9400.liquidy.data.Diagnostics.copy(context); copied = true
+                    }
+                }
             }
             Category.About -> {
                 val info = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull() }

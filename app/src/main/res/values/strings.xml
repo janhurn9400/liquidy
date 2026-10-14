@@ -177,7 +177,11 @@
     <string name="settings_perm_footer">Everything is optional: without a permission only that feature is missing. Your data stays on your device; only the Weather widget sends its place (approximate location or the place you chose) to Open-Meteo.</string>
     <string name="settings_allowed">Allowed</string>
     <string name="settings_not_allowed">Off</string>
-    <string name="settings_sec_module">Magisk Module</string>
+    <string name="settings_sec_diagnostics">Diagnostics</string>
+    <string name="settings_diagnostics_copy">Copy Diagnostics</string>
+    <string name="settings_diagnostics_copied">Copied</string>
+    <string name="settings_diagnostics_footer">For bug reports: copies device, Android version, displays and how the launcher calculates the wallpaper to the clipboard. No apps or personal data, nothing is sent.</string>
+    <string name="settings_sec_module">App Open Animation</string>
     <string name="settings_module">System Module</string>
     <string name="settings_module_footer">With the module the launcher runs as a system app: apps grow out of their icon.</string>
     <string name="settings_active">Active</string>
