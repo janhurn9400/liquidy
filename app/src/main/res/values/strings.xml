@@ -212,6 +212,7 @@
     <string name="wx_rain">Rain</string>
     <string name="wx_snow">Snow</string>
     <string name="wx_thunder">Thunderstorms</string>
+    <string name="photos_none">No photos yet</string>
     <string name="photos_no_access">Allow photo access in Launcher Settings</string>
     <string name="search_calculator">Calculator</string>
     <string name="search_contacts">Contacts</string>

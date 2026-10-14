@@ -44,28 +44,43 @@ internal fun PhotoWidget(modifier: Modifier, album: String? = null) {
     val context = LocalContext.current
     BoxWithConstraints(modifier.background(Color(0xFF2C2C2E))) {
         val px = with(LocalDensity.current) { maxOf(maxWidth, maxHeight).toPx().toInt().coerceIn(64, 1600) }
-        val photo by produceState<ImageBitmap?>(null, px, album) {
+        // Zustand je Widget-Instanz zwischengespeichert: Kopien (Kontextmenü, Ziehen, Flug) starten mit dem fertigen Foto
+        // statt leer — vorher blitzte dort für ein Bild der „kein Zugriff“-Hinweis auf (Nutzer 10-15)
+        val cacheKey = "$album|$px"
+        val state by produceState(PhotoCache[cacheKey] ?: PhotoState.Loading, px, album) {
             while (true) {
-                value = withContext(Dispatchers.IO) { loadPhoto(context, px, System.currentTimeMillis() / HOUR_MS, album) } ?: value
+                val loaded = withContext(Dispatchers.IO) { loadPhoto(context, px, System.currentTimeMillis() / HOUR_MS, album) }
+                if (loaded !is PhotoState.Loading) { PhotoCache[cacheKey] = loaded; value = loaded }
                 delay(HOUR_MS - System.currentTimeMillis() % HOUR_MS)
             }
         }
-        val p = photo
-        if (p != null) Image(p, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        else Box(Modifier.fillMaxSize().padding(14.dp), contentAlignment = Alignment.BottomStart) {
-            BasicText(stringResource(R.string.photos_no_access),
+        val s = state
+        if (s is PhotoState.Photo) Image(s.bitmap, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        // Laden: nur die Fläche (kein Text, der sonst kurz aufblitzt); Hinweis nur, wenn wirklich kein Zugriff bzw. keine Fotos
+        else if (s != PhotoState.Loading) Box(Modifier.fillMaxSize().padding(14.dp), contentAlignment = Alignment.BottomStart) {
+            BasicText(stringResource(if (s == PhotoState.NoAccess) R.string.photos_no_access else R.string.photos_none),
                 style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f)))
         }
     }
 }
+
+private sealed interface PhotoState {
+    data object Loading : PhotoState
+    data object NoAccess : PhotoState
+    data object Empty : PhotoState
+    class Photo(val bitmap: ImageBitmap) : PhotoState
+}
+
+/** Zuletzt geladenes Ergebnis je Album/Größe (prozessweit). */
+private val PhotoCache = java.util.concurrent.ConcurrentHashMap<String, PhotoState>()
 
 private fun hasAccess(context: Context) =
     ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
 
 /** Ein Foto aus der Kamera-Galerie (bevorzugt DCIM), je Stunde [slot] ein anderes, aber stabil innerhalb der Stunde. */
-private fun loadPhoto(context: Context, px: Int, slot: Long, album: String? = null): ImageBitmap? {
-    if (!hasAccess(context)) return null
+private fun loadPhoto(context: Context, px: Int, slot: Long, album: String? = null): PhotoState {
+    if (!hasAccess(context)) return PhotoState.NoAccess
     val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
     val ids = ArrayList<Long>()
     runCatching {
@@ -80,11 +95,11 @@ private fun loadPhoto(context: Context, px: Int, slot: Long, album: String? = nu
             if (camera.isNotEmpty()) { ids.clear(); ids += camera }
         }
     }
-    if (ids.isEmpty()) return null
+    if (ids.isEmpty()) return PhotoState.Empty
     val id = ids[(Math.floorMod(slot * 2654435761L, ids.size.toLong())).toInt()]
     return runCatching {
-        context.contentResolver.loadThumbnail(ContentUris.withAppendedId(uri, id), android.util.Size(px, px), null).asImageBitmap()
-    }.getOrNull()
+        PhotoState.Photo(context.contentResolver.loadThumbnail(ContentUris.withAppendedId(uri, id), android.util.Size(px, px), null).asImageBitmap())
+    }.getOrDefault(PhotoState.Empty)
 }
 
 private const val HOUR_MS = 3_600_000L

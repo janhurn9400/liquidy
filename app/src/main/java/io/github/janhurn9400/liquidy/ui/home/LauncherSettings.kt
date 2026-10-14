@@ -113,6 +113,8 @@ fun LauncherSettingsSheet(model: HomeModel, onClose: () -> Unit) {
         val rightRoom = if (duo) DUO_RIGHT_ROOM else 0f
         var selected by remember { mutableStateOf(if (wide) Category.General else null) }
         androidx.activity.compose.BackHandler(enabled = !wide && selected != null) { selected = null }
+        // Zurück auf der obersten Ebene schließt die Einstellungen (wie eine App verlassen)
+        androidx.activity.compose.BackHandler(enabled = wide || selected == null) { model.closeSettings() }
 
         Box(
             Modifier.fillMaxSize()
@@ -151,10 +153,8 @@ fun LauncherSettingsSheet(model: HomeModel, onClose: () -> Unit) {
                 val back = !wide && selected != null
                 val btnModifier = if (duo) Modifier.offset { IntOffset(((screenW - DUO_COLUMN_FROM_RIGHT - 22f) * density).roundToInt(), ((DUO_BUTTON_Y - 22f) * density).roundToInt()) }
                     else Modifier.align(Alignment.TopEnd).padding(top = 36.dp, end = 16.dp)
-                Box(btnModifier) {
-                    if (back) GlassBackButton(onClick = { selected = null })
-                    else CloseButton { model.closeSettings() }
-                }
+                // Kein ×: die Einstellungen verlässt man wie eine App mit der Home-Geste (oder Zurück) — Nutzer 10-15
+                if (back) Box(btnModifier) { GlassBackButton(onClick = { selected = null }) }
             }
         }
     }
@@ -877,19 +877,6 @@ private fun Chevron() = Canvas(Modifier.size(8.dp, 14.dp)) {
     val sw = 2.dp.toPx()
     drawLine(CHEVRON, Offset(0f, 0f), Offset(size.width, size.height / 2), sw, StrokeCap.Round)
     drawLine(CHEVRON, Offset(size.width, size.height / 2), Offset(0f, size.height), sw, StrokeCap.Round)
-}
-
-/** Runder Glas-Knopf „×“ (gleiches Glas wie der Zurück-Knopf). */
-@Composable
-private fun CloseButton(onClick: () -> Unit) {
-    Box(Modifier.size(44.dp).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)) {
-        io.github.janhurn9400.liquidy.glass.LiquidGlass(io.github.janhurn9400.liquidy.glass.glassCapsule(), Modifier.matchParentSize(), whiteTint = 0.6f, blackTint = 0f)
-        Canvas(Modifier.matchParentSize()) {
-            val s = size.width; val a = s * 0.18f; val w = 2.2.dp.toPx(); val c = center
-            drawLine(Color(0xFF1C1C1E), c + Offset(-a, -a), c + Offset(a, a), w, StrokeCap.Round)
-            drawLine(Color(0xFF1C1C1E), c + Offset(a, -a), c + Offset(-a, a), w, StrokeCap.Round)
-        }
-    }
 }
 
 private fun isDefaultHome(c: android.content.Context): Boolean {

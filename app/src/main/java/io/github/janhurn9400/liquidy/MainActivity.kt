@@ -124,6 +124,8 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 homePressed.collect {
                     when {
+                        // Launcher-Einstellungen wirken wie eine App → Home-Geste/-Taste schließt sie (statt eines ×)
+                        homeModel.settingsOpen -> homeModel.closeSettings()
                         homeModel.searchOpen || homeModel.searchProgress.value > 0f -> homeModel.closeSearch()
                         homeModel.openFolder != null -> homeModel.closeFolder()
                         homeModel.openCategory != null -> homeModel.closeCategory()
