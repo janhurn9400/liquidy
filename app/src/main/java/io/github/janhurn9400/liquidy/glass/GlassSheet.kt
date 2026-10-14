@@ -42,8 +42,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * Wiederverwendbares Liquid-Glass-Blatt von unten (Auswahllisten, Einstellungen von Widgets usw.):
- * gleitet mit M-WPE-SHEET herein und hinaus (unterbrechbar), dunkles Glas über dem Inhalt dahinter, Kopf mit runder
+ * Wiederverwendbares Milchglas-Blatt von unten (Auswahllisten, Einstellungen von Widgets usw.):
+ * gleitet mit M-WPE-SHEET herein und hinaus (unterbrechbar), dunkles Milchglas ohne Brechung, Kopf mit runder
  * ×-Taste und Titel. Der Aufrufer liest [GlassSheetState.progress], um z. B. Inhalte dahinter zurückweichen zu lassen.
  *
  * ```
@@ -104,8 +104,9 @@ fun BoxWithConstraintsScope.GlassSheet(
             .graphicsLayer { translationY = (1f - state.progress.value) * size.height }
             .clickable(noRipple, null) { }, // Tipps im Blatt nicht an den Hintergrund durchreichen
     ) {
+        // Milchglas (iOS-Auswahlblätter: durchgehende Fläche, keine Brechung) [Nutzer am iPhone 10-15]
         LiquidGlass(shape = glassRect(SHEET_CORNER.dp), modifier = Modifier.matchParentSize(),
-            blur = SHEET_BLUR.dp, blackTint = SHEET_DARK, whiteTint = 0f)
+            blur = SHEET_BLUR.dp, blackTint = SHEET_DARK, whiteTint = 0f, refraction = false)
         Column(Modifier.fillMaxSize().padding(bottom = SHEET_CORNER.dp)) {
             Box(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 16.dp)) {
                 Box(Modifier.align(Alignment.CenterStart).size(44.dp).clip(CircleShape).background(SheetRowColor)
@@ -128,7 +129,7 @@ fun BoxWithConstraintsScope.GlassSheet(
 val SheetRowColor = Color.White.copy(alpha = 0.12f)
 
 private const val SHEET_CORNER = 38f
-private const val SHEET_BLUR = 24f   // wie die Widget-Galerie
+private const val SHEET_BLUR = 40f   // kräftig verwischt: nur Farben scheinen durch
 private const val SHEET_DARK = 0.62f
 private const val SHEET_MAX_W = 461f
 private const val SHEET_H_SHARE = 0.86f

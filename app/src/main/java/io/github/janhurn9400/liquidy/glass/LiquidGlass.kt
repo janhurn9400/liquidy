@@ -49,6 +49,8 @@ fun LiquidGlass(
     whiteTint: Float = DesignTokens.glassWhiteTint.value,
     blackTint: Float = DesignTokens.glassTint.value,
     rimAlpha: Float? = null,
+    /** false = Milchglas: nur Unschärfe + Tönung, keine Brechung und kein Lichtrand (z. B. Auswahlblätter). */
+    refraction: Boolean = true,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
     val backdrop = LocalGlassBackdrop.current
@@ -80,21 +82,21 @@ fun LiquidGlass(
                 // getönt: keine sichtbare Brechung mehr (Nutzer-iPhone 10-14, Mediathek-Feld) → blendet ab der Mitte aus
                 val amount = height * DesignTokens.glassRefractionAmount.value * thickness.coerceAtLeast(1f) * (1f - tinted)
                 // keine Farbsäume (Dispersion): Apples Liquid Glass hat keine [Nutzer 10-14, echtes iPhone]
-                if (height > 0.5f && amount > 0.5f) lens(
+                if (refraction && height > 0.5f && amount > 0.5f) lens(
                     refractionHeight = height,
                     refractionAmount = amount.coerceAtMost(size.minDimension),
                     depthEffect = DesignTokens.glassDepth.value > 0.5f,
                     chromaticAberration = false,
                 )
             },
-            highlight = {
+            highlight = if (!refraction) null else ({
                 Highlight(
                     width = DesignTokens.glassRimWidth.dp,
                     alpha = rimAlpha ?: DesignTokens.glassRimHighlight.value,
                     // 90° = Licht von oben → Ober- und Unterkante hell [GEMESSEN] Pill/Dock IMG_3123
                     style = HighlightStyle.Default(angle = DesignTokens.glassLightAngle.value, falloff = DesignTokens.glassLightFalloff.value),
                 )
-            },
+            }),
             shadow = {
                 Shadow(
                     radius = DesignTokens.glassShadowRadius.dp * thickness,
@@ -117,6 +119,6 @@ fun LiquidGlass(
     ) {
         content()
         // Dunkler Seitenrand (iOS 27, gemessen) — nur der dunkle Anteil, das helle Licht macht das Highlight
-        GlassRim(shape, Modifier.matchParentSize(), lightAlpha = 0f)
+        if (refraction) GlassRim(shape, Modifier.matchParentSize(), lightAlpha = 0f)
     }
 }
