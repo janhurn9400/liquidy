@@ -378,8 +378,26 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
             }
             Category.Advanced -> {
                 val module = remember(tick) { context.checkSelfPermission("android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS") == android.content.pm.PackageManager.PERMISSION_GRANTED }
+                // Animationsmodul: offen erklären, was es ist und tut — mit festem Download-Link (immer neuestes Release) und
+                // derselben Anleitung wie im Willkommen; installiert → „Aktiv“
                 Section(stringResource(R.string.settings_sec_module), footer = stringResource(R.string.settings_module_footer)) {
-                    ValueRow(stringResource(R.string.settings_module), stringResource(if (module) R.string.settings_active else R.string.settings_inactive))
+                    ValueRow(stringResource(R.string.settings_module), stringResource(if (module) R.string.settings_active else R.string.settings_module_missing))
+                }
+                if (!module) {
+                    io.github.janhurn9400.liquidy.ui.welcome.RootSteps(active = false)
+                    Spacer(Modifier.height(10.dp))
+                    Group {
+                        LinkRow(stringResource(R.string.welcome_root_download)) {
+                            open(context, android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(io.github.janhurn9400.liquidy.ui.welcome.MODULE_URL)))
+                        }
+                        val magisk = remember { context.packageManager.getLaunchIntentForPackage("com.topjohnwu.magisk") }
+                        if (magisk != null) {
+                            Divider()
+                            LinkRow(stringResource(R.string.welcome_root_open_magisk)) { open(context, magisk) }
+                        }
+                    }
+                    Spacer(Modifier.height(SECTION_GAP.dp))
                 }
                 // Für Bug-Reports: Gerät, Android, Displays, Wallpaper-Berechnung — nur in die Zwischenablage, nichts wird gesendet
                 var copied by remember { mutableStateOf(false) }

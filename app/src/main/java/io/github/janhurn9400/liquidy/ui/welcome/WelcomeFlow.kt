@@ -252,7 +252,8 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
  * Download des Magisk-Moduls (GitHub-Release, lädt direkt die ZIP). Repo ist privat: funktioniert erst,
  * sobald es öffentlich ist. Der Link in Schritt 1 und der Knopf „Modul herunterladen“ nutzen sie.
  */
-private const val MODULE_URL = "https://github.com/janhurn9400/liquidy/releases/latest/download/liquidy-magisk.zip"
+/** Fester Download-Link zum Animationsmodul: zeigt immer auf das neueste Release (Dateiname bleibt gleich). */
+internal const val MODULE_URL = "https://github.com/janhurn9400/liquidy/releases/latest/download/liquidy-magisk.zip"
 
 private enum class Glyph { Home, Lock, Appearance, Fold, Sparkle, Check }
 
@@ -438,7 +439,7 @@ private fun FoldPreview(duo: Boolean, modifier: Modifier) {
 
 /** Anleitung fürs Magisk-Modul als nummerierte Liste (iOS-Zellen); ist das Modul aktiv, nur ein Haken. */
 @Composable
-private fun RootSteps(active: Boolean) {
+internal fun RootSteps(active: Boolean) {
     Card {
         if (active) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

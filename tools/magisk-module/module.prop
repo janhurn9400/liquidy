@@ -1,6 +1,6 @@
 id=ioshome_privapp
-name=Liquidy – Öffnen-Animation
-version=1.1
-versionCode=2
+name=Liquidy Animation Module
+version=1.2
+versionCode=3
 author=janhurn9400
-description=Bindet den installierten Liquidy-Launcher als System-App ein, damit er Apps mit eigener Animation aus dem Icon öffnen kann. Gesten bleiben unverändert.
+description=Lets the Liquidy launcher open apps with its own animation (apps grow out of their icon). Android only allows this for system apps, so the module adds the installed Liquidy app as a system app. Changes nothing else. Source: github.com/janhurn9400/liquidy

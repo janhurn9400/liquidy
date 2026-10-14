@@ -181,9 +181,10 @@
     <string name="settings_diagnostics_copy">Diagnose kopieren</string>
     <string name="settings_diagnostics_copied">Kopiert</string>
     <string name="settings_diagnostics_footer">Für Fehlerberichte: kopiert Gerät, Android-Version, Displays und wie der Launcher das Hintergrundbild berechnet in die Zwischenablage. Keine Apps oder persönlichen Daten, es wird nichts gesendet.</string>
-    <string name="settings_sec_module">App-Öffnen-Animation</string>
-    <string name="settings_module">System-Modul</string>
-    <string name="settings_module_footer">Mit dem Modul läuft der Launcher als System-App: Apps wachsen aus ihrem Symbol.</string>
+    <string name="settings_sec_module">Animationsmodul</string>
+    <string name="settings_module">Animationsmodul</string>
+    <string name="settings_module_footer">Optional, braucht Root (Magisk). Android erlaubt nur System-Apps, Apps mit eigener Animation zu öffnen – dieses kleine Modul bindet Liquidy deshalb als System-App ein, dann wachsen Apps wie am iPhone aus ihrem Icon. Ohne Modul nutzt Android seine Standard-Animation. Es ändert sonst nichts und sendet nichts; der Inhalt liegt offen auf GitHub.</string>
+    <string name="settings_module_missing">Nicht installiert</string>
     <string name="settings_active">Aktiv</string>
     <string name="settings_inactive">Nicht aktiv</string>
     <string name="settings_device">Gerät</string>
