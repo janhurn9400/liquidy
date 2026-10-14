@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.janhurn9400.liquidy.motion.Motion
+import com.kyant.backdrop.backdrops.layerBackdrop
 import io.github.janhurn9400.liquidy.ui.Inter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -104,9 +105,14 @@ fun BoxWithConstraintsScope.GlassSheet(
             .graphicsLayer { translationY = (1f - state.progress.value) * size.height }
             .clickable(noRipple, null) { }, // Tipps im Blatt nicht an den Hintergrund durchreichen
     ) {
-        // Milchglas (iOS-Auswahlblätter: durchgehende Fläche, keine Brechung) [Nutzer am iPhone 10-15]
-        LiquidGlass(shape = glassRect(SHEET_CORNER.dp), modifier = Modifier.matchParentSize(),
-            blur = SHEET_BLUR.dp, blackTint = SHEET_DARK, whiteTint = 0f, refraction = false)
+        // Milchglas (iOS-Auswahlblätter: durchgehende graue Fläche, keine Brechung) [Nutzer am iPhone 10-15]; die Fläche ist
+        // selbst Glasquelle für Glas-Elemente im Blatt (z. B. Suchfeld) — sie brechen das Blatt, nicht den Homescreen dahinter
+        val surface = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+        Box(Modifier.matchParentSize().then(Modifier.layerBackdrop(surface))) {
+            LiquidGlass(shape = glassRect(SHEET_CORNER.dp), modifier = Modifier.matchParentSize(),
+                blur = SHEET_BLUR.dp, blackTint = SHEET_DARK, whiteTint = SHEET_GREY, refraction = false)
+        }
+        androidx.compose.runtime.CompositionLocalProvider(LocalGlassBackdrop provides surface) {
         Column(Modifier.fillMaxSize().padding(bottom = SHEET_CORNER.dp)) {
             Box(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 16.dp)) {
                 Box(Modifier.align(Alignment.CenterStart).size(44.dp).clip(CircleShape).background(SheetRowColor)
@@ -122,6 +128,7 @@ fun BoxWithConstraintsScope.GlassSheet(
             }
             content()
         }
+        }
     }
 }
 
@@ -130,6 +137,7 @@ val SheetRowColor = Color.White.copy(alpha = 0.12f)
 
 private const val SHEET_CORNER = 38f
 private const val SHEET_BLUR = 40f   // kräftig verwischt: nur Farben scheinen durch
-private const val SHEET_DARK = 0.62f
+private const val SHEET_DARK = 0.6f   // grau und fast deckend: klar als Fenster erkennbar [Nutzer 10-15]
+private const val SHEET_GREY = 0.16f
 private const val SHEET_MAX_W = 461f
 private const val SHEET_H_SHARE = 0.86f

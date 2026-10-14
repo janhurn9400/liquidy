@@ -217,10 +217,12 @@ private fun androidx.compose.foundation.layout.ColumnScope.LocationRows(onPick: 
                 results.forEach { p -> PlaceRow(p.name, p.region.ifEmpty { null }) { onPick(p) } }
             }
         }
-        // Suchfeld unten (wie iOS), über der Tastatur
+        // Suchfeld unten (wie iOS), über der Tastatur — Liquid Glass wie das Mediathek-Suchfeld (bricht das Blatt dahinter)
+        Box(Modifier.windowInsetsPadding(WindowInsets.ime).padding(16.dp).fillMaxWidth().height(44.dp)) {
+        io.github.janhurn9400.liquidy.glass.LiquidGlass(shape = io.github.janhurn9400.liquidy.glass.glassCapsule(), modifier = Modifier.matchParentSize(),
+            whiteTint = io.github.janhurn9400.liquidy.design.DesignTokens.libListFieldTint.value)
         Row(
-            Modifier.windowInsetsPadding(WindowInsets.ime).padding(16.dp).fillMaxWidth().height(44.dp)
-                .clip(RoundedCornerShape(22.dp)).background(io.github.janhurn9400.liquidy.glass.SheetRowColor).padding(horizontal = 14.dp),
+            Modifier.matchParentSize().padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Canvas(Modifier.size(16.dp)) {
@@ -234,6 +236,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.LocationRows(onPick: 
                 BasicTextField(query, { query = it }, singleLine = true, textStyle = text(17f, FontWeight.Normal, Color.White),
                     cursorBrush = SolidColor(BLUE), modifier = Modifier.fillMaxWidth())
             }
+        }
         }
 }
 
