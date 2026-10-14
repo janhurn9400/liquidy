@@ -117,7 +117,7 @@
     <string name="settings_duo_footer">Zwei Seiten nebeneinander im Querformat bzw. aufgeklappt, Dock rechts.</string>
     <string name="settings_sec_dock">Dock</string>
     <string name="settings_more_dock">Mehr Apps im Dock</string>
-    <string name="settings_more_dock_footer">Nicht wie im Original: Das Dock nimmt so viele Apps auf, wie in die rechte Spalte passen. Beim Ausschalten wandern überzählige Apps auf den Home-Bildschirm.</string>
+    <string name="settings_more_dock_footer">Duo-Stil: Das Dock nimmt so viele Apps auf, wie in die rechte Spalte passen. Beim Ausschalten wandern überzählige Apps auf den Home-Bildschirm.</string>
     <string name="settings_android_wp_footer">Liest das in Android gewählte Wallpaper, damit Glaseffekte dazu passen.</string>
     <string name="settings_done">Fertig</string>
     <string name="settings_section_general">Allgemein</string>
@@ -153,6 +153,11 @@
     <string name="settings_glass_preview_sub">Vorschau Liquid Glass</string>
     <string name="settings_glass_preview_body">Glas bricht das Licht an seinen Rändern und lässt deine Inhalte durchscheinen. Mit dem Regler wird es klarer oder getönter.</string>
     <string name="search_placeholder_glass">Suchen</string>
+    <string name="settings_cat_quirks">🍎 Quirks</string>
+    <string name="settings_quirks_intro">Standardmäßig verhält sich der Launcher genau wie das Original, samt seiner Eigenheiten. Hier kannst du einzelne davon lockern – jede Option hier ist nicht wie im Original.</string>
+    <string name="settings_sec_grid">Raster</string>
+    <string name="settings_free_widget_rows">Widgets in jeder Reihe</string>
+    <string name="settings_free_widget_rows_footer">Normalerweise rasten zwei Reihen hohe Widgets nur in Reihenpaaren ein (Reihe 1, 3 und 5) – es gibt nie eine einzelne App-Reihe über einem Widget. Einschalten, um sie in jede Reihe zu legen.</string>
     <string name="settings_sec_glass">Liquid Glass</string>
     <string name="settings_glass_footer">Klar ist durchsichtiger und zeigt die Lichtbrechung, getönt ist milchig und deckender – mehr Kontrast für Inhalte und Bedienelemente.</string>
     <string name="settings_sec_statusbar">Statusleiste</string>

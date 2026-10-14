@@ -245,6 +245,19 @@ fun HomeScreen(
             model.openPagesOverview(pager.currentPage)
         }
 
+        // ── Gezogenes Icon: Größe ──────────────────────────────────────────────────
+        // Duo: über dem Dock hat es Dock-Größe (48 pt), sonst Raster-Größe — weich umblenden, damit es beim Ablegen
+        // bzw. Herausziehen nicht springt; beim Aufnehmen aus dem Dock startet es in Dock-Größe
+        val dragKey = model.drag?.key
+        val dragOverDock by remember { derivedStateOf { geo.duo && model.drag?.hover is DropTarget.Dock } }
+        val dragDockScale = remember { androidx.compose.animation.core.Animatable(1f) }
+        val dragScaleFor = remember { arrayOfNulls<String>(1) }
+        LaunchedEffect(dragKey, dragOverDock) {
+            val t = if (dragOverDock) geo.dockIconScale else 1f
+            if (dragKey != dragScaleFor[0]) { dragScaleFor[0] = dragKey; dragDockScale.snapTo(t) }
+            else dragDockScale.animateTo(t, Motion.reflow.spec())
+        }
+
         // ── Icon ziehen (gemeinsam für Homescreen-Gesten und Mediathek-Kategorie) ──────────
         val dragEdgeJob = remember { arrayOfNulls<Job>(1) }
         /** Finger bewegt beim Ziehen: Ziel aktualisieren, am Rand nach M-EDGE weiterblättern bzw. neue Seite anlegen. */
@@ -259,16 +272,32 @@ fun HomeScreen(
             val overDock = geo.inDockZone(pos)
             // Duo: Dock-Spalte liegt am rechten Rand → Streifen davor (und links gleich) breiter; ein volles Dock (bzw. Widget)
             // nimmt nichts auf und wirkt wie der Rand — sonst passierte beim Ziehen nach rechts gar nichts
+            // Duo: rechts gilt alles ab dem Seitenrand bis zum Bildschirmrand als Rand (auch über/unter dem Dock) —
+            // nur die Dock-Glasfläche selbst nimmt Icons auf (Nutzer 10-14: schmaler Streifen war schwer zu treffen)
             val rightZone = if (geo.duo) geo.edgeZone * 2f else geo.edgeZone
             val dockIsEdge = geo.duo && overDock && model.drag?.key?.let { !model.dockAccepts(it) } == true
             val atEdge = (!overDock && (x < rightZone || x > right - rightZone)) || dockIsEdge
             if (atEdge && dragEdgeJob[0] == null) {
                 val dir = if (x < rightZone && !dockIsEdge) -1 else 1
                 dragEdgeJob[0] = scope.launch {
-                    delay(Motion.edgeFlipDelay.value.toLong())
                     while (isActive) {
                         // echte Position (kann −1 sein: Heute-Ansicht links, Seite 0 rechts)
                         val cur = pager.position.value.roundToInt()
+                        // Hinüberschauen (M-EDGE, gemessen): sofort kleiner Ruck, dann gleichmäßig weiter, bis nach der
+                        // Haltezeit Haptik + Seitenwechsel kommen. Vor der ersten Seite (neue Seite davor) kein Hinüberschauen.
+                        val peeks = !(dir < 0 && cur <= 0) && (cur + dir) in 0 until pager.pageCount
+                        val start = System.nanoTime()
+                        val peekJob = if (peeks) launch {
+                            val perPt = density / geo.pageWidth
+                            pager.position.animateTo(cur + dir * Motion.edgePeekNudge.value * perPt, Motion.edgeNudge.spec())
+                            // Rest der Haltezeit gleichmäßig weiterkriechen
+                            val rest = (Motion.edgeFlipDelay.value - (System.nanoTime() - start) / 1_000_000f).coerceAtLeast(1f)
+                            pager.position.animateTo(cur + dir * Motion.edgePeekMax.value * perPt,
+                                androidx.compose.animation.core.tween(rest.roundToInt(), easing = androidx.compose.animation.core.LinearEasing))
+                        } else null
+                        delay(Motion.edgeFlipDelay.value.toLong())
+                        peekJob?.cancel()
+                        model.haptic() // iOS: spürbarer Tick genau beim Seitenwechsel
                         // links vor der ersten Seite: neue Seite davor anlegen (Ansicht bleibt stehen, dann hinüber)
                         if (dir < 0 && cur <= 0) {
                             if (model.insertPageFront()) {
@@ -282,16 +311,53 @@ fun HomeScreen(
                         if (target == cur) break
                         pager.animateTo(target, 0f)
                         model.drag?.let { dr -> model.updateDrag(dr.pointer, geo, target, pageOffsetPx(target)) }
-                        delay(Motion.edgeFlipRepeat.value.toLong())
+                        delay((Motion.edgeFlipRepeat.value - Motion.edgeFlipDelay.value).coerceAtLeast(0f).toLong())
                     }
                 }
-            } else if (!atEdge) {
+            } else if (!atEdge && dragEdgeJob[0] != null) {
                 dragEdgeJob[0]?.cancel(); dragEdgeJob[0] = null
+                // Rand vor dem Wechsel verlassen: Seite federt aus dem Hinüberschauen zurück
+                val p = pager.position.value
+                if (p != p.roundToInt().toFloat()) scope.launch { pager.animateTo(p.roundToInt()) }
             }
+        }
+        /** Bildschirm-Oberkante-links eines Icons auf den sichtbaren Seiten bzw. im Dock. */
+        fun iconScreenTopLeft(key: String): Offset? {
+            val d = model.display
+            d.dock.indexOf(key).takeIf { it >= 0 }?.let { return geo.dockPosition(it, d.dock.size) }
+            d.pages.forEachIndexed { page, keys ->
+                val slot = keys.indexOf(key); if (slot < 0) return@forEachIndexed
+                val cell = model.displayCells.getOrNull(page)?.getOrNull(slot) ?: return null
+                if (cell < 0) return null
+                return geo.slotPosition(cell) + Offset(pageOffsetPx(page), 0f)
+            }
+            return null
         }
         fun iconDragEnd() {
             dragEdgeJob[0]?.cancel(); dragEdgeJob[0] = null
+            // Ablegen auf einem Ordner/einer App: Icon fliegt in seinen Mini-Platz (M-MERGE-DROP) statt zu verschwinden
+            val d = model.drag
+            val target = d?.mergeTarget
+            val fly = if (d != null && target != null && model.apps[d.key] != null) {
+                val slot = if (isFolder(target)) model.folders[target]?.apps?.size ?: 0 else 1
+                val folderTl = iconScreenTopLeft(target)
+                if (folderTl == null || slot >= DesignTokens.FOLDER_COLUMNS * DesignTokens.FOLDER_ROWS) null else {
+                    val s = d.lift.value * dragDockScale.value
+                    val c = d.pointer - d.grabOffset + Offset(geo.icon / 2, geo.icon / 2)
+                    val from = Rect(c - Offset(geo.icon * s / 2, geo.icon * s / 2), Size(geo.icon * s, geo.icon * s))
+                    // Ordner im Dock: sichtbares Icon kleiner (geo.iconRect / dockIconScale) → Mini-Plätze mitskalieren
+                    val box = geo.iconRect(folderTl, target in model.display.dock)
+                    val k = box.width / geo.icon
+                    val mini = DesignTokens.folderMiniSize.value * density * k
+                    val tl = box.topLeft + Offset(
+                        (DesignTokens.folderMiniInset.value + DesignTokens.folderMiniPitch.value * (slot % DesignTokens.FOLDER_COLUMNS)) * density * k,
+                        (DesignTokens.folderMiniInset.value + DesignTokens.folderMiniPitch.value * (slot / DesignTokens.FOLDER_COLUMNS)) * density * k)
+                    FolderFly(d.key, target, from, Rect(tl, Size(mini, mini)))
+                }
+            } else null
             model.drop(geo, pager.position.value)
+            // neuer Ordner aus zwei Apps: Ziel ist jetzt der Ordner, der an der Stelle der Ziel-App entstanden ist
+            fly?.let { f -> model.flyIntoFolder(FolderFly(f.key, model.folderContaining(f.key) ?: f.folder, f.from, f.to)) }
         }
         /** App aus der Mediathek (Übersicht oder Kategorie) herausziehen: Bearbeiten-Modus, Pager wischt zur letzten Seite. */
         fun startLibraryDrag(appKey: String, pointer: Offset, iconTopLeft: Offset) {
@@ -326,7 +392,7 @@ fun HomeScreen(
             fun dockRect(i: Int): Rect {
                 val tl = geo.dockPosition(i, d.dock.size)
                 if (!geo.duo) return Rect(tl, iconSize)
-                val s = geo.icon * DUO_DOCK_ICON / DesignTokens.iconSize.value
+                val s = geo.icon * geo.dockIconScale
                 val c = tl + Offset(geo.icon / 2, geo.icon / 2)
                 return Rect(c - Offset(s / 2, s / 2), Size(s, s))
             }
@@ -494,7 +560,7 @@ fun HomeScreen(
                     alpha = 0f // die fliegende Kopie (über allem) macht die ganze Bewegung; danach steht das echte Widget da
                 }) {
                 WidgetCell(key, spec, geo, density, wallpaper, jiggle = { model.jiggleAmount.value }, clockSeconds = { clock.floatValue },
-                    badgeScale = { model.badgeScale.value }, showBadge = model.editing || model.badgeScale.value > 0f,
+                    badgeScale = { model.badgeOf(key) }, showBadge = model.editing || model.badgeScale.value > 0f,
                     pressAlpha = press, resize = model.resize?.takeIf { it.key == key }, showLabel = showLabel, hideBody = flyingHere, stackModel = model)
                 }
             } else if (isFolder(key)) {
@@ -502,10 +568,11 @@ fun HomeScreen(
                 // Offener Ordner: Icon blendet in der kleinsten Phase ins Panel über (statt hart zu verschwinden)
                 val open = model.openFolder?.takeIf { it.id == key }
                 FolderIconView(
-                    modifier = Modifier.graphicsLayer { alpha = if (open == null) 1f else 1f - model.folderHandoff(open.progress.value) },
+                    modifier = Modifier.graphicsLayer { alpha = if (open == null) 1f else 1f - model.folderVisible(open) },
                     id = key, folder = folder, apps = model.apps, showLabel = showLabel, wallpaper = wallpaper,
                     pressAlpha = press, jiggle = { model.jiggleAmount.value }, clockSeconds = { clock.floatValue },
                     mergeHint = merge,
+                    hiddenApp = model.folderFly?.takeIf { it.folder == key }?.key,
                 )
             } else {
                 val app = model.apps[key] ?: return
@@ -520,7 +587,7 @@ fun HomeScreen(
                         pressAlpha = press,
                         jiggle = { model.jiggleAmount.value },
                         clockSeconds = { clock.floatValue },
-                        badgeScale = { model.badgeScale.value },
+                        badgeScale = { model.badgeOf(key) },
                         showBadge = model.editing || model.badgeScale.value > 0f,
                     )
                 }
@@ -699,7 +766,7 @@ fun HomeScreen(
                 IconSlot(model, key, Container.Dock, geo.dockPosition(i, display.dock.size), pager, geo::pageShift, density) {
                     // Duo: Dock-Icons kleiner als das Raster (≈ 48 statt 60 pt, viel Glas rundherum) [GEMESSEN] 21:29, 44 s
                     if (geo.duo) Box(Modifier.graphicsLayer {
-                        val sc = DUO_DOCK_ICON / DesignTokens.iconSize.value; scaleX = sc; scaleY = sc
+                        val sc = geo.dockIconScale; scaleX = sc; scaleY = sc
                         transformOrigin = TransformOrigin(0.5f, DesignTokens.iconSize.value / 2 / (size.height / density))
                     }) { Item(key, showLabel = false) } else Item(key, showLabel = false)
                 }
@@ -815,21 +882,11 @@ fun HomeScreen(
             Canvas(Modifier.fillMaxSize()) {
                 drawRect(Color.Black.copy(alpha = DesignTokens.folderBgDim.value * openFolder.progress.value.coerceIn(0f, 1f)))
             }
-            FolderOverlay(model, openFolder, folderGeo, density, wallpaper)
+            FolderOverlay(model, openFolder, folderGeo, density, wallpaper) { clock.floatValue }
+            FolderDragCopy(model, density, wallpaper)
         }
 
         // ── Gezogenes Icon (über allem) ──────────────────────────────────────────
-        // Duo: über dem Dock hat es Dock-Größe (48 pt), sonst Raster-Größe — weich umblenden, damit es beim Ablegen
-        // bzw. Herausziehen nicht springt; beim Aufnehmen aus dem Dock startet es in Dock-Größe
-        val dragKey = model.drag?.key
-        val dragOverDock by remember { derivedStateOf { geo.duo && model.drag?.hover is DropTarget.Dock } }
-        val dragDockScale = remember { androidx.compose.animation.core.Animatable(1f) }
-        val dragScaleFor = remember { arrayOfNulls<String>(1) }
-        LaunchedEffect(dragKey, dragOverDock) {
-            val t = if (dragOverDock) DUO_DOCK_ICON / DesignTokens.iconSize.value else 1f
-            if (dragKey != dragScaleFor[0]) { dragScaleFor[0] = dragKey; dragDockScale.snapTo(t) }
-            else dragDockScale.animateTo(t, Motion.reflow.spec())
-        }
         model.drag?.let { d ->
             model.widgets[d.key]?.let { spec ->
                 Box(
@@ -867,6 +924,53 @@ fun HomeScreen(
             }
         }
 
+        // ── Aufnehmen: Original blendet an der Ausgangsstelle aus, sein Badge schrumpft weg (M-BADGE-DRAG) ──
+        model.pickupGhost?.let { g ->
+            val app = model.apps[g.key]; val folder = model.folders[g.key]
+            Box(
+                Modifier
+                    .offset { IntOffset(cellOffsetX(g.topLeft.x, density).roundToInt(), g.topLeft.y.roundToInt()) }
+                    .graphicsLayer {
+                        alpha = g.fade.value
+                        if (g.dock && geo.duo) {
+                            val sc = geo.dockIconScale; scaleX = sc; scaleY = sc
+                            transformOrigin = TransformOrigin(0.5f, DesignTokens.iconSize.value / 2 / (size.height / density))
+                        }
+                    }
+            ) {
+                if (app != null) AppIconView(app = app, showLabel = !g.dock, wallpaper = wallpaper, pressAlpha = { 0f },
+                    jiggle = { 0f }, clockSeconds = { 0f }, badgeScale = { model.badgeScale.value * g.fade.value }, showBadge = model.editing)
+                else if (folder != null) FolderIconView(id = g.key, folder = folder, apps = model.apps, showLabel = !g.dock,
+                    wallpaper = wallpaper, pressAlpha = { 0f }, jiggle = { 0f }, clockSeconds = { 0f }, mergeHint = false)
+            }
+        }
+
+        // ── Icon fliegt in den Ordner (M-MERGE-DROP): von der Lage beim Loslassen auf Mini-Größe in den freien Platz ──
+        model.folderFly?.let { f ->
+            model.apps[f.key]?.let { app ->
+                Box(
+                    Modifier
+                        .offset {
+                            val t = f.t.value
+                            val c = f.from.center + (f.to.center - f.from.center) * t
+                            IntOffset(cellOffsetX(c.x - geo.icon / 2, density).roundToInt(), (c.y - geo.icon / 2).roundToInt())
+                        }
+                        .graphicsLayer {
+                            val t = f.t.value
+                            val s = (f.from.width + (f.to.width - f.from.width) * t) / geo.icon
+                            scaleX = s; scaleY = s
+                            transformOrigin = TransformOrigin(0.5f, 0.5f)
+                        }
+                ) {
+                    AppIconView(
+                        app = app, showLabel = false, wallpaper = wallpaper,
+                        pressAlpha = { 0f }, jiggle = { 0f }, clockSeconds = { 0f },
+                        badgeScale = { 0f }, showBadge = false,
+                    )
+                }
+            }
+        }
+
         val arenaCoords = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
         fun arenaToWindow(p: Offset): Offset = arenaCoords[0]?.takeIf { it.isAttached }?.localToWindow(p) ?: p
         // ── Gesten-Arena ──────────────────────────────────────────────────────────
@@ -881,7 +985,8 @@ fun HomeScreen(
                         if (model.pendingRemoval != null) return@awaitEachGesture
                         model.openFolder?.let { of ->
                             // frisch berechnen: die Gesten-Arena wird nur einmal angelegt (sonst Lage des ERSTEN geöffneten Ordners)
-                            handleFolderGesture(model, of, FolderGeometry(density, w, h, geo, of.iconTopLeft.x), down, density, onLaunch, scope)
+                            handleFolderGesture(model, of, FolderGeometry(density, w, h, geo, of.iconTopLeft.x), down, density, onLaunch, scope,
+                                dragMove = { p -> iconDragMove(p) }, dragEnd = { iconDragEnd() })
                             return@awaitEachGesture
                         }
                         val t0 = System.nanoTime()
@@ -978,7 +1083,7 @@ fun HomeScreen(
                                         pressJob?.cancel()
                                         model.openContextMenu(hit.key, hit.iconTopLeft, density,
                                             model.widgets[hit.key]?.let { geo.widgetRect(hit.iconTopLeft, it.cols, it.rows) },
-                                            iconScale = if (geo.duo && hit.key in model.display.dock) DUO_DOCK_ICON / DesignTokens.iconSize.value else 1f)
+                                            iconScale = if (hit.key in model.display.dock) geo.dockIconScale else 1f)
                                         mode = Mode.Menu
                                     }
                                     hit is Hit.Empty && !model.editing -> { model.enterEdit(); mode = Mode.Consumed }
@@ -1046,7 +1151,7 @@ fun HomeScreen(
                                             screenRectOf(hit.key)?.let { r -> model.openWidgetConfig(hit.key, r) }
                                         hit is Hit.Icon && isFolder(hit.key) -> {
                                             releasePress(animated = false)
-                                            model.openFolder(hit.key, hit.iconTopLeft)
+                                            model.openFolder(hit.key, hit.iconTopLeft, if (hit.key in model.display.dock) geo.dockIconScale else 1f)
                                         }
                                         hit is Hit.Icon && !model.editing && model.pressedKey == hit.key -> {
                                             releasePress(animated = false)
@@ -1054,7 +1159,7 @@ fun HomeScreen(
                                                 model.launchedIconKey = hit.key
                                                 // Duo-Dock: kleineres Icon (48 pt) → Fenster wächst aus dessen echter Größe
                                                 val r = Rect(hit.iconTopLeft, Size(geo.icon, geo.icon))
-                                                val k = if (geo.duo && hit.key in model.display.dock) DUO_DOCK_ICON / DesignTokens.iconSize.value else 1f
+                                                val k = if (hit.key in model.display.dock) geo.dockIconScale else 1f
                                                 onLaunch(it, if (k == 1f) r else Rect(r.center - Offset(r.width * k / 2, r.height * k / 2), Size(r.width * k, r.height * k)))
                                             }
                                             model.shownWidget(hit.key)?.let { spec ->
@@ -1505,20 +1610,35 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.han
     density: Float,
     onLaunch: (AppEntry, Rect) -> Unit,
     scope: kotlinx.coroutines.CoroutineScope,
+    /** Weiterziehen auf dem Homescreen, nachdem die App den Ordner verlassen hat (wie das normale Icon-Ziehen). */
+    dragMove: (Offset) -> Unit,
+    dragEnd: () -> Unit,
 ) {
     val folder = model.folderFor(open.id) ?: return
     val panel = geo.panel
     val icon = DesignTokens.iconSize.value * density
-    val hitKey = folder.apps.take(DesignTokens.FOLDER_COLUMNS * DesignTokens.FOLDER_ROWS).withIndex().firstOrNull { (i, _) ->
-        val tl = panel.topLeft + geo.slot(i)
-        Rect(tl, Size(icon, icon)).inflate(icon * 0.2f).contains(down.position)
-    }
+    val perPage = DesignTokens.FOLDER_COLUMNS * DesignTokens.FOLDER_ROWS
+    // Ordner-Seiten (je 9 Apps; im Bearbeiten-Modus eine leere mehr, iOS) — getroffen wird nur die gerade sichtbare
+    val pageCount = ((folder.apps.size + perPage - 1) / perPage + (if (model.editing) 1 else 0)).coerceAtLeast(1)
+    val page = model.folderPage.value.roundToInt().coerceIn(0, pageCount - 1)
+    val onPage = folder.apps.withIndex().filter { it.index / perPage == page }
+    fun slotTopLeft(i: Int) = panel.topLeft + geo.slot(i % perPage)
+    val hitKey = onPage.firstOrNull { (i, _) -> Rect(slotTopLeft(i), Size(icon, icon)).inflate(icon * 0.2f).contains(down.position) }
     val insidePanel = panel.contains(down.position)
-    // Bearbeiten: Umbenennen-Feld gehört dem Textfeld; Minus-Badge → „App entfernen?“ wie auf dem Homescreen
-    if (model.editing && geo.titleRect.contains(down.position)) return
+    // Bearbeiten: Tippen aufs Umbenennen-Feld → Textfeld bekommt Fokus + Tastatur (die Arena liegt darüber);
+    // rechts der runde ×-Knopf leert den Namen. Jede andere Berührung im Ordner beendet das Umbenennen.
+    if (model.editing && geo.titleRect.contains(down.position)) {
+        while (true) { val e = awaitPointerEvent(); if (e.changes.none { it.pressed }) break }
+        if (down.position.x >= geo.titleRect.right - geo.nameClearZone) model.renameFolder(open.id, "")
+        else model.folderRenameTap = Offset(down.position.x, down.position.y)
+        model.folderRenaming = true
+        return
+    }
+    model.folderRenaming = false
+    // Minus-Badge → „App entfernen?“ wie auf dem Homescreen
     if (model.editing) {
-        val badgeKey = folder.apps.take(DesignTokens.FOLDER_COLUMNS * DesignTokens.FOLDER_ROWS).withIndex().firstOrNull { (i, _) ->
-            val c = panel.topLeft + geo.slot(i) + Offset(DesignTokens.badgeOffsetX.value * density, DesignTokens.badgeOffsetY.value * density)
+        val badgeKey = onPage.firstOrNull { (i, _) ->
+            val c = slotTopLeft(i) + Offset(DesignTokens.badgeOffsetX.value * density, DesignTokens.badgeOffsetY.value * density)
             (c - down.position).getDistance() <= (DesignTokens.badgeSize.value / 2 + DesignTokens.badgeHitSlop.value) * density
         }
         if (badgeKey != null) {
@@ -1533,34 +1653,112 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.han
     }
     val t0 = System.nanoTime()
     var moved = false
+    // Blättern im Ordner: waagerecht im Panel, folgt dem Finger, rastet mit M-PAGE ein [GEMESSEN Nutzer-iPhone 10-14, 18,4 s]
+    var paging = false
+    val startPage = model.folderPage.value
+    val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker().apply { addPosition(down.uptimeMillis, down.position) }
     while (true) {
         val remaining = Motion.longPress.value.toLong() - (System.nanoTime() - t0) / 1_000_000
         val event = if (hitKey != null && !moved) withTimeoutOrNull(remaining.coerceAtLeast(1)) { awaitPointerEvent() } else awaitPointerEvent()
         if (event == null) {
-            // Long-Press: raus aus dem Ordner ziehen
             scope.launch { model.pressAlpha.snapTo(0f); model.pressedKey = null }
-            val tl = panel.topLeft + geo.slot(hitKey!!.index)
-            model.dragOutOfFolder(hitKey.value, down.position, tl)
+            dragInFolder(model, panel, hitKey!!.value, slotTopLeft(hitKey.index), down, icon, dragMove, dragEnd)
             return
         }
         val change = event.changes.firstOrNull { it.id == down.id } ?: return
+        tracker.addPosition(change.uptimeMillis, change.position)
         if (!change.pressed) {
             scope.launch { model.pressAlpha.snapTo(0f); model.pressedKey = null }
+            if (paging) {
+                val v = -tracker.calculateVelocity().x / panel.width // Seiten/s
+                val p = model.folderPage.value
+                val from = startPage.roundToInt()
+                val target = when {
+                    kotlin.math.abs(v) * panel.width / density > Motion.pageFlingVelocity.value -> from + kotlin.math.sign(v).toInt()
+                    p - from > Motion.pageDistanceFraction.value -> from + 1
+                    from - p > Motion.pageDistanceFraction.value -> from - 1
+                    else -> from
+                }.coerceIn(0, pageCount - 1)
+                scope.launch { model.folderPage.animateTo(target.toFloat(), Motion.page.spec(), v) }
+                return
+            }
             if (!moved) when {
                 hitKey != null -> model.apps[hitKey.value]?.let {
                     model.launchedIconKey = hitKey.value
-                    onLaunch(it, Rect(panel.topLeft + geo.slot(hitKey.index), Size(icon, icon)))
+                    onLaunch(it, Rect(slotTopLeft(hitKey.index), Size(icon, icon)))
                 }
                 !insidePanel -> model.closeFolder()
             }
             return
         }
-        if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
-            if (!moved) scope.launch { model.pressAlpha.animateTo(0f, Motion.pressOut.spec()); model.pressedKey = null }
+        val delta = change.position - down.position
+        if (!moved && delta.getDistance() > viewConfiguration.touchSlop) {
+            scope.launch { model.pressAlpha.animateTo(0f, Motion.pressOut.spec()); model.pressedKey = null }
             moved = true
+            paging = insidePanel && kotlin.math.abs(delta.x) > kotlin.math.abs(delta.y)
+        }
+        if (paging) {
+            change.consume()
+            // über die erste/letzte Seite hinaus mit Gummiband (M-RUBBER, d = Panelbreite)
+            val raw = startPage - delta.x / panel.width
+            val c = Motion.rubberBandC.value
+            fun rb(x: Float) = (x * c) / (1f + c * x)
+            val shown = when {
+                raw < 0f -> -rb(-raw)
+                raw > pageCount - 1f -> pageCount - 1f + rb(raw - (pageCount - 1f))
+                else -> raw
+            }
+            scope.launch { model.folderPage.snapTo(shown) }
         }
     }
 }
+
+/**
+ * App im offenen Ordner angehoben (iOS): sie hängt am Finger, der Ordner bleibt offen. Ist ihre Mitte [Motion.folderOutDelay]
+ * lang außerhalb des Panels, schließt der Ordner und das Ziehen geht auf dem Homescreen weiter [GEMESSEN Nutzer-iPhone 10-14,
+ * 23,27 → 23,42 s]. Loslassen im Panel → zurück an ihren Platz.
+ */
+private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.dragInFolder(
+    model: HomeModel,
+    panel: Rect,
+    key: String,
+    iconTopLeft: Offset,
+    down: androidx.compose.ui.input.pointer.PointerInputChange,
+    icon: Float,
+    dragMove: (Offset) -> Unit,
+    dragEnd: () -> Unit,
+) {
+    val fd = FolderDrag(key, down.position - iconTopLeft, down.position)
+    model.folderDrag = fd
+    model.haptic()
+    var outsideSince: Long? = null
+    while (true) {
+        // auch ohne Bewegung weiterprüfen (Finger hält still außerhalb des Panels)
+        val e = withTimeoutOrNull(FOLDER_DRAG_POLL_MS) { awaitPointerEvent() }
+        if (e != null) {
+            val ch = e.changes.firstOrNull { it.id == down.id }
+            if (ch == null || !ch.pressed) { model.folderDrag = null; return } // im Ordner losgelassen → zurück an den Platz
+            fd.pointer = ch.position
+            ch.consume()
+        }
+        val center = fd.pointer - fd.grab + Offset(icon / 2, icon / 2)
+        val now = System.nanoTime()
+        outsideSince = if (panel.contains(center)) null else outsideSince ?: now
+        if (outsideSince != null && (now - outsideSince) / 1_000_000 >= Motion.folderOutDelay.value) break
+    }
+    // raus: Ordner schließt, normales Ziehen übernimmt
+    model.folderDrag = null
+    model.dragOutOfFolder(key, fd.pointer, fd.pointer - fd.grab)
+    while (true) {
+        val e = awaitPointerEvent()
+        val ch = e.changes.firstOrNull { it.id == down.id }
+        if (ch == null || !ch.pressed) { dragEnd(); return }
+        dragMove(ch.position)
+        ch.consume()
+    }
+}
+
+private const val FOLDER_DRAG_POLL_MS = 16L
 
 private const val EDIT_MENU_GAP = 16f // pt unter dem Knopf [GEMESSEN] recording6 4,9 s (Menü oben ≈ 62,7 pt)
 private const val LIB_PULL_TOP = 1f // px: Liste nur, wenn die Mediathek ganz oben steht
@@ -1598,7 +1796,6 @@ private const val SHOCK_RANGE = 450f      // pt Abklingweite
 private const val SHOCK_SPEED = 900f      // pt/s
 private const val SHOCK_DECAY = 7f
 private const val SHOCK_FREQ = 2.2f       // Hz
-private const val DUO_DOCK_ICON = 48f
 private const val DUO_EDIT_MENU_W = 249f        // [GEMESSEN] 681,5 → 930,4 pt
 private const val DUO_EDIT_MENU_RIGHT_OVER = 4.4f // rechte Kante 4 pt über die Knopfkante hinaus
 private const val DUO_EDIT_MENU_GAP = -19f      // Oberkante 120 pt; Pinsel-Unterkante 139 pt → Menü überdeckt den Knopf leicht

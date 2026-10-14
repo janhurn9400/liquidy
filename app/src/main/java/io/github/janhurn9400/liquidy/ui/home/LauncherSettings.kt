@@ -80,7 +80,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 /** Bereiche der Einstellungen — jede Einstellung genau dort, wo man sie sucht. */
-private enum class Category { General, Appearance, HomeScreen, Permissions, Advanced, About }
+private enum class Category { General, Appearance, HomeScreen, Quirks, Permissions, Advanced, About }
 
 /**
  * Launcher-Einstellungen im Stil der iOS-Einstellungs-App [Aufnahme 09:39, Duo]:
@@ -315,19 +315,29 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                 if (FoldableStyle.supportsDuo(context)) Section(stringResource(R.string.settings_sec_layout), footer = stringResource(R.string.settings_duo_footer)) {
                     ToggleRow(stringResource(R.string.settings_duo), FoldableStyle.duoStyle) { FoldableStyle.set(context, it) }
                 }
-                // eigene Erweiterung: senkrechtes Duo-Dock mit mehr als 4 Apps; beim Ausschalten wandern überzählige auf den Homescreen
-                if (FoldableStyle.duoStyle) Section(stringResource(R.string.settings_sec_dock), footer = stringResource(R.string.settings_more_dock_footer)) {
-                    ToggleRow(stringResource(R.string.settings_more_dock), FoldableStyle.moreDockApps) {
-                        FoldableStyle.setMoreDockApps(context, it)
-                        if (!it) model.trimDock(io.github.janhurn9400.liquidy.design.DesignTokens.DOCK_SLOTS)
-                    }
-                }
                 Section(stringResource(R.string.settings_sec_pages)) {
                     LinkRow(stringResource(R.string.edit_pages)) { model.closeSettings(); model.pagesOverviewRequested = true }
                 }
                 Section(stringResource(R.string.settings_sec_search), footer = stringResource(R.string.settings_web_suggest_footer)) {
                     ToggleRow(stringResource(R.string.settings_web_suggest), io.github.janhurn9400.liquidy.data.UniversalSearch.WebSuggestions.enabled) {
                         io.github.janhurn9400.liquidy.data.UniversalSearch.WebSuggestions.set(context, it)
+                    }
+                }
+            }
+            Category.Quirks -> {
+                BasicText(stringResource(R.string.settings_quirks_intro), Modifier.padding(start = 20.dp, end = 20.dp, bottom = SECTION_GAP.dp),
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = GREY))
+                Section(stringResource(R.string.settings_sec_grid), footer = stringResource(R.string.settings_free_widget_rows_footer)) {
+                    ToggleRow(stringResource(R.string.settings_free_widget_rows), io.github.janhurn9400.liquidy.data.Quirks.freeWidgetRows) {
+                        io.github.janhurn9400.liquidy.data.Quirks.setFreeWidgetRows(context, it)
+                        model.reflowPages()
+                    }
+                }
+                // eigene Erweiterung: senkrechtes Duo-Dock mit mehr als 4 Apps; beim Ausschalten wandern überzählige auf den Homescreen
+                if (FoldableStyle.duoStyle) Section(stringResource(R.string.settings_sec_dock), footer = stringResource(R.string.settings_more_dock_footer)) {
+                    ToggleRow(stringResource(R.string.settings_more_dock), FoldableStyle.moreDockApps) {
+                        FoldableStyle.setMoreDockApps(context, it)
+                        if (!it) model.trimDock(io.github.janhurn9400.liquidy.design.DesignTokens.DOCK_SLOTS)
                     }
                 }
             }
@@ -399,6 +409,7 @@ private fun categoryTitle(c: Category) = stringResource(when (c) {
     Category.General -> R.string.settings_section_general
     Category.Appearance -> R.string.settings_cat_appearance
     Category.HomeScreen -> R.string.settings_cat_home
+    Category.Quirks -> R.string.settings_cat_quirks
     Category.Permissions -> R.string.settings_cat_permissions
     Category.Advanced -> R.string.settings_cat_advanced
     Category.About -> R.string.settings_section_about
@@ -409,6 +420,7 @@ private fun categoryTitle(c: Category) = stringResource(when (c) {
 private fun CategoryIcon(c: Category, sizePt: Float = ICON) {
     val bg = when (c) {
         Category.General -> Color(0xFF8E8E93); Category.Appearance -> Color(0xFF1C1C1E); Category.HomeScreen -> Color(0xFF0A84FF)
+        Category.Quirks -> Color(0xFFFF3B30)
         Category.Permissions -> Color(0xFF34C759); Category.Advanced -> Color(0xFFAF52DE); Category.About -> Color(0xFF8E8E93)
     }
     Canvas(Modifier.size(sizePt.dp).clip(RoundedCornerShape((sizePt * 0.24f).dp)).background(bg)) {
@@ -426,6 +438,11 @@ private fun CategoryIcon(c: Category, sizePt: Float = ICON) {
             Category.HomeScreen -> { // 2×2-Raster
                 val t = s * 0.18f; val g = s * 0.08f; val o = (s - 2 * t - g) / 2
                 for (r in 0..1) for (k in 0..1) drawRoundRect(Color.White, Offset(o + k * (t + g), o + r * (t + g)), Size(t, t), CornerRadius(t * 0.3f))
+            }
+            Category.Quirks -> { // Schalter: Kapsel mit Knopf rechts
+                val w = s * 0.6f; val h = s * 0.32f; val o = Offset((s - w) / 2, (s - h) / 2)
+                drawRoundRect(Color.White, o, Size(w, h), CornerRadius(h / 2), style = Stroke(sw))
+                drawCircle(Color.White, h * 0.32f, Offset(o.x + w - h / 2, cc.y))
             }
             Category.Permissions -> shield(s, sw)
             Category.Advanced -> { // Funken

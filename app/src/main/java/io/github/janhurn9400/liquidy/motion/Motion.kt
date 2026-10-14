@@ -42,6 +42,10 @@ object Motion {
 
     // M-BADGE — Minus-Badges / Edit-Buttons erscheinen. [GESCHÄTZT]
     val badge = iosSpring("M-BADGE", "Badge erscheinen", response = 0.3f, dampingFraction = 0.8f)
+    // M-BADGE-DRAG — Minus-Badge eines einzelnen Icons: Aufnehmen → schrumpft weg (das Original blendet dabei als Geist aus),
+    // Ablegen → wächst aus der Mitte, sobald das Icon gelandet ist; je ≈ 0,1 s ohne Überschwingen [GEMESSEN Nutzer-iPhone 10-14,
+    // 43,32–43,42 s / 44,89–44,99 s]
+    val badgeDrag = iosSpring("M-BADGE-DRAG", "Badge beim Aufnehmen/Ablegen", response = 0.15f, dampingFraction = 1f)
 
     // M-DRAG-LIFT — Icon wird beim Ziehen größer. [GESCHÄTZT]
     val dragLift = iosSpring("M-DRAG-LIFT", "Icon anheben", response = 0.3f, dampingFraction = 0.75f)
@@ -64,11 +68,16 @@ object Motion {
     val stackEditor = iosSpring("M-STACK.edit", "Stapel bearbeiten", response = 0.36f, dampingFraction = 0.82f)
     val pagesOverview = iosSpring("M-PAGES", "Seitenübersicht", response = 0.38f, dampingFraction = 1f)
     val todayReflow = iosSpring("M-TODAY-REFLOW", "Heute – Ausweichen", response = 0.42f, dampingFraction = 0.78f)
-    val reflowDelay = tunable("M-REFLOW.delay", "Ausweichen – Verzögerung", "Bearbeiten", 100f, 0f, 500f, "ms")
+    // Nutzer 10-14: Icons wichen zu schnell aus (vor der Ordner-Absicht) → längeres Halten neben einem Platz [GESCHÄTZT]
+    val reflowDelay = tunable("M-REFLOW.delay", "Ausweichen – Verzögerung", "Bearbeiten", 300f, 0f, 800f, "ms")
     // M-DROP — Icon fällt in seinen Platz. [GESCHÄTZT]
     val drop = iosSpring("M-DROP", "Ablegen", response = 0.4f, dampingFraction = 0.85f)
-    // M-EDGE — Seitenwechsel, wenn das Icon am Rand gehalten wird. [GESCHÄTZT]
-    val edgeFlipDelay = tunable("M-EDGE.delay", "Rand halten bis Seitenwechsel", "Bearbeiten", 600f, 100f, 1500f, "ms")
+    // M-EDGE — Seitenwechsel, wenn das Icon am Rand gehalten wird [GEMESSEN] Nutzer-iPhone 10-14 (26,8–27,9 s): sofort ≈ 5 pt
+    // Ruck, dann kriecht die Seite gleichmäßig bis ≈ 40 pt („schaut hinüber“); nach ≈ 0,85 s Haptik + Wechsel mit M-PAGE
+    val edgeFlipDelay = tunable("M-EDGE.delay", "Rand halten bis Seitenwechsel", "Bearbeiten", 850f, 100f, 1500f, "ms")
+    val edgePeekNudge = tunable("M-EDGE.nudge", "Rand: erster Ruck", "Bearbeiten", 5f, 0f, 30f, "pt")
+    val edgePeekMax = tunable("M-EDGE.peek", "Rand: Hinüberschauen bis zum Wechsel", "Bearbeiten", 40f, 0f, 120f, "pt")
+    val edgeNudge = iosSpring("M-EDGE.nudge", "Rand: Ruck", response = 0.1f, dampingFraction = 1f)
     val edgeFlipRepeat = tunable("M-EDGE.repeat", "Weiterer Seitenwechsel nach", "Bearbeiten", 900f, 200f, 2000f, "ms")
 
     // M-ALERT — Lösch-Dialog auf/zu. [GESCHÄTZT]
@@ -79,9 +88,16 @@ object Motion {
     val folder = iosSpring("M-FOLDER", "Ordner auf/zu", response = 0.34f, dampingFraction = 1.0f)
     // M-FOLDER-HANDOFF — Überblendung geschlossenes Icon ↔ Panel in der kleinsten Phase (Fortschritt 0…x) [GESCHÄTZT]
     val folderHandoff = tunable("M-FOLDER.handoff", "Icon↔Panel-Überblendung bis Fortschritt", "Ordner", 0.12f, 0.01f, 0.5f)
-    // M-MERGE — Halten über einem Icon bis zur Ordner-Absicht + Glas-Hinweis. [GESCHÄTZT]
-    val mergeDelay = tunable("M-MERGE.delay", "Über Icon halten bis Ordner", "Ordner", 400f, 100f, 1200f, "ms")
-    val mergeHint = iosSpring("M-MERGE", "Ordner-Hinweis", response = 0.3f, dampingFraction = 0.8f)
+    // M-MERGE — Ordner-Absicht + Glas-Hinweis [GEMESSEN] Nutzer-iPhone 10-14 (10,6 s): reagiert, sobald das Icon über dem Ziel
+    // STILLSTEHT (Hinweis ≈ 20 ms nach dem Anhalten); Glas wächst in ≈ 0,1 s ohne Überschwingen (Kante 36/76/92 % nach 1/3/5 Bildern)
+    val mergeDelay = tunable("M-MERGE.delay", "Stillstand über Icon bis Ordner-Absicht", "Ordner", 60f, 0f, 1200f, "ms")
+    val mergeHint = iosSpring("M-MERGE", "Ordner-Hinweis", response = 0.11f, dampingFraction = 1.0f)
+    // M-MERGE-DROP — losgelassenes Icon fliegt in den freien Mini-Platz des Ordners und schrumpft dabei [GEMESSEN] 11,40–11,78 s,
+    // Fit response 0,46 s, ζ 1,0 (RMS 1,2 %)
+    val mergeDrop = iosSpring("M-MERGE-DROP", "Icon fliegt in den Ordner", response = 0.46f, dampingFraction = 1.0f)
+    // M-FOLDER-OUT — App aus dem offenen Ordner ziehen: Ordner schließt erst, wenn die Icon-Mitte so lange außerhalb des Panels
+    // ist [GEMESSEN] 23,27 → 23,42 s
+    val folderOutDelay = tunable("M-FOLDER-OUT.delay", "Außerhalb des Ordners bis Schließen", "Ordner", 150f, 0f, 800f, "ms")
 
     // ── Phase 4: Suche (Swipe nach unten) — Rev. 4, [GEMESSEN] recording3 (8 Zieh-Vorgänge, frameweise) ──────
     // Steuergröße ist der Homescreen-Versatz h (pt). Finger → h mit UIScrollView-Gummiband (M-RUBBER, d = Bildschirmhöhe) [ABGELEITET].

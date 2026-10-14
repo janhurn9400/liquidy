@@ -59,6 +59,9 @@ fun AppIconView(
     badgeScale: () -> Float,
     showBadge: Boolean,
     modifier: Modifier = Modifier,
+    /** Minus-Badge zeigt, was wirklich dahinter liegt (offener Ordner: Panel über dem Homescreen) statt des Wallpapers. */
+    badgeOnGlass: Boolean = false,
+    labelAlpha: () -> Float = { 1f },
 ) {
     val iconSize = DesignTokens.iconSize.dp
     IconCell(
@@ -72,6 +75,8 @@ fun AppIconView(
         showBadge = showBadge,
         modifier = modifier,
         notifications = io.github.janhurn9400.liquidy.data.NotificationBadges.countFor(app),
+        badgeOnGlass = badgeOnGlass,
+        labelAlpha = labelAlpha,
     ) {
         StyledIcon(app, wallpaper, Modifier.size(iconSize))
     }
@@ -172,6 +177,9 @@ fun IconCell(
     clipIcon: Boolean = true,
     /** Ungelesene Mitteilungen (rotes Badge oben rechts), 0 = keins. */
     notifications: Int = 0,
+    badgeOnGlass: Boolean = false,
+    /** Deckkraft der Beschriftung (Ordner blendet sie beim Ordner-Hinweis aus). */
+    labelAlpha: () -> Float = { 1f },
     iconContent: @Composable () -> Unit,
 ) {
     val iconSize = DesignTokens.iconSize.dp
@@ -196,6 +204,7 @@ fun IconCell(
             ) { iconContent() }
             if (label != null) {
                 BasicText(
+                    modifier = Modifier.graphicsLayer { alpha = labelAlpha() },
                     text = label,
                     style = TextStyle(
                         fontFamily = Inter,
@@ -213,7 +222,7 @@ fun IconCell(
             if (showBadge) MinusBadge(wallpaper, Modifier.graphicsLayer {
                 val s = badgeScale()
                 scaleX = s; scaleY = s
-            })
+            }, onGlass = badgeOnGlass)
             if (notifications > 0) NotificationBadge(notifications)
         },
     ) { measurables, _ ->
@@ -279,27 +288,42 @@ fun cellOffsetX(iconX: Float, density: Float): Float =
 
 /** Glas-Kreis mit schwarzem Minus (T-BADGE). Ohne Blur — der Wallpaper unter dem Badge ist glatt. */
 @Composable
-internal fun MinusBadge(wallpaper: ImageBitmap, modifier: Modifier) {
+internal fun MinusBadge(wallpaper: ImageBitmap, modifier: Modifier, onGlass: Boolean = false) {
+    val frostWhite = if (DesignTokens.wallpaperIsDark) FROST_WHITE_DARK else FROST_WHITE
+    // Offener Ordner: dasselbe Milchglas, aber aus dem, was wirklich dahinter liegt (Homescreen unter dem Panel, gleich
+    // abgedunkelt wie dort) — der Wallpaper-Ausschnitt wirkte vor dem helleren Panel-Hintergrund zu dunkel (Nutzer 10-14)
+    if (onGlass && io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current != null) {
+        io.github.janhurn9400.liquidy.glass.LiquidGlass(
+            shape = io.github.janhurn9400.liquidy.glass.glassCapsule(),
+            modifier = modifier.size(DesignTokens.badgeSize.dp),
+            blur = FROST_BLUR.dp,
+            whiteTint = frostWhite,
+            blackTint = DesignTokens.folderBgDim.value,
+        ) { MinusGlyph() }
+        return
+    }
     // Milchglas wie IMG_3124 (stark verwischt, hell, keine Brechung) — auch über dunklen Widgets bleibt es hell
     GlassSurface(
         wallpaper = wallpaper,
         shape = CircleShape,
         blur = FROST_BLUR.dp,
         tint = 0f,
-        whiteTint = if (DesignTokens.wallpaperIsDark) FROST_WHITE_DARK else FROST_WHITE,
+        whiteTint = frostWhite,
         modifier = modifier.size(DesignTokens.badgeSize.dp),
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val w = DesignTokens.badgeMinusWidth.dp.toPx()
-            val h = DesignTokens.badgeMinusHeight.dp.toPx()
-            drawRoundRect(
-                color = Color.Black,
-                topLeft = Offset((size.width - w) / 2, (size.height - h) / 2),
-                size = Size(w, h),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2),
-            )
-        }
-    }
+    ) { MinusGlyph() }
+}
+
+/** Schwarzer Minus-Strich des Badges (T-BADGE). */
+@Composable
+private fun MinusGlyph() = Canvas(Modifier.fillMaxSize()) {
+    val w = DesignTokens.badgeMinusWidth.dp.toPx()
+    val h = DesignTokens.badgeMinusHeight.dp.toPx()
+    drawRoundRect(
+        color = Color.Black,
+        topLeft = Offset((size.width - w) / 2, (size.height - h) / 2),
+        size = Size(w, h),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2),
+    )
 }
 
 // ── Wackeln (M-JIGGLE) ───────────────────────────────────────────────────────

@@ -61,10 +61,23 @@ class DragState(
     val lift = Animatable(1f)
 }
 
+/** App im offenen Ordner angehoben (noch nicht herausgezogen); [grab] = Finger minus Icon-Oberkante-links. */
+class FolderDrag(val key: String, val grab: Offset, pointer: Offset) {
+    var pointer by mutableStateOf(pointer)
+}
+
+/** Icon fliegt nach dem Loslassen in den Mini-Platz eines Ordners (M-MERGE-DROP); Rechtecke in Bildschirm-px (Icon-Fläche). */
+class FolderFly(val key: String, val folder: String, val from: androidx.compose.ui.geometry.Rect, val to: androidx.compose.ui.geometry.Rect) {
+    val t = Animatable(0f)
+}
+
 /** Geöffneter Ordner; [iconTopLeft] = Bildschirmposition des Ordner-Icons (Start/Ende der Animation). */
 @Stable
-class OpenFolder(val id: String, val iconTopLeft: Offset) {
+/** [iconScale] = sichtbare Größe des Ordner-Icons relativ zum Raster-Icon (Duo-Dock < 1, HomeGeometry.dockIconScale). */
+class OpenFolder(val id: String, val iconTopLeft: Offset, val iconScale: Float = 1f) {
     val progress = Animatable(0f)
+    /** Wird geschlossen (morpht ohne Überblendung ins Icon). */
+    var closing by androidx.compose.runtime.mutableStateOf(false)
 }
 
 fun isFolder(id: String) = id.startsWith(FOLDER_PREFIX)
@@ -886,6 +899,12 @@ class HomeModel(
         }
     }
 
+    /** Raster-Regel geändert (Quirks): Seiten neu fließen lassen, damit nichts außerhalb des Rasters landet. */
+    fun reflowPages() {
+        pages = GridPlacement.flow(pages, ::sizeOf)
+        save()
+    }
+
     private fun save() = store.save(SavedLayout(pages, dock, folders, hidden, widgets, today, hiddenPages))
 
     // ── Bearbeitungsmodus ──────────────────────────────────────────────────────
@@ -921,7 +940,23 @@ class HomeModel(
     }
 
     // ── Ziehen ────────────────────────────────────────────────────────────────
+    /** Eigener Badge-Faktor je Icon (Aufnehmen/Ablegen, M-BADGE-DRAG); fehlt = 1. */
+    val badgeOwn = androidx.compose.runtime.mutableStateMapOf<String, Animatable<Float, androidx.compose.animation.core.AnimationVector1D>>()
+    /** Minus-Badge-Größe für [key] (Bearbeiten-Modus × eigener Faktor). */
+    fun badgeOf(key: String): Float = badgeScale.value * (badgeOwn[key]?.value ?: 1f)
+
+    /** Original an der Ausgangsstelle blendet beim Aufnehmen aus (iOS: Geist + schrumpfendes Badge). */
+    class PickupGhost(val key: String, val topLeft: Offset, val dock: Boolean) { val fade = Animatable(1f) }
+    var pickupGhost by mutableStateOf<PickupGhost?>(null)
+        private set
+
     fun startDrag(key: String, pointer: Offset, iconTopLeftScreen: Offset) {
+        badgeOwn[key] = Animatable(0f)
+        if (apps[key] != null || isFolder(key)) {
+            val g = PickupGhost(key, iconTopLeftScreen, key in dock)
+            pickupGhost = g
+            scope.launch { g.fade.animateTo(0f, Motion.badgeDrag.spec()); if (pickupGhost === g) pickupGhost = null }
+        }
         val origin = when {
             key in dock -> DropTarget.Dock(dock.indexOf(key))
             // aus der Mediathek: App liegt (noch) nirgends auf dem Homescreen → erst beim Überfahren einer Seite einsetzen
@@ -945,6 +980,8 @@ class HomeModel(
     /** @param pagerPage aktuell sichtbare Seite (gerundet) */
     private var pendingMerge: String? = null
     private var mergeJob: Job? = null
+    /** Fingerposition, ab der der Stillstand über dem Ziel gezählt wird (M-MERGE). */
+    private var mergeAnchor = Offset.Zero
 
     fun updateDrag(pointer: Offset, geo: HomeGeometry, pagerPage: Int, pagerOffsetPx: Float) {
         val d = drag ?: return
@@ -957,8 +994,14 @@ class HomeModel(
         }
         if (merge != null) {
             hoverJob?.cancel(); pendingHover = null
-            if (merge != pendingMerge) {
+            // iOS: die Absicht entsteht, sobald das Icon über dem Ziel STILLSTEHT (nicht beim Drüberwischen) — jede größere
+            // Bewegung startet die kurze Wartezeit neu, solange der Hinweis noch nicht steht
+            val still = DesignTokens.folderMergeStill.value * geo.icon / DesignTokens.iconSize.value
+            val restart = merge != pendingMerge || (d.mergeTarget == null && (pointer - mergeAnchor).getDistance() > still)
+            if (restart) {
+                if (merge != pendingMerge) d.mergeTarget = null
                 pendingMerge = merge
+                mergeAnchor = pointer
                 mergeJob?.cancel()
                 mergeJob = scope.launch {
                     delay(Motion.mergeDelay.value.roundToInt().toLong())
@@ -968,6 +1011,14 @@ class HomeModel(
             return
         }
         pendingMerge = null; mergeJob?.cancel(); d.mergeTarget = null
+        // Über einem Icon (noch nicht ganz in der Mitte): NICHT ausweichen — sonst rückt das Ziel weg, bevor die Ordner-Absicht
+        // entstehen kann. iOS weicht erst aus, wenn man daneben hält (Nutzer 10-14)
+        // (nicht im Dock: dort ist man immer nah an einem Dock-Icon — Einfügen ins Dock muss weiter gehen)
+        if (!isFolder(d.key) && !isWidget(d.key) && !geo.inDockZone(d.pointer) &&
+            findMergeCandidate(d, geo, pagerPage, pagerOffsetPx, DesignTokens.folderMergeNear.value) != null) {
+            hoverJob?.cancel(); pendingHover = null
+            return
+        }
         val candidate = computeTarget(d, geo, pagerPage, pagerOffsetPx)
         if (candidate != pendingHover) {
             pendingHover = candidate
@@ -994,10 +1045,11 @@ class HomeModel(
         return null
     }
 
-    private fun findMergeCandidate(d: DragState, geo: HomeGeometry, page: Int, pagerOffsetPx: Float): String? {
+    private fun findMergeCandidate(d: DragState, geo: HomeGeometry, page: Int, pagerOffsetPx: Float,
+                                   radiusPt: Float = DesignTokens.folderMergeRadius.value): String? {
         val half = Offset(geo.icon / 2, geo.icon / 2)
         val center = d.pointer - d.grabOffset + half
-        val radius = DesignTokens.folderMergeRadius.value * geo.icon / DesignTokens.iconSize.value
+        val radius = radiusPt * geo.icon / DesignTokens.iconSize.value
         val shown = display
         val cells = displayCells.getOrNull(page)
         shown.pages.getOrNull(page)?.forEachIndexed { slot, id ->
@@ -1031,10 +1083,12 @@ class HomeModel(
         mergeJob?.cancel()
         pendingHover = null
         pendingMerge = null
+        badgeOwn.remove(d.key) // landet nicht an einem Platz (Ordner/zurück) → Faktor nicht mehr nötig
         d.mergeTarget?.let { target -> mergeInto(d.key, target); drag = null; pruneEmptyPages(); save(); return }
         val result = computeDisplay()
         // nirgends abgelegt (z. B. aus der Mediathek gezogen, aber nie über eine Seite) → bleibt, wo es war
         if (result.pages.none { d.key in it } && d.key !in result.dock) { drag = null; pruneEmptyPages(); return }
+        badgeOwn[d.key] = Animatable(0f)
         hidden = hidden - appKeyOf(d.key) // aus der Mediathek wieder auf den Homescreen geholt
         val screenTopLeft = d.pointer - d.grabOffset
         val container = when {
@@ -1049,6 +1103,8 @@ class HomeModel(
         anim.container = container
         scope.launch { anim.pos.snapTo(local) }
         anim.nextSpring = Motion.drop
+        // Badge wächst sofort beim Loslassen weich herein (Nutzer 10-14: Warten auf das Ende der Lande-Feder wirkte träge)
+        badgeOwn[d.key]?.let { a -> scope.launch { a.animateTo(1f, Motion.badgeDrag.spec()); if (badgeOwn[d.key] === a && drag?.key != d.key) badgeOwn.remove(d.key) } }
         pages = result.gapped.map(GridPlacement::trim)
         dock = result.dock
         drag = null
@@ -1382,21 +1438,54 @@ class HomeModel(
 
     // ── Ordner öffnen / schließen (M-FOLDER) ─────────────────────────────────────
     /** Ordner umbenennen (Bearbeiten-Modus, Kapsel über dem offenen Ordner). Leer → beim Schließen Standardname. */
+    var folderFly by mutableStateOf<FolderFly?>(null)
+        private set
+
+    /** Sichtbare Ordnerseite (Kommazahl beim Blättern); beim Öffnen 0. */
+    val folderPage = Animatable(0f)
+    /** App wird gerade im offenen Ordner gezogen. */
+    var folderDrag by mutableStateOf<FolderDrag?>(null)
+
+    /** Ordner, in dem [key] liegt (null = keiner). */
+    fun folderContaining(key: String): String? = folders.entries.firstOrNull { key in it.value.apps }?.key
+
+    /** Startet den Flug ins Ordner-Mini-Raster; der Mini-Platz bleibt bis zur Landung leer (FolderIconView.hiddenApp). */
+    fun flyIntoFolder(fly: FolderFly) {
+        folderFly = fly
+        scope.launch {
+            fly.t.animateTo(1f, Motion.mergeDrop.spec())
+            if (folderFly === fly) folderFly = null
+        }
+    }
+
+    /** Ordnername wird gerade bearbeitet (Textfeld hat Fokus, Tastatur offen). */
+    var folderRenaming by mutableStateOf(false)
+    /** Tippstelle aufs Namensfeld (Bildschirm-px) → Cursor dorthin. */
+    var folderRenameTap by mutableStateOf<Offset?>(null)
+
     fun renameFolder(id: String, name: String) {
         val f = folders[id] ?: return
         folders = folders + (id to f.copy(name = name))
         save()
     }
 
-    fun openFolder(id: String, iconTopLeft: Offset) {
-        val f = OpenFolder(id, iconTopLeft)
+    fun openFolder(id: String, iconTopLeft: Offset, iconScale: Float = 1f) {
+        val f = OpenFolder(id, iconTopLeft, iconScale)
         openFolder = f
+        folderDrag = null
+        scope.launch { folderPage.snapTo(0f) }
         scope.launch { f.progress.animateTo(1f, Motion.folder.spec()) }
     }
 
     fun closeFolder() {
         val f = openFolder ?: return
         folders[f.id]?.let { if (it.name.isBlank()) renameFolder(f.id, DEFAULT_FOLDER_NAME) }
+        // von einer späteren Ordnerseite zurück zur ersten — nur die steckt als Mini-Raster im Ordner-Icon
+        if (folderPage.value != 0f) scope.launch { folderPage.animateTo(0f, Motion.folder.spec()) }
+        // Die Feder kriecht am Ende (ζ 1) — eine Überblendung nach Fortschritt zog sich deshalb beim Schließen lange hin
+        // (Nutzer 10-14). Stattdessen keine Überblendung: Glas (Größe, Ecken, Unschärfe, Tönung) und App-Icons morphen
+        // ganz in das Ordner-Icon, am Ende wird unsichtbar getauscht.
+        f.closing = true
         scope.launch {
             // feine Sichtbarkeitsschwelle, damit kein Rest-Panel „hängen bleibt“
             f.progress.animateTo(0f, Motion.folder.spec(visibilityThreshold = FOLDER_DONE))
@@ -1405,6 +1494,10 @@ class HomeModel(
     }
 
     /** Überblendung in der kleinsten Phase: 0 = nur geschlossenes Icon, 1 = nur Panel (M-FOLDER.handoff). */
+    /** Sichtbarkeit des Panels (0 = nur Ordner-Icon): Öffnen mit kurzer Überblendung am Anfang; Schließen ohne — das Panel
+     *  morpht ganz bis ins Ordner-Icon und wird erst am Ende (deckungsgleich) getauscht. */
+    fun folderVisible(f: OpenFolder): Float = if (f.closing) 1f else folderHandoff(f.progress.value)
+
     fun folderHandoff(p: Float): Float {
         val x = (p / Motion.folderHandoff.value).coerceIn(0f, 1f)
         return x * x * (3f - 2f * x)

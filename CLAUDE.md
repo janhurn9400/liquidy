@@ -25,7 +25,7 @@ Ziel: Android-Launcher (Kotlin + Compose, minSdk 33), der sich 1:1 wie der iOS-2
   „Export“ → Zwischenablage + Logcat-Tag `Tuning` (`adb logcat -s Tuning`).
 - Vergleich: Screenshots nach `shots/` (gitignored), Messskripte in `tools/measure/`, Referenzen in `docs/reference/iphone/`.
 
-## Stand (2026-10-14, v0.3.2)
+## Stand (2026-10-14, v0.4.0)
 - Phase 0: abgeschlossen. Phase 1–4 funktional gebaut, Feinabgleich läuft (Nutzer tunt NICHT selbst — Werte aus seinen Videos ableiten, Emulator-Aufnahme frameweise danebenlegen).
 - Phase 1: Raster/Labels/Dock/Pill ±1 px; Pager M-PAGE verifiziert (0,362 s / 0,904).
 - Phase 2: Bearbeitungsmodus (Long-Press, Wackeln gemessen, Badges, Edit-Buttons, Ziehen + Ausweichen, Dock ↔ Raster, Rand-Seitenwechsel inkl. neuer Seite, Lösch-Dialog, persistentes Layout `LayoutStore`). Offen: Kontextmenü beim Long-Press auf Icon (iOS 27), Blasenmenü im Bearbeitungsmodus.
@@ -48,6 +48,8 @@ Ziel: Android-Launcher (Kotlin + Compose, minSdk 33), der sich 1:1 wie der iOS-2
 - Duo-Stil (Foldables/Tablets) ist Hauptziel: zwei Seiten + Dock-Spalte rechts. Dock-Glas federt mit der Anzahl (M-REFLOW); „Mehr Apps im Dock“ (Launcher-Einstellungen, eigene Erweiterung) erlaubt so viele, wie in die Spalte passen.
 - Liquid Glass: keine Farbsäume (Apple hat keine). Regler „Klar ↔ Getönt“ (glass/GlassClarity, Unterseite mit Vorschau in Darstellung): getönt = mehr Unschärfe, keine Brechung, grauer Schleier.
 - Berechtigungen-Seite erklärt jede Erlaubnis. Wetter-Widget (Open-Meteo) gebaut.
-- Offen als Nächstes: Einstellungen schließen springt auf erste Seite; Ordner ohne Minus-Badge im Bearbeitungsmodus; Kalender-Icon dynamisch; Ordner umbenennen/Paging/Umsortieren; Heute-Ansicht bearbeiten; App-Öffnen/-Schließen (Phase 6, iPhone-Video für M-HOME-RETURN und Scharf/Unscharf); Icon-Stil für Ordner-Icons/Mediathek; Widgets bei „Getönt“ am iPhone prüfen.
+- Ordner (v0.4.0, Nutzer-Video 10-14 gemessen): Hinweis = Ordnerglas wächst + dunkelt ab, App fliegt in Mini-Platz, Blättern, Rausziehen erst nach Verlassen des Panels, Umbenennen mit Cursor; Schließen morpht ohne Überblendung ins Icon. Rand-Seitenwechsel mit Hinüberschauen + Haptik. 🍎 Quirks-Kategorie (Widgets in jeder Reihe, mehr Dock-Apps); Standard = iOS-Raster (Widgets nur in Reihenpaaren).
+- Offen als Nächstes: Einstellungen schließen springt auf erste Seite; Kalender-Icon dynamisch; Umsortieren im offenen Ordner; Heute-Ansicht bearbeiten; App-Öffnen/-Schließen (Phase 6, iPhone-Video für M-HOME-RETURN und Scharf/Unscharf); Icon-Stil für Ordner-Icons/Mediathek; Widgets bei „Getönt“ am iPhone prüfen.
+- FESTE REGEL Dock-Größe: Items im Duo-Dock sind kleiner (48 statt 60 pt). Jede Stelle, die ein Dock-Item zeigt oder von ihm ausgeht (Zeichnen, Ordner auf/zu, Kontextmenü, App-Start/-Rückflug, Ziehen, Aufnehmen, Flug in einen Ordner), nimmt `HomeGeometry.dockIconScale` bzw. `iconRect(topLeft, inDock)` — nie eigene Werte.
 - Architektur: eine zentrale Gesten-Arena in `ui/home/HomeScreen.kt`; Geometrie nur in `HomeGeometry`/`FolderGeometry`/`LibraryGeometry`; Layout-Zustand in `HomeModel`.
 - Lektion: Bewegungen IMMER frameweise gegen die Referenz analysieren (Montage + Tracking), nicht nur Einzelwerte — sonst wirkt es „schlampig“ (Suche Rev. 1/2).

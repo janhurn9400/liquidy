@@ -134,8 +134,13 @@ object DesignTokens {
     val folderPanelTint = tunable("T-FOLDER-PANEL.tint", "Ordner-Panel aufhellen", "Ordner", 0.03f, 0f, 0.8f) // [GEMESSEN] IMG_3130: innen ≈ außen (132 vs. 136) → klares Glas
     val folderBgBlur = dpToken("T-FOLDER-BG.blur", "Hintergrund-Blur bei offenem Ordner", "Ordner", 14f, 0f, 60f) // [ABGELEITET] Sichtvergleich IMG_3130
     val folderBgDim = tunable("T-FOLDER-BG.dim", "Hintergrund abdunkeln", "Ordner", 0.15f, 0f, 0.5f) // [GEMESSEN] ≈ −17 % Helligkeit
-    val folderMergeScale = tunable("T-MERGE.scale", "Ordner-Hinweis Größe", "Ordner", 1.18f, 1f, 1.5f, "×") // [GESCHÄTZT]
-    val folderMergeRadius = dpToken("T-MERGE.radius", "Ordner-Absicht: Abstand zur Icon-Mitte", "Ordner", 22f, 8f, 40f) // [GESCHÄTZT]
+    val folderMergeScale = tunable("T-MERGE.scale", "Ordner-Hinweis Größe", "Ordner", 1.22f, 1f, 1.5f, "×") // [GEMESSEN] Kanten 93→72 / 187→162 px (Nutzer-iPhone 10-14)
+    val folderMergeRadius = dpToken("T-MERGE.radius", "Ordner-Absicht: Abstand zur Icon-Mitte", "Ordner", 30f, 8f, 40f) // [GEMESSEN] ausgelöst bei ≈ 26 pt Abstand
+    // Zone um ein Icon, in der nicht umsortiert wird (Ordner-Absicht hat Vorrang) [GESCHÄTZT] ≈ Icon-Fläche
+    val folderMergeNear = dpToken("T-MERGE.near", "Über Icon: kein Ausweichen bis Abstand", "Ordner", 48f, 20f, 80f)
+    // Ordner-Hinweis dunkelt das Glas ab [GEMESSEN] Nutzer-iPhone 10-14: Glas innen 75 → 53 bei Umgebung 96 ≈ +30 % Schwarz
+    val folderMergeDark = tunable("T-MERGE.dark", "Ordner-Hinweis: Glas abdunkeln", "Ordner", 0.3f, 0f, 0.6f)
+    val folderMergeStill = dpToken("T-MERGE.still", "Ordner-Absicht: gilt als Stillstand unter", "Ordner", 4f, 0f, 20f) // [GESCHÄTZT]
 
     // ── Suche (T-SEARCH) [GEMESSEN] IMG_3131 + Aufnahme 6,2–7,6 s ─────────────────────
     // Je pt Homescreen-Versatz h [GEMESSEN] recording3 (Fits über alle Zieh-Vorgänge)

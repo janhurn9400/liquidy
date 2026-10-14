@@ -4,12 +4,15 @@ import io.github.janhurn9400.liquidy.design.DesignTokens
 
 /**
  * Raster-Platzierung wie iOS: Items der Reihe nach in die erste freie Stelle (zeilenweise), in die sie passen.
- * Icons belegen 1 Zelle, Widgets 2×2 / 4×2 / 4×4 und rasten wie bei iOS nur in Spalte 0 oder 2 ein.
+ * Icons belegen 1 Zelle, Widgets 2×2 / 4×2 / 4×4 und rasten wie bei iOS nur in Spalte 0 oder 2 und in den Reihenpaaren
+ * (Reihe 1, 3, 5) ein — keine einzelne App-Reihe über einem Widget (Nutzer 10-14); lockerbar über Quirks.freeWidgetRows.
  * Zelle = Zeile · Spalten + Spalte.
  */
 object GridPlacement {
     private const val COLS = DesignTokens.GRID_COLUMNS
     private const val ROWS = DesignTokens.GRID_ROWS
+    /** Mehrreihige Widgets nur in geraden Reihen (iOS). */
+    private val rowPairs get() = !io.github.janhurn9400.liquidy.data.Quirks.freeWidgetRows
 
     /** Zelle je Key (Reihenfolge wie [keys]); -1 = passt nicht mehr auf die Seite. */
     fun place(keys: List<String>, size: (String) -> Pair<Int, Int>): IntArray {
@@ -19,6 +22,7 @@ object GridPlacement {
             var found = -1
             loop@ for (row in 0..ROWS - r) for (col in 0..COLS - c) {
                 if (c > 1 && col % 2 != 0) continue
+                if (r > 1 && rowPairs && row % 2 != 0) continue
                 if ((row until row + r).all { y -> (col until col + c).none { x -> used[y][x] } }) {
                     for (y in row until row + r) for (x in col until col + c) used[y][x] = true
                     found = row * COLS + col
@@ -78,8 +82,9 @@ object GridPlacement {
     fun placeAt(keys: List<String>, key: String, cell: Int, size: (String) -> Pair<Int, Int>): List<String> {
         val (c, r) = size(key)
         var col = (cell % COLS).coerceIn(0, COLS - 1)
-        val row = (cell / COLS).coerceIn(0, ROWS - r)
+        var row = (cell / COLS).coerceIn(0, ROWS - r)
         if (c > 1) col = (col / 2 * 2).coerceAtMost(COLS - c)
+        if (r > 1 && rowPairs) row = (row / 2 * 2).coerceAtMost(ROWS - r)
         val target = row * COLS + col
         val cells = place(keys, size)
         val occ = arrayOfNulls<String>(COLS * ROWS)

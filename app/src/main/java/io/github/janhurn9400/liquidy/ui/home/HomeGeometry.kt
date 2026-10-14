@@ -181,6 +181,20 @@ class HomeGeometry(
             return (((2 * half - px(DUO_DOCK_SINGLE)) / px(DUO_DOCK_PITCH)).toInt() + 1).coerceIn(DesignTokens.DOCK_SLOTS, DUO_DOCK_SLOTS_LIMIT)
         }
 
+    /**
+     * FESTE REGEL: Größe eines Icons/Ordners im Dock relativ zum Raster-Icon — Duo ≈ 48 statt 60 pt [GEMESSEN 21:29, 44 s],
+     * sonst gleich groß. Alles, was ein Dock-Item zeigt oder von ihm ausgeht (Zeichnen, Ordner auf/zu, Kontextmenü,
+     * App-Start/-Rückflug, Ziehen), nimmt diesen Wert.
+     */
+    val dockIconScale: Float get() = if (duo) DUO_DOCK_ICON / DesignTokens.iconSize.value else 1f
+
+    /** Sichtbare Icon-Fläche eines Items mit Zellen-Oberkante-links [topLeft]; im Dock um die Icon-Mitte verkleinert. */
+    fun iconRect(topLeft: Offset, inDock: Boolean): Rect {
+        val s = if (inDock) dockIconScale else 1f
+        val c = topLeft + Offset(icon / 2, icon / 2)
+        return Rect(c - Offset(icon * s / 2, icon * s / 2), Size(icon * s, icon * s))
+    }
+
     /** Dock-Icons sind als Gruppe zentriert (iOS: 3 Icons → mittig). */
     fun dockPosition(index: Int, count: Int): Offset {
         if (duo) {
@@ -194,7 +208,7 @@ class HomeGeometry(
     }
 
     /** Liegt [p] im Dock-Bereich (Ablegen)? iPhone: unterhalb der Dock-Oberkante; Duo: rechte Spalte. */
-    fun inDockZone(p: Offset): Boolean = if (duo) p.x >= duoColumnX - px(DUO_DOCK_W) else p.y >= dockRect.top
+    fun inDockZone(p: Offset): Boolean = if (duo) dockRect.inflate(px(DUO_DOCK_HIT)).contains(p) else p.y >= dockRect.top
 
     /** Einfügeposition im Dock zur Icon-Mitte [c]. */
     fun dockIndexAt(c: Offset, count: Int): Int {
@@ -275,6 +289,8 @@ private const val DUO_ROW0 = 83.6f             // Mitte Reihe 1
 private const val DUO_WIDGET_DY = 0f
 private const val DUO_COLUMN_FROM_RIGHT = 47f  // Mitte der rechten Spalte (Dock, Lupe, Knöpfe)
 private const val DUO_DOCK_W = 73f
+private const val DUO_DOCK_HIT = 14f          // pt Treffer-Rand um das Dock-Glas (Ablegen ins Dock) [GESCHÄTZT]
+private const val DUO_DOCK_ICON = 48f        // pt Icon-Größe im Duo-Dock (Raster 60 pt)
 private const val DUO_DOCK_SINGLE = 71f       // Höhe der Glasfläche mit einem Icon
 private const val DUO_DOCK_PITCH = 64f
 private const val DUO_DOCK_CY = 0.567f         // Dock-Mitte als Anteil der Höhe

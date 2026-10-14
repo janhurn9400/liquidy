@@ -17,6 +17,8 @@ until they matched — including the in-between frames of every transition, not 
 
 **Home screen**
 - 4×6 icon grid, dock, page dots, rubber-band paging, edit mode with jiggle, drag & drop, folders, page overview
+- Folders like the original: drop an app in and it flies into its spot, pages inside folders, rename, drag apps out
+- 🍎 Quirks: optional relaxations of the original's rules (widgets in any row, more apps in the Duo dock)
 - Free placement like current iOS: icons stay where you drop them, gaps allowed; drag to the left/right edge to flip or create pages
 - The same app can be on several pages; drag apps out of the App Library (also from an open category)
 - Context menus with app shortcuts, widget stacks with swipe and *Smart Rotate*
