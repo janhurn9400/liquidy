@@ -64,6 +64,10 @@ class DragState(
 /** App im offenen Ordner angehoben (noch nicht herausgezogen); [grab] = Finger minus Icon-Oberkante-links. */
 class FolderDrag(val key: String, val grab: Offset, pointer: Offset) {
     var pointer by mutableStateOf(pointer)
+    /** Einfügeplatz im Ordner (Index ohne das gezogene Icon); -1 = noch an der Ausgangsstelle. Die anderen weichen aus. */
+    var hoverIndex by mutableStateOf(-1)
+    /** Losgelassen: Bildschirm-Oberkante-links des Platzes, in den die Kopie jetzt fliegt (M-DROP); null = wird gezogen. */
+    var landingAt by mutableStateOf<Offset?>(null)
 }
 
 /** Icon fliegt nach dem Loslassen in den Mini-Platz eines Ordners (M-MERGE-DROP); Rechtecke in Bildschirm-px (Icon-Fläche). */
@@ -1456,6 +1460,14 @@ class HomeModel(
             fly.t.animateTo(1f, Motion.mergeDrop.spec())
             if (folderFly === fly) folderFly = null
         }
+    }
+
+    /** Im offenen Ordner umsortiert: [key] an [index] (Liste ohne [key]). */
+    fun reorderInFolder(id: String, key: String, index: Int) {
+        val f = folders[id] ?: return
+        val rest = f.apps - key
+        folders = folders + (id to f.copy(apps = rest.toMutableList().apply { add(index.coerceIn(0, size), key) }))
+        save()
     }
 
     /** Ordnername wird gerade bearbeitet (Textfeld hat Fokus, Tastatur offen). */

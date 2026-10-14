@@ -1663,7 +1663,7 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.han
         val event = if (hitKey != null && !moved) withTimeoutOrNull(remaining.coerceAtLeast(1)) { awaitPointerEvent() } else awaitPointerEvent()
         if (event == null) {
             scope.launch { model.pressAlpha.snapTo(0f); model.pressedKey = null }
-            dragInFolder(model, panel, hitKey!!.value, slotTopLeft(hitKey.index), down, icon, dragMove, dragEnd)
+            dragInFolder(model, open.id, geo, page, hitKey!!.value, slotTopLeft(hitKey.index), down, icon, dragMove, dragEnd)
             return
         }
         val change = event.changes.firstOrNull { it.id == down.id } ?: return
@@ -1721,7 +1721,9 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.han
  */
 private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.dragInFolder(
     model: HomeModel,
-    panel: Rect,
+    folderId: String,
+    geo: FolderGeometry,
+    page: Int,
     key: String,
     iconTopLeft: Offset,
     down: androidx.compose.ui.input.pointer.PointerInputChange,
@@ -1729,22 +1731,43 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.dra
     dragMove: (Offset) -> Unit,
     dragEnd: () -> Unit,
 ) {
+    val panel = geo.panel
     val fd = FolderDrag(key, down.position - iconTopLeft, down.position)
     model.folderDrag = fd
     model.haptic()
     var outsideSince: Long? = null
+    // Umsortieren im Ordner wie auf dem Homescreen: Platz unter dem Icon, erst nach M-REFLOW.delay Stillstand übernehmen
+    val perPage = DesignTokens.FOLDER_COLUMNS * DesignTokens.FOLDER_ROWS
+    val others = (model.folderFor(folderId)?.apps?.size ?: 1) - 1
+    var candidate = -1; var candidateSince = 0L
     while (true) {
         // auch ohne Bewegung weiterprüfen (Finger hält still außerhalb des Panels)
         val e = withTimeoutOrNull(FOLDER_DRAG_POLL_MS) { awaitPointerEvent() }
         if (e != null) {
             val ch = e.changes.firstOrNull { it.id == down.id }
-            if (ch == null || !ch.pressed) { model.folderDrag = null; return } // im Ordner losgelassen → zurück an den Platz
+            if (ch == null || !ch.pressed) { // im Ordner losgelassen → an den Einfügeplatz (sonst zurück an den Platz)
+                if (fd.hoverIndex >= 0) model.reorderInFolder(folderId, key, fd.hoverIndex)
+                fd.hoverIndex = -1
+                // Kopie fliegt in ihren Platz (FolderDragCopy), danach steht dort das echte Icon
+                val at = model.folderFor(folderId)?.apps?.indexOf(key) ?: -1
+                val slotPage = if (at >= 0) at / perPage else page
+                fd.landingAt = if (at >= 0 && slotPage == page) panel.topLeft + geo.slot(at % perPage) else null
+                if (fd.landingAt == null) model.folderDrag = null
+                return
+            }
             fd.pointer = ch.position
             ch.consume()
         }
         val center = fd.pointer - fd.grab + Offset(icon / 2, icon / 2)
         val now = System.nanoTime()
         outsideSince = if (panel.contains(center)) null else outsideSince ?: now
+        if (outsideSince == null) {
+            // nächster Platz auf der sichtbaren Ordnerseite
+            val j = (0 until perPage).minBy { (panel.topLeft + geo.slot(it) + Offset(icon / 2, icon / 2) - center).getDistance() }
+            val idx = (page * perPage + j).coerceIn(0, others)
+            if (idx != candidate) { candidate = idx; candidateSince = now }
+            else if (idx != fd.hoverIndex && (now - candidateSince) / 1_000_000 >= Motion.reflowDelay.value) fd.hoverIndex = idx
+        }
         if (outsideSince != null && (now - outsideSince) / 1_000_000 >= Motion.folderOutDelay.value) break
     }
     // raus: Ordner schließt, normales Ziehen übernimmt

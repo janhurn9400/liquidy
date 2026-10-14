@@ -1,5 +1,7 @@
 package io.github.janhurn9400.liquidy.ui.home
 
+import kotlinx.coroutines.launch
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
@@ -321,13 +323,24 @@ fun FolderOverlay(
             }
         }
         val iconPx = DesignTokens.iconSize.value * density
-        apps.forEachIndexed { i, app ->
+        // Umsortieren: Reihenfolge ohne das gezogene Icon, an seinem Einfügeplatz eine Lücke — die anderen weichen aus
+        val fd = model.folderDrag
+        val order = folder.apps.filter { model.apps[it] != null }.let { keys ->
+            if (fd == null || fd.hoverIndex < 0) keys else (keys - fd.key).toMutableList().apply { add(fd.hoverIndex.coerceIn(0, size), fd.key) }
+        }
+        apps.forEachIndexed { i0, app -> androidx.compose.runtime.key(app.key) {
+            val i = order.indexOf(app.key).takeIf { it >= 0 } ?: i0
             val pageOfIcon = i / perPage
+            // Ausweichen federt (M-REFLOW); beim Öffnen/Schließen ohne Ziehen steht das Icon genau auf seinem Platz
+            val slotAnim = androidx.compose.runtime.remember(app.key) { Animatable(geo.slot(i % perPage), Offset.VectorConverter) }
+            androidx.compose.runtime.LaunchedEffect(i, fd != null) {
+                if (fd != null) slotAnim.animateTo(geo.slot(i % perPage), Motion.reflow.spec()) else slotAnim.snapTo(geo.slot(i % perPage))
+            }
             // angehoben (wird im Ordner gezogen) → hängt als Kopie am Finger
-            if (model.folderDrag?.key == folder.apps.getOrNull(i)) return@forEachIndexed
-            // App wächst gerade daraus bzw. fliegt hinein → Platz leer (wie auf dem Homescreen)
-            if (model.flyingKey == app.key || io.github.janhurn9400.liquidy.data.AppLaunchTransition.launchingKey.value == app.key) return@forEachIndexed
-            AppIconView(
+            val hidden = model.folderDrag?.key == app.key ||
+                // App wächst gerade daraus bzw. fliegt hinein → Platz leer (wie auf dem Homescreen)
+                model.flyingKey == app.key || io.github.janhurn9400.liquidy.data.AppLaunchTransition.launchingKey.value == app.key
+            if (!hidden) AppIconView(
                 app = app,
                 showLabel = true,
                 wallpaper = wallpaper,
@@ -344,7 +357,8 @@ fun FolderOverlay(
                     .wrapContentSize(androidx.compose.ui.Alignment.TopStart, unbounded = true)
                     .offset {
                         val pr = open.progress.value
-                        val c = geo.iconCenter(i % perPage, pr, open.iconScale)
+                        val c = if (model.folderDrag != null) slotAnim.value + Offset(iconPx / 2, iconPx / 2)
+                            else geo.iconCenter(i % perPage, pr, open.iconScale)
                         // Seite verschoben um ganze (aktuelle) Breiten (Blättern liest den Wert erst im Layout)
                         val dx = (pageOfIcon - model.folderPage.value) * geo.rect(pr, open.iconTopLeft, open.iconScale).width
                         IntOffset(cellOffsetX(c.x - iconPx / 2 + dx, density).roundToInt(), (c.y - iconPx / 2).roundToInt())
@@ -355,7 +369,7 @@ fun FolderOverlay(
                         transformOrigin = TransformOrigin(0.5f, iconPx / 2 / size.height)
                     },
             )
-        }
+        } }
     }
 }
 
@@ -366,9 +380,19 @@ fun FolderDragCopy(model: HomeModel, density: Float, wallpaper: ImageBitmap) {
     val app = model.apps[fd.key] ?: return
     val lift = androidx.compose.runtime.remember(fd) { Animatable(1f) }
     androidx.compose.runtime.LaunchedEffect(fd) { lift.animateTo(DesignTokens.dragScale.value, Motion.dragLift.spec()) }
+    // Losgelassen: von der Fingerlage in den Platz fliegen (M-DROP), Anhebung geht zurück, dann echtes Icon zeigen
+    val land = androidx.compose.runtime.remember(fd) { Animatable(Offset.Zero, Offset.VectorConverter) }
+    val target = fd.landingAt
+    androidx.compose.runtime.LaunchedEffect(target) {
+        if (target == null) return@LaunchedEffect
+        land.snapTo(fd.pointer - fd.grab)
+        launch { lift.animateTo(1f, Motion.drop.spec()) }
+        land.animateTo(target, Motion.drop.spec())
+        if (model.folderDrag === fd) model.folderDrag = null
+    }
     androidx.compose.foundation.layout.Box(
         Modifier
-            .offset { val tl = fd.pointer - fd.grab; IntOffset(cellOffsetX(tl.x, density).roundToInt(), tl.y.roundToInt()) }
+            .offset { val tl = if (target != null) land.value else fd.pointer - fd.grab; IntOffset(cellOffsetX(tl.x, density).roundToInt(), tl.y.roundToInt()) }
             .graphicsLayer { scaleX = lift.value; scaleY = lift.value; transformOrigin = TransformOrigin(0.5f, 0.5f) }
     ) {
         AppIconView(app = app, showLabel = false, wallpaper = wallpaper, pressAlpha = { 0f }, jiggle = { 0f },

@@ -19,6 +19,7 @@ Ziel: Android-Launcher (Kotlin + Compose, minSdk 33), der sich 1:1 wie der iOS-2
   (`-writable-system` IMMER: Liquidy liegt dort als System-App in `/system/priv-app/Liquidy` + Berechtigung/Hidden-API-XML aus
   tools/magisk-module — ohne Magisk per `adb root && adb remount`. Nur so läuft die eigene App-Öffnen-Animation. `adb install -r`
   danach wie gewohnt, das Update bleibt privilegiert.)
+  App-Daten lesen: `run-as` geht bei System-Apps nicht → `adb root`, dann `adb shell cat /data/data/io.github.janhurn9400.liquidy/shared_prefs/…`.
   Zwei Displays → Screenshot nur mit Display-ID: `adb exec-out screencap -p -d 4619827259835644672 > shot.png` (innen, aufgeklappt).
   Nach jeder Neuinstallation hängt der Emulator anfangs (Shader-Kompilierung, ANR-Dialog möglich) — kurz warten, kein App-Fehler.
 - `./gradlew :app:assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk`
@@ -52,7 +53,7 @@ Ziel: Android-Launcher (Kotlin + Compose, minSdk 33), der sich 1:1 wie der iOS-2
 - Liquid Glass: keine Farbsäume (Apple hat keine). Regler „Klar ↔ Getönt“ (glass/GlassClarity, Unterseite mit Vorschau in Darstellung): getönt = mehr Unschärfe, keine Brechung, grauer Schleier.
 - Berechtigungen-Seite erklärt jede Erlaubnis. Wetter-Widget (Open-Meteo) gebaut.
 - Ordner (v0.4.0, Nutzer-Video 10-14 gemessen): Hinweis = Ordnerglas wächst + dunkelt ab, App fliegt in Mini-Platz, Blättern, Rausziehen erst nach Verlassen des Panels, Umbenennen mit Cursor; Schließen morpht ohne Überblendung ins Icon. Rand-Seitenwechsel mit Hinüberschauen + Haptik. 🍎 Quirks-Kategorie (Widgets in jeder Reihe, mehr Dock-Apps); Standard = iOS-Raster (Widgets nur in Reihenpaaren).
-- Offen als Nächstes: Einstellungen schließen springt auf erste Seite; Kalender-Icon dynamisch; Umsortieren im offenen Ordner; Heute-Ansicht bearbeiten; App-Öffnen/-Schließen (Phase 6, iPhone-Video für M-HOME-RETURN und Scharf/Unscharf); Icon-Stil für Ordner-Icons/Mediathek; Widgets bei „Getönt“ am iPhone prüfen.
+- Offen als Nächstes: Heute-Ansicht bearbeiten; App-Öffnen/-Schließen (Phase 6, iPhone-Video für M-HOME-RETURN und Scharf/Unscharf); Icon-Stil für Ordner-Icons/Mediathek; Widgets bei „Getönt“ am iPhone prüfen.
 - FESTE REGEL Dock-Größe: Items im Duo-Dock sind kleiner (48 statt 60 pt). Jede Stelle, die ein Dock-Item zeigt oder von ihm ausgeht (Zeichnen, Ordner auf/zu, Kontextmenü, App-Start/-Rückflug, Ziehen, Aufnehmen, Flug in einen Ordner), nimmt `HomeGeometry.dockIconScale` bzw. `iconRect(topLeft, inDock)` — nie eigene Werte.
 - Architektur: eine zentrale Gesten-Arena in `ui/home/HomeScreen.kt`; Geometrie nur in `HomeGeometry`/`FolderGeometry`/`LibraryGeometry`; Layout-Zustand in `HomeModel`.
 - Lektion: Bewegungen IMMER frameweise gegen die Referenz analysieren (Montage + Tracking), nicht nur Einzelwerte — sonst wirkt es „schlampig“ (Suche Rev. 1/2).
