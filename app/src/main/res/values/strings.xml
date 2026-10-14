@@ -257,6 +257,12 @@
     <string name="reminders_none">No reminders</string>
     <string name="reminders_new">New reminder</string>
     <string name="reminders_clear_done">Clear completed</string>
+    <string name="wcfg_city">City</string>
+    <string name="wcfg_local_time">Local Time</string>
+    <string name="wcfg_your_cities">Your Cities</string>
+    <string name="wcfg_same_time">Same time</string>
+    <string name="wcfg_hours_offset">%1$s hrs</string>
+    <string name="wcfg_nothing">No results</string>
     <string name="wcfg_album">Album</string>
     <string name="wcfg_all_photos">All Photos</string>
     <string name="wcfg_calendars">Calendars</string>

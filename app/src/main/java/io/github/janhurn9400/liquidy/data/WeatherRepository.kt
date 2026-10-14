@@ -37,7 +37,8 @@ object WeatherRepository {
     }
 
     /** Fester Ort (Widget-Einstellung „Ort“); null = aktueller Standort. Als Text gespeichert: „lat;lon;Name“. */
-    data class Place(val lat: Double, val lon: Double, val name: String, val region: String = "") {
+    /** [timezone] nur aus der Suche (IANA, z. B. Europe/Vienna) — nicht gespeichert. */
+    data class Place(val lat: Double, val lon: Double, val name: String, val region: String = "", val timezone: String = "") {
         fun encode() = "$lat;$lon;$name"
         val key get() = "%.3f,%.3f".format(java.util.Locale.ROOT, lat, lon)
         companion object {
@@ -72,7 +73,7 @@ object WeatherRepository {
             (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
                 val region = listOfNotNull(o.optString("admin1").ifEmpty { null }, o.optString("country").ifEmpty { null }).joinToString(", ")
-                Place(o.getDouble("latitude"), o.getDouble("longitude"), o.getString("name"), region)
+                Place(o.getDouble("latitude"), o.getDouble("longitude"), o.getString("name"), region, o.optString("timezone"))
             }
         }.getOrDefault(emptyList())
     }

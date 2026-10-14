@@ -1,5 +1,6 @@
 package io.github.janhurn9400.liquidy.ui.widgets
 
+import androidx.compose.ui.text.drawText
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -84,7 +85,7 @@ fun IosWidget(type: String, cols: Int, rows: Int = 2, modifier: Modifier = Modif
         IosWidgetTypes.WEATHER -> WeatherWidget(cols, rows, modifier, io.github.janhurn9400.liquidy.data.WeatherRepository.Place.decode(config))
         IosWidgetTypes.PHOTOS -> PhotoWidget(modifier, config)
         IosWidgetTypes.REMINDERS -> RemindersWidget(cols, rows, modifier)
-        IosWidgetTypes.CLOCK -> ClockWidget(modifier)
+        IosWidgetTypes.CLOCK -> ClockWidget(modifier, io.github.janhurn9400.liquidy.data.WorldClock.City.decode(config))
         IosWidgetTypes.CALENDAR -> CalendarWidget(cols, modifier, config)
         IosWidgetTypes.BATTERY -> BatteryWidget(modifier)
         else -> Box(modifier.background(Color(0xFF1C1C1E)))
@@ -93,18 +94,31 @@ fun IosWidget(type: String, cols: Int, rows: Int = 2, modifier: Modifier = Modif
 
 // ── Uhr (Analog, weißes Ziffernblatt, rote Sekunde — „Clock · City“ im Picker, recording7 8,4 s) ────────────
 @Composable
-private fun ClockWidget(modifier: Modifier) {
-    val now by produceState(LocalTime.now()) { while (true) { value = LocalTime.now(); delay(1000L - System.currentTimeMillis() % 1000) } }
+private fun ClockWidget(modifier: Modifier, city: io.github.janhurn9400.liquidy.data.WorldClock.City? = null) {
+    // Stadt gewählt → deren Zeitzone; nachts (18–6 Uhr dort) dunkles Ziffernblatt wie bei iOS, Stadtkürzel im Zifferblatt
+    val zone = city?.zoneId ?: java.time.ZoneId.systemDefault()
+    val now by produceState(LocalTime.now(zone), zone) { while (true) { value = LocalTime.now(zone); delay(1000L - System.currentTimeMillis() % 1000) } }
+    val night = city != null && (now.hour < CLOCK_DAY_FROM || now.hour >= CLOCK_NIGHT_FROM)
+    val face = if (night) Color.Black else Color.White
+    val ink = if (night) Color.White else Color.Black
+    val minorTick = if (night) Color(0xFF6E6E73) else Color(0xFF9A9A9A)
+    val label = city?.name?.filter { it.isLetter() }?.take(3)?.uppercase()
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
     Box(modifier.background(Color(0xFF1C1C1E)), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize().padding(CLOCK_PAD.dp)) {
             val r = size.minDimension / 2
             val c = center
-            drawCircle(Color.White, r, c)
+            drawCircle(face, r, c)
+            if (label != null) {
+                val t = measurer.measure(label, androidx.compose.ui.text.TextStyle(fontFamily = io.github.janhurn9400.liquidy.ui.Inter,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = (r * 0.2f / density).sp, color = minorTick))
+                drawText(t, topLeft = Offset(c.x - t.size.width / 2f, c.y - r * 0.5f - t.size.height / 2f))
+            }
             for (i in 0 until 60) {
                 val a = Math.toRadians(i * 6.0)
                 val long = i % 5 == 0
                 val o = r * 0.94f; val inner = if (long) r * 0.84f else r * 0.89f
-                drawLine(if (long) Color.Black else Color(0xFF9A9A9A),
+                drawLine(if (long) ink else minorTick,
                     Offset(c.x + (sin(a) * inner).toFloat(), c.y - (cos(a) * inner).toFloat()),
                     Offset(c.x + (sin(a) * o).toFloat(), c.y - (cos(a) * o).toFloat()),
                     if (long) r * 0.025f else r * 0.012f)
@@ -112,11 +126,11 @@ private fun ClockWidget(modifier: Modifier) {
             fun hand(deg: Float, len: Float, w: Float, color: Color, tail: Float = 0.08f) = rotate(deg, c) {
                 drawLine(color, Offset(c.x, c.y + r * tail), Offset(c.x, c.y - r * len), w, StrokeCap.Round)
             }
-            hand(((now.hour % 12) + now.minute / 60f) * 30f, 0.5f, r * 0.07f, Color.Black)
-            hand((now.minute + now.second / 60f) * 6f, 0.78f, r * 0.05f, Color.Black)
+            hand(((now.hour % 12) + now.minute / 60f) * 30f, 0.5f, r * 0.07f, ink)
+            hand((now.minute + now.second / 60f) * 6f, 0.78f, r * 0.05f, ink)
             hand(now.second * 6f, 0.86f, r * 0.018f, Color(0xFFFF9500), tail = 0.18f)
             drawCircle(Color(0xFFFF9500), r * 0.045f, c)
-            drawCircle(Color.White, r * 0.018f, c)
+            drawCircle(face, r * 0.018f, c)
         }
     }
 }
@@ -245,6 +259,8 @@ private val RED = Color(0xFFFF3B30)
 private const val WIDGET_PAD = 16f   // [GESCHÄTZT] Innenabstand iOS-Widgets
 private const val MEDIUM_DATE_W = 110f
 private const val CLOCK_PAD = 10f
+private const val CLOCK_DAY_FROM = 6     // iOS: Ziffernblatt hell ab 6 Uhr …
+private const val CLOCK_NIGHT_FROM = 18  // … dunkel ab 18 Uhr (Ortszeit der Stadt) [GESCHÄTZT]
 private const val BATTERY_PAD = 30f
 private const val WIDGET_GLASS_BLUR = 24f
 private const val WIDGET_GLASS_DARK = 0.22f // Duo [Referenz 10_today/01_home]: durchscheinendes Glas, nicht deckend

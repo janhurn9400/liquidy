@@ -62,7 +62,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 /** Hat dieses Widget ein Einstellungsblatt (Antippen im Bearbeiten-Modus)? */
-fun hasWidgetConfig(spec: WidgetSpec?) = spec?.type in setOf(IosWidgetTypes.WEATHER, IosWidgetTypes.PHOTOS, IosWidgetTypes.CALENDAR)
+fun hasWidgetConfig(spec: WidgetSpec?) = spec?.type in setOf(IosWidgetTypes.WEATHER, IosWidgetTypes.PHOTOS, IosWidgetTypes.CALENDAR, IosWidgetTypes.CLOCK)
 
 /**
  * Einstellungsblatt eines Widgets (iPhone-Aufnahme 10-11 16:40, docs/reference/widgets/widget_config_menu.mp4):
@@ -131,17 +131,24 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
             val (title, sub, desc) = when (spec.type) {
                 IosWidgetTypes.PHOTOS -> Triple(stringResource(R.string.wcfg_photos_title), stringResource(R.string.widget_photos), stringResource(R.string.widget_photos_long))
                 IosWidgetTypes.CALENDAR -> Triple(stringResource(R.string.wcfg_calendar_title), stringResource(R.string.widget_calendar), stringResource(R.string.widget_calendar_long))
+                IosWidgetTypes.CLOCK -> Triple(stringResource(R.string.widget_clock_desc), stringResource(R.string.widget_clock), stringResource(R.string.widget_clock_long))
                 else -> Triple(stringResource(R.string.widget_weather_desc), stringResource(R.string.widget_weather), stringResource(R.string.widget_weather_long))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(36.dp).clip(RoundedCornerShape(9.dp)).background(when (spec.type) {
                     IosWidgetTypes.PHOTOS -> Brush.linearGradient(listOf(Color(0xFFFFB300), Color(0xFFFF375F), Color(0xFF5E5CE6)))
                     IosWidgetTypes.CALENDAR -> Brush.verticalGradient(listOf(Color.White, Color.White))
+                    IosWidgetTypes.CLOCK -> Brush.verticalGradient(listOf(Color(0xFF1C1C1E), Color.Black))
                     else -> Brush.verticalGradient(listOf(Color(0xFF2E7DD7), Color(0xFF7FB8EE)))
                 }), contentAlignment = Alignment.Center) {
                     when (spec.type) {
                         IosWidgetTypes.CALENDAR -> BasicText("${java.time.LocalDate.now().dayOfMonth}", style = text(18f, FontWeight.SemiBold, Color.Black))
                         IosWidgetTypes.PHOTOS -> {}
+                        IosWidgetTypes.CLOCK -> Canvas(Modifier.size(24.dp)) {
+                            val r = size.minDimension / 2; drawCircle(Color.White, r)
+                            drawLine(Color.Black, center, center + Offset(0f, -r * 0.6f), r * 0.14f, StrokeCap.Round)
+                            drawLine(Color.Black, center, center + Offset(r * 0.45f, 0f), r * 0.14f, StrokeCap.Round)
+                        }
                         else -> WeatherIcon(2, true, null, 26.dp)
                     }
                 }
@@ -156,6 +163,8 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
             Spacer(Modifier.height(14.dp))
             val (label, value) = when (spec.type) {
                 IosWidgetTypes.PHOTOS -> stringResource(R.string.wcfg_album) to (spec.config ?: stringResource(R.string.wcfg_all_photos))
+                IosWidgetTypes.CLOCK -> stringResource(R.string.wcfg_city) to
+                    (io.github.janhurn9400.liquidy.data.WorldClock.City.decode(spec.config)?.name ?: stringResource(R.string.wcfg_local_time))
                 IosWidgetTypes.CALENDAR -> stringResource(R.string.wcfg_calendars) to (spec.config?.split(',')?.filter { it.isNotBlank() }?.size
                     ?.let { stringResource(R.string.wcfg_n_selected, it) } ?: stringResource(R.string.wcfg_all_calendars))
                 else -> stringResource(R.string.wcfg_location) to (place?.name ?: stringResource(R.string.wcfg_my_location))
@@ -185,6 +194,12 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
                         val next = id?.toLong()?.let { if (it in cur) cur - it else cur + it } ?: cur
                         onChange(if (next == all || next.isEmpty()) null else next.joinToString(","))
                     }, dots = cals.associate { it.first.toString() to Color(it.third) })
+            }
+            IosWidgetTypes.CLOCK -> GlassSheet(list, stringResource(R.string.wcfg_city)) {
+                CityRows(onPick = { c ->
+                    if (c != null) io.github.janhurn9400.liquidy.data.WorldClock.remember(context, c)
+                    list.close { onChange(c?.encode()) }
+                })
             }
             else -> GlassSheet(list, stringResource(R.string.wcfg_location)) {
                 LocationRows(onPick = { p ->
@@ -217,27 +232,75 @@ private fun androidx.compose.foundation.layout.ColumnScope.LocationRows(onPick: 
                 results.forEach { p -> PlaceRow(p.name, p.region.ifEmpty { null }) { onPick(p) } }
             }
         }
-        // Suchfeld unten (wie iOS), über der Tastatur — Liquid Glass wie das Mediathek-Suchfeld (bricht das Blatt dahinter)
-        Box(Modifier.windowInsetsPadding(WindowInsets.ime).padding(16.dp).fillMaxWidth().height(44.dp)) {
-        io.github.janhurn9400.liquidy.glass.LiquidGlass(shape = io.github.janhurn9400.liquidy.glass.glassCapsule(), modifier = Modifier.matchParentSize(),
-            whiteTint = io.github.janhurn9400.liquidy.design.DesignTokens.libListFieldTint.value)
-        Row(
-            Modifier.matchParentSize().padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Canvas(Modifier.size(16.dp)) {
-                val sw = 2.dp.toPx(); val r = size.width * 0.36f
-                drawCircle(GREY, r, Offset(r + sw / 2, r + sw / 2), style = Stroke(sw))
-                drawLine(GREY, Offset(r * 1.7f, r * 1.7f), Offset(size.width, size.height), sw, StrokeCap.Round)
-            }
-            Spacer(Modifier.width(8.dp))
-            Box(Modifier.weight(1f)) {
-                if (query.isEmpty()) BasicText(stringResource(R.string.wcfg_search), style = text(17f, FontWeight.Normal, GREY))
-                BasicTextField(query, { query = it }, singleLine = true, textStyle = text(17f, FontWeight.Normal, Color.White),
-                    cursorBrush = SolidColor(BLUE), modifier = Modifier.fillMaxWidth())
-            }
+        SearchField(query) { query = it }
+}
+
+/** Städte für das Uhr-Widget: Ortszeit, zuletzt gewählte, dann Suche (offline Zeitzonen sofort, online jede Stadt). */
+@Composable
+private fun androidx.compose.foundation.layout.ColumnScope.CityRows(onPick: (io.github.janhurn9400.liquidy.data.WorldClock.City?) -> Unit) {
+    val context = LocalContext.current
+    var query by remember { mutableStateOf("") }
+    val saved = remember { io.github.janhurn9400.liquidy.data.WorldClock.saved(context) }
+    val online by produceState(emptyList<io.github.janhurn9400.liquidy.data.WorldClock.City>(), query) {
+        value = emptyList(); delay(300)
+        value = withContext(Dispatchers.IO) { io.github.janhurn9400.liquidy.data.WorldClock.searchOnline(query) }
+    }
+    val offline = remember(query) { io.github.janhurn9400.liquidy.data.WorldClock.searchOffline(query) }
+    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+        if (query.isBlank()) {
+            Spacer(Modifier.height(14.dp))
+            BasicText(stringResource(R.string.wcfg_your_cities), style = text(17f, FontWeight.SemiBold, GREY))
+            Spacer(Modifier.height(4.dp))
+            PlaceRow(stringResource(R.string.wcfg_local_time), null) { onPick(null) }
+            saved.forEach { c -> PlaceRow(c.name, zoneLabel(c)) { onPick(c) } }
+        } else {
+            Spacer(Modifier.height(8.dp))
+            // online zuerst (genauer, z. B. kleine Orte), danach offline ohne Doppelte
+            val all = (online + offline).distinctBy { it.name.lowercase() + it.zone }
+            if (all.isEmpty()) BasicText(stringResource(R.string.wcfg_nothing), Modifier.fillMaxWidth().padding(top = 24.dp),
+                style = text(15f, FontWeight.Normal, GREY).copy(textAlign = TextAlign.Center))
+            all.forEach { c -> PlaceRow(c.name, listOfNotNull(c.region.ifEmpty { null }, zoneLabel(c)).joinToString(" · ")) { onPick(c) } }
         }
+    }
+    SearchField(query) { query = it }
+}
+
+/** Zeitverschiebung gegenüber dem Gerät, z. B. „+6 Std.“ / „Gleiche Zeit“. */
+@Composable
+private fun zoneLabel(c: io.github.janhurn9400.liquidy.data.WorldClock.City): String {
+    val z = c.zoneId ?: return ""
+    val now = java.time.Instant.now()
+    val diffMin = (z.rules.getOffset(now).totalSeconds - java.time.ZoneId.systemDefault().rules.getOffset(now).totalSeconds) / 60
+    if (diffMin == 0) return stringResource(R.string.wcfg_same_time)
+    val h = diffMin / 60; val m = kotlin.math.abs(diffMin % 60)
+    val s = (if (diffMin > 0) "+" else "−") + kotlin.math.abs(h) + (if (m != 0) ":%02d".format(m) else "")
+    return stringResource(R.string.wcfg_hours_offset, s)
+}
+
+/** Suchfeld unten im Blatt (wie iOS), über der Tastatur — Liquid Glass wie das Mediathek-Suchfeld. */
+@Composable
+private fun SearchField(query: String, onChange: (String) -> Unit) {
+    // Suchfeld unten (wie iOS), über der Tastatur — Liquid Glass wie das Mediathek-Suchfeld (bricht das Blatt dahinter)
+    Box(Modifier.windowInsetsPadding(WindowInsets.ime).padding(16.dp).fillMaxWidth().height(44.dp)) {
+    io.github.janhurn9400.liquidy.glass.LiquidGlass(shape = io.github.janhurn9400.liquidy.glass.glassCapsule(), modifier = Modifier.matchParentSize(),
+        whiteTint = io.github.janhurn9400.liquidy.design.DesignTokens.libListFieldTint.value)
+    Row(
+        Modifier.matchParentSize().padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Canvas(Modifier.size(16.dp)) {
+            val sw = 2.dp.toPx(); val r = size.width * 0.36f
+            drawCircle(GREY, r, Offset(r + sw / 2, r + sw / 2), style = Stroke(sw))
+            drawLine(GREY, Offset(r * 1.7f, r * 1.7f), Offset(size.width, size.height), sw, StrokeCap.Round)
         }
+        Spacer(Modifier.width(8.dp))
+        Box(Modifier.weight(1f)) {
+            if (query.isEmpty()) BasicText(stringResource(R.string.wcfg_search), style = text(17f, FontWeight.Normal, GREY))
+            BasicTextField(query, onChange, singleLine = true, textStyle = text(17f, FontWeight.Normal, Color.White),
+                cursorBrush = SolidColor(BLUE), modifier = Modifier.fillMaxWidth())
+        }
+    }
+    }
 }
 
 /** Auswahlzeilen für ein [io.github.janhurn9400.liquidy.glass.GlassSheet]: Häkchen bei ausgewählten Einträgen, optional Farbpunkt. */
