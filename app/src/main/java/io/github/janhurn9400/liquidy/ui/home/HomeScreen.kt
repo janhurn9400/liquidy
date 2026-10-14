@@ -72,6 +72,8 @@ private sealed interface Hit {
     data class WidgetHandle(val key: String) : Hit
     data object Today : Hit
     data object Empty : Hit
+    /** Verwischte Homescreen-Seite neben der offenen Mediathek: nur Wischen, kein Tippen/Halten (keine App, kein Bearbeiten). */
+    data object Covered : Hit
     data object Pill : Hit
     data class Library(val hit: io.github.janhurn9400.liquidy.ui.library.LibraryHit) : Hit
 }
@@ -493,6 +495,8 @@ fun HomeScreen(
                 if (libraryOnScreen && libOffset < w && p.x >= libOffset) {
                     return Hit.Library(io.github.janhurn9400.liquidy.ui.library.libraryHitTest(model, libGeo, p, libOffset))
                 }
+                // Duo: links neben der offenen Mediathek liegt die verwischte Seite — dort darf nichts angetippt werden (Nutzer 10-15)
+                if (geo.duo && libraryOnScreen && duoLibAmount() > LIB_COVERS_AT && p.x < libOffset) return Hit.Covered
             }
             if (model.editing) {
                 if (geo.editButtonRect(left = false).contains(p)) return Hit.EditDone
@@ -1785,7 +1789,8 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.dra
 private const val FOLDER_DRAG_POLL_MS = 16L
 
 private const val EDIT_MENU_GAP = 16f // pt unter dem Knopf [GEMESSEN] recording6 4,9 s (Menü oben ≈ 62,7 pt)
-private const val LIB_PULL_TOP = 1f // px: Liste nur, wenn die Mediathek ganz oben steht
+private const val LIB_PULL_TOP = 1f
+private const val LIB_COVERS_AT = 0.5f // ab diesem Mediathek-Anteil ist die Seite daneben nicht mehr bedienbar // px: Liste nur, wenn die Mediathek ganz oben steht
 
 /** Mediathek-Fling: Abbremsen wie UIScrollView (M-SCROLL), an den Grenzen Zurückfedern (M-SCROLL-BOUNCE). */
 private suspend fun flingLibrary(model: HomeModel, max: Float, velocity: Float) = flingScroll(model.libraryScroll, max, velocity)
