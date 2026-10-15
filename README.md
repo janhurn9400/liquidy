@@ -76,3 +76,8 @@ All permissions are optional and explained in the settings. Bug reports: *Settin
 Built by [janhurn9400](https://github.com/janhurn9400) with AI pair programming (Claude).
 
 Early preview (0.x) — expect rough edges.
+
+## License
+
+[GPL-3.0](LICENSE) — forks and improvements are welcome; anything built on this code and distributed must stay open
+source under the same license. The Inter font is under the [SIL Open Font License](docs/Inter-OFL.txt).
