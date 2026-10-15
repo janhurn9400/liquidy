@@ -250,6 +250,7 @@ private fun Detail(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolea
                 SubPage.IconPacks -> IconPackPage(categoryTitle(c)) { subPage = SubPage.None }
                 SubPage.Glass -> GlassPage(categoryTitle(c)) { subPage = SubPage.None }
                 SubPage.Module -> ModulePage(categoryTitle(c), tick) { subPage = SubPage.None }
+                SubPage.Report -> ReportPage(categoryTitle(c)) { subPage = SubPage.None }
                 SubPage.None -> DetailBody(c, model, tick, inlineTitle) { subPage = it }
             }
         }
@@ -384,12 +385,9 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                         openSub(SubPage.Module)
                     }
                 }
-                // Für Bug-Reports: Gerät, Android, Displays, Wallpaper-Berechnung — nur in die Zwischenablage, nichts wird gesendet
-                var copied by remember { mutableStateOf(false) }
-                Section(stringResource(R.string.settings_sec_diagnostics), footer = stringResource(R.string.settings_diagnostics_footer)) {
-                    LinkRow(stringResource(R.string.settings_diagnostics_copy), if (copied) stringResource(R.string.settings_diagnostics_copied) else null) {
-                        io.github.janhurn9400.liquidy.data.Diagnostics.copy(context); copied = true
-                    }
+                // Fehler melden: eigene Unterseite (Erklärung, Diagnose ansehen, Issue auf GitHub mit Diagnose vorausgefüllt)
+                Section(null) {
+                    LinkRow(stringResource(R.string.settings_report)) { openSub(SubPage.Report) }
                 }
             }
             Category.About -> {
@@ -666,7 +664,7 @@ private fun LinkRow(label: String, value: String? = null, onClick: () -> Unit) {
     }
 }
 
-private enum class SubPage { None, IconPacks, Glass, Module }
+private enum class SubPage { None, IconPacks, Glass, Module, Report }
 
 /**
  * Unterseite „Liquid Glass“ wie iOS (Einstellungen › Darstellung › Liquid Glass, Nutzer-Screenshot 10-14): Vorschaukarte
@@ -824,6 +822,69 @@ private fun ModulePage(backLabel: String, tick: Int, onBack: () -> Unit) {
             }
         }
         Spacer(Modifier.height(40.dp))
+    }
+}
+
+/**
+ * Unterseite „Fehler melden“ (Aufbau wie das Animationsmodul): Karte mit Symbol, Titel, Erklärung; darunter „Auf GitHub
+ * melden“ (öffnet ein neues Issue, Vorlage + Diagnose schon im Textfeld) und „Diagnose kopieren“, dann die Diagnose selbst
+ * zum Nachlesen — nichts wird ohne den Nutzer gesendet.
+ */
+@Composable
+private fun ReportPage(backLabel: String, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val noRipple = remember { MutableInteractionSource() }
+    val report = remember { io.github.janhurn9400.liquidy.data.Diagnostics.report(context) }
+    val intro = stringResource(R.string.settings_report_template)
+    var copied by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+        Spacer(Modifier.height(TOP_PAD.dp))
+        Row(Modifier.clickable(noRipple, null, onClick = onBack).padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Canvas(Modifier.size(10.dp, 17.dp)) {
+                val sw = 2.4.dp.toPx(); val c = Color(0xFF007AFF)
+                drawLine(c, Offset(size.width * 0.9f, size.height * 0.05f), Offset(size.width * 0.1f, size.height * 0.5f), sw, StrokeCap.Round)
+                drawLine(c, Offset(size.width * 0.1f, size.height * 0.5f), Offset(size.width * 0.9f, size.height * 0.95f), sw, StrokeCap.Round)
+            }
+            Spacer(Modifier.width(6.dp))
+            BasicText(backLabel, style = LABEL.copy(color = Color(0xFF007AFF)))
+        }
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(GROUP_CORNER.dp)).background(Color.White).padding(20.dp)) {
+            HeroTile(MODULE_HERO, Color(0xFFFF3B30), SettingsGlyphs.BugReport)
+            Spacer(Modifier.height(14.dp))
+            BasicText(stringResource(R.string.settings_report), style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color.Black))
+            Spacer(Modifier.height(6.dp))
+            BasicText(stringResource(R.string.settings_report_about), style = TextStyle(fontFamily = Inter, fontSize = 16.sp, lineHeight = 21.sp, color = GREY))
+        }
+        Spacer(Modifier.height(SECTION_GAP.dp))
+        Group {
+            LinkRow(stringResource(R.string.settings_report_github)) {
+                open(context, android.content.Intent(android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse(io.github.janhurn9400.liquidy.data.Diagnostics.issueUrl(context, intro))))
+            }
+            Divider()
+            LinkRow(stringResource(R.string.settings_diagnostics_copy), if (copied) stringResource(R.string.settings_diagnostics_copied) else null) {
+                io.github.janhurn9400.liquidy.data.Diagnostics.copy(context); copied = true
+            }
+        }
+        BasicText(stringResource(R.string.settings_diagnostics_footer), Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp),
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = GREY))
+        Spacer(Modifier.height(SECTION_GAP.dp))
+        BasicText(stringResource(R.string.settings_report_included), Modifier.padding(start = 20.dp, bottom = 8.dp),
+            style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = GREY))
+        BasicText(report, Modifier.fillMaxWidth().clip(RoundedCornerShape(GROUP_CORNER.dp)).background(Color.White).padding(16.dp),
+            style = TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp, color = Color(0xFF3A3A3C)))
+        Spacer(Modifier.height(40.dp))
+    }
+}
+
+/** Große Kachel oben auf Unterseiten (Kategorie-Stil: Verlauf, kontinuierliche Ecken, weiße Glyphe). */
+@Composable
+private fun HeroTile(sizePt: Float, bg: Color, glyph: androidx.compose.ui.graphics.vector.ImageVector) {
+    val shape = io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((sizePt * TILE_CORNER).dp)
+    Box(Modifier.size(sizePt.dp).clip(shape).background(androidx.compose.ui.graphics.Brush.verticalGradient(
+        listOf(bg, Color(bg.red * TILE_SHADE, bg.green * TILE_SHADE, bg.blue * TILE_SHADE)))), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Image(androidx.compose.ui.graphics.vector.rememberVectorPainter(glyph), null,
+            Modifier.size((sizePt * TILE_GLYPH).dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White))
     }
 }
 

@@ -180,7 +180,12 @@
     <string name="settings_sec_diagnostics">Diagnostics</string>
     <string name="settings_diagnostics_copy">Copy Diagnostics</string>
     <string name="settings_diagnostics_copied">Copied</string>
-    <string name="settings_diagnostics_footer">For bug reports: copies device, Android version, displays and how the launcher calculates the wallpaper to the clipboard. No apps or personal data, nothing is sent.</string>
+    <string name="settings_diagnostics_footer">Technical details only — no apps or personal data. Nothing is sent until you submit the issue on GitHub.</string>
+    <string name="settings_report">Report a Problem</string>
+    <string name="settings_report_about">Found a bug or something that looks different from the original? Open an issue on GitHub — the technical details below are filled in for you, just describe what happened.</string>
+    <string name="settings_report_github">Report on GitHub</string>
+    <string name="settings_report_included">Included Details</string>
+    <string name="settings_report_template">**What happened?**\n\n\n**What did you expect?**\n\n\n**Steps to reproduce**\n1. \n\n**Device details** (filled in by Liquidy)</string>
     <string name="settings_sec_module">Animation Module</string>
     <string name="settings_module">Animation Module</string>
     <string name="settings_module_footer">Optional, needs root (Magisk). Without the module Android uses its standard animation. It changes nothing else and sends nothing; its contents are open on GitHub.</string>

@@ -32,6 +32,17 @@ object Diagnostics {
         }
     }
 
+    /**
+     * Neues GitHub-Issue mit Vorlage + Diagnose im Textfeld (GitHub füllt title/body aus der Adresse vor). Der Nutzer sieht
+     * alles vor dem Absenden und kann es ändern; gesendet wird erst, wenn er auf GitHub „Submit“ drückt.
+     */
+    fun issueUrl(context: Context, intro: String): String {
+        val body = "$intro\n\n```\n${report(context)}\n```"
+        return ISSUES_NEW + "?labels=bug&body=" + java.net.URLEncoder.encode(body, "UTF-8").replace("+", "%20")
+    }
+
+    private const val ISSUES_NEW = "https://github.com/janhurn9400/liquidy/issues/new"
+
     fun copy(context: Context) {
         context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Liquidy diagnostics", report(context)))
     }

@@ -180,7 +180,12 @@
     <string name="settings_sec_diagnostics">Diagnose</string>
     <string name="settings_diagnostics_copy">Diagnose kopieren</string>
     <string name="settings_diagnostics_copied">Kopiert</string>
-    <string name="settings_diagnostics_footer">Für Fehlerberichte: kopiert Gerät, Android-Version, Displays und wie der Launcher das Hintergrundbild berechnet in die Zwischenablage. Keine Apps oder persönlichen Daten, es wird nichts gesendet.</string>
+    <string name="settings_diagnostics_footer">Nur technische Angaben – keine Apps oder persönlichen Daten. Gesendet wird erst, wenn du das Issue auf GitHub abschickst.</string>
+    <string name="settings_report">Problem melden</string>
+    <string name="settings_report_about">Einen Fehler gefunden oder sieht etwas anders aus als im Original? Erstelle ein Issue auf GitHub – die technischen Details unten sind schon ausgefüllt, du beschreibst nur, was passiert ist.</string>
+    <string name="settings_report_github">Auf GitHub melden</string>
+    <string name="settings_report_included">Enthaltene Details</string>
+    <string name="settings_report_template">**Was ist passiert?**\n\n\n**Was hast du erwartet?**\n\n\n**Schritte zum Nachstellen**\n1. \n\n**Gerätedetails** (von Liquidy ausgefüllt)</string>
     <string name="settings_sec_module">Animationsmodul</string>
     <string name="settings_module">Animationsmodul</string>
     <string name="settings_module_footer">Optional, braucht Root (Magisk). Ohne Modul nutzt Android seine Standard-Animation. Es ändert sonst nichts und sendet nichts; der Inhalt liegt offen auf GitHub.</string>
