@@ -29,7 +29,7 @@ Ziel: Android-Launcher (Kotlin + Compose, minSdk 33), der sich 1:1 wie der iOS-2
   „Export“ → Zwischenablage + Logcat-Tag `Tuning` (`adb logcat -s Tuning`).
 - Vergleich: Screenshots nach `shots/` (gitignored), Messskripte in `tools/measure/`, Referenzen in `docs/reference/iphone/`.
 
-## Stand (2026-10-15, v0.4.1)
+## Stand (2026-10-15, v0.4.2 — erstes öffentliches Release, Repo öffentlich, GPL-3.0)
 - Phase 0: abgeschlossen. Phase 1–4 funktional gebaut, Feinabgleich läuft (Nutzer tunt NICHT selbst — Werte aus seinen Videos ableiten, Emulator-Aufnahme frameweise danebenlegen).
 - Phase 1: Raster/Labels/Dock/Pill ±1 px; Pager M-PAGE verifiziert (0,362 s / 0,904).
 - Phase 2: Bearbeitungsmodus (Long-Press, Wackeln gemessen, Badges, Edit-Buttons, Ziehen + Ausweichen, Dock ↔ Raster, Rand-Seitenwechsel inkl. neuer Seite, Lösch-Dialog, persistentes Layout `LayoutStore`). Offen: Kontextmenü beim Long-Press auf Icon (iOS 27), Blasenmenü im Bearbeitungsmodus.
