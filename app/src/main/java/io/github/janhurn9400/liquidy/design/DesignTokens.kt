@@ -117,6 +117,8 @@ object DesignTokens {
     val folderMiniInset = dpToken("T-FOLDER-ICON.inset", "Ordner-Icon Innenrand", "Ordner", 10f, 2f, 20f)
     val folderMiniSize = dpToken("T-FOLDER-ICON.mini", "Mini-Icon Größe", "Ordner", 13f, 6f, 20f)
     val folderMiniPitch = dpToken("T-FOLDER-ICON.pitch", "Mini-Icon Abstand", "Ordner", 16f, 8f, 24f)
+    /** Mini-Raster ist für das 64-pt-Icon gemessen → mit der aktuellen Icon-Größe skalieren (Duo: 60 pt), sonst sitzt es schief. */
+    val folderMiniScale: Float get() = iconSize.value / iconSize.tunable.default
     val folderIconTint = tunable("T-FOLDER-ICON.tint", "Ordner-Icon Glas aufhellen", "Ordner", 0.12f, 0f, 0.6f)
     const val FOLDER_COLUMNS = 3
     const val FOLDER_ROWS = 3

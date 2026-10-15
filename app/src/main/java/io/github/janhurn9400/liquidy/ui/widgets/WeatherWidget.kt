@@ -117,10 +117,23 @@ private fun TopRow(w: WeatherRepository.Weather, s: Float) {
 
 @Composable
 private fun WeatherMedium(w: WeatherRepository.Weather, s: Float) {
-    Column(Modifier.fillMaxSize().padding(horizontal = (PAD * s).dp, vertical = (PAD_V * s).dp)) {
-        TopRow(w, s)
-        Spacer(Modifier.weight(1f))
-        HourRow(w, s)
+    // Kopf oben, Stundenreihe unten. Reicht die Höhe nicht (Duo-Widgets sind im Verhältnis flacher), wird der Inhalt
+    // gleichmäßig verkleinert statt dass die Temperaturen unten abgeschnitten werden (Nutzer 10-15)
+    androidx.compose.ui.layout.Layout(
+        content = { TopRow(w, s); HourRow(w, s) },
+        modifier = Modifier.fillMaxSize().padding(horizontal = (PAD * s).dp, vertical = (PAD_V * s).dp),
+    ) { ms, c ->
+        val loose = c.copy(minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity)
+        val top = ms[0].measure(loose); val hours = ms[1].measure(loose)
+        val need = top.height + hours.height
+        val k = if (need > c.maxHeight) c.maxHeight.toFloat() / need else 1f
+        layout(c.maxWidth, c.maxHeight) {
+            fun place(p: androidx.compose.ui.layout.Placeable, y: Int) = p.placeWithLayer(0, y) {
+                scaleX = k; scaleY = k; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+            }
+            place(top, 0)
+            place(hours, c.maxHeight - (hours.height * k).toInt())
+        }
     }
 }
 

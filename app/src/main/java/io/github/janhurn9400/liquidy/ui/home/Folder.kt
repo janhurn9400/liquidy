@@ -115,9 +115,10 @@ fun FolderIconView(
 /** 3×3 Mini-Icons, Maße gemessen (Innenrand 10 pt, Mini 13 pt, Abstand 16 pt). */
 @Composable
 private fun MiniGrid(apps: List<AppEntry?>) {
-    val mini = DesignTokens.folderMiniSize.dp
+    val k = DesignTokens.folderMiniScale
+    val mini = DesignTokens.folderMiniSize.dp * k
     // Mini-Icons haben dieselben Eckenproportionen wie große Icons
-    val miniShape = ContinuousRoundedShape(DesignTokens.iconCorner.dp * (DesignTokens.folderMiniSize.value / DesignTokens.iconSize.value))
+    val miniShape = ContinuousRoundedShape(DesignTokens.iconCorner.dp * (DesignTokens.folderMiniSize.value * k / DesignTokens.iconSize.value))
     apps.take(DesignTokens.FOLDER_COLUMNS * DesignTokens.FOLDER_ROWS).forEachIndexed { i, app ->
         if (app == null) return@forEachIndexed // fliegt gerade hinein bzw. unbekannt: Platz bleibt frei
         val col = i % DesignTokens.FOLDER_COLUMNS
@@ -126,8 +127,8 @@ private fun MiniGrid(apps: List<AppEntry?>) {
             app = app,
             modifier = Modifier
                 .offset(
-                    x = DesignTokens.folderMiniInset.dp + DesignTokens.folderMiniPitch.dp * col,
-                    y = DesignTokens.folderMiniInset.dp + DesignTokens.folderMiniPitch.dp * row,
+                    x = (DesignTokens.folderMiniInset.dp + DesignTokens.folderMiniPitch.dp * col) * k,
+                    y = (DesignTokens.folderMiniInset.dp + DesignTokens.folderMiniPitch.dp * row) * k,
                 )
                 .size(mini)
                 .clip(miniShape),
@@ -229,9 +230,10 @@ class FolderGeometry(
     /** Mitte des App-Icons [i] (Index auf der Seite) relativ zu [rect] bei p: Mini-Platz im Ordner-Icon → Panel-Platz. */
     fun iconCenter(i: Int, p: Float, iconScale: Float = 1f): Offset {
         val col = i % DesignTokens.FOLDER_COLUMNS; val row = i / DesignTokens.FOLDER_COLUMNS
-        val half = px(DesignTokens.folderMiniSize.value) / 2
-        val mini = Offset(px(DesignTokens.folderMiniInset.value + DesignTokens.folderMiniPitch.value * col) + half,
-            px(DesignTokens.folderMiniInset.value + DesignTokens.folderMiniPitch.value * row) + half) * iconScale
+        val mk = DesignTokens.folderMiniScale
+        val half = px(DesignTokens.folderMiniSize.value) * mk / 2
+        val mini = Offset(px(DesignTokens.folderMiniInset.value + DesignTokens.folderMiniPitch.value * col) * mk + half,
+            px(DesignTokens.folderMiniInset.value + DesignTokens.folderMiniPitch.value * row) * mk + half) * iconScale
         val icon = px(DesignTokens.iconSize.value)
         val full = slot(i) + Offset(icon / 2, icon / 2)
         return mini + (full - mini) * p
@@ -239,7 +241,7 @@ class FolderGeometry(
 
     /** Größe der App-Icons relativ zur vollen Größe bei p: Mini-Icon → volles Icon. */
     fun iconScale(p: Float, folderIconScale: Float = 1f): Float {
-        val k = DesignTokens.folderMiniSize.value / DesignTokens.iconSize.value * folderIconScale
+        val k = DesignTokens.folderMiniSize.value * DesignTokens.folderMiniScale / DesignTokens.iconSize.value * folderIconScale
         return k + (1f - k) * p
     }
 }

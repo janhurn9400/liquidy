@@ -76,6 +76,7 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
     // Auswahlliste (Album/Kalender/Ort): Liquid-Glass-Blatt, gleitet von unten herein (M-WPE-SHEET), schiebt die Karte
     // leicht nach hinten; zu → gleitet hinaus, erst dann verschwindet es (vorher: schwarzes Blatt mit hartem Schnitt)
     val list = io.github.janhurn9400.liquidy.glass.rememberGlassSheetState()
+    var query by remember { mutableStateOf("") } // Suchtext (Ort/Stadt) — Feld schwebt über der Liste
     val sheet = list.progress
     val listOpen = list.visible
     fun openList() = list.open()
@@ -118,10 +119,8 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
                 .graphicsLayer {
                     val c = current()
                     translationX = c.center.x - cardRect.center.x; translationY = c.center.y - cardRect.center.y
-                    val back = 1f - CARD_PUSH * sheet.value // Blatt offen: Karte rückt leicht nach hinten (wie iOS-Blätter)
-                    scaleX = c.width / cardRect.width * back; scaleY = c.height / cardRect.height * back
+                    scaleX = c.width / cardRect.width; scaleY = c.height / cardRect.height
                     rotationY = angle() - 180f; cameraDistance = CAMERA * density
-                    alpha = 1f - CARD_FADE * sheet.value
                 }
                 .clip(RoundedCornerShape(CARD_CORNER.dp)).background(CARD)
                 .clickable(noRipple, null) { }
@@ -178,6 +177,8 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
                 BasicText(value, maxLines = 1, overflow = TextOverflow.Ellipsis, style = text(17f, FontWeight.Normal, BLUE))
             }
         }
+        // Blatt offen: Karte bleibt stehen, alles dahinter dunkelt ab (wie am iPhone, Nutzer 10-15)
+        if (listOpen) androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) { drawRect(Color.Black.copy(alpha = SHEET_DIM * sheet.value)) }
         when (spec.type) {
             IosWidgetTypes.PHOTOS -> GlassSheet(list, stringResource(R.string.wcfg_album)) {
                 val albums = remember { photoAlbums(context) }
@@ -195,14 +196,14 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
                         onChange(if (next == all || next.isEmpty()) null else next.joinToString(","))
                     }, dots = cals.associate { it.first.toString() to Color(it.third) })
             }
-            IosWidgetTypes.CLOCK -> GlassSheet(list, stringResource(R.string.wcfg_city)) {
-                CityRows(onPick = { c ->
+            IosWidgetTypes.CLOCK -> GlassSheet(list, stringResource(R.string.wcfg_city), bottomBar = { Box(Modifier.align(Alignment.BottomCenter)) { SearchField(query) { query = it } } }) {
+                CityRows(query, onPick = { c ->
                     if (c != null) io.github.janhurn9400.liquidy.data.WorldClock.remember(context, c)
                     list.close { onChange(c?.encode()) }
                 })
             }
-            else -> GlassSheet(list, stringResource(R.string.wcfg_location)) {
-                LocationRows(onPick = { p ->
+            else -> GlassSheet(list, stringResource(R.string.wcfg_location), bottomBar = { Box(Modifier.align(Alignment.BottomCenter)) { SearchField(query) { query = it } } }) {
+                LocationRows(query, onPick = { p ->
                     if (p != null) WeatherRepository.rememberPlace(context, p)
                     list.close { onChange(p?.encode()) }
                 })
@@ -212,9 +213,8 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.ColumnScope.LocationRows(onPick: (WeatherRepository.Place?) -> Unit) {
+private fun androidx.compose.foundation.layout.ColumnScope.LocationRows(query: String, onPick: (WeatherRepository.Place?) -> Unit) {
     val context = LocalContext.current
-    var query by remember { mutableStateOf("") }
     val saved = remember { WeatherRepository.savedPlaces(context) }
     val results by produceState(emptyList<WeatherRepository.Place>(), query) {
         delay(250)
@@ -231,15 +231,14 @@ private fun androidx.compose.foundation.layout.ColumnScope.LocationRows(onPick: 
                 Spacer(Modifier.height(8.dp))
                 results.forEach { p -> PlaceRow(p.name, p.region.ifEmpty { null }) { onPick(p) } }
             }
-        }
-        SearchField(query) { query = it }
-}
+            Spacer(Modifier.height(io.github.janhurn9400.liquidy.glass.GlassSheetBottomBarSpace)) // Zeilen laufen unter dem Suchfeld durch
+    }
+    }
 
 /** Städte für das Uhr-Widget: Ortszeit, zuletzt gewählte, dann Suche (offline Zeitzonen sofort, online jede Stadt). */
 @Composable
-private fun androidx.compose.foundation.layout.ColumnScope.CityRows(onPick: (io.github.janhurn9400.liquidy.data.WorldClock.City?) -> Unit) {
+private fun androidx.compose.foundation.layout.ColumnScope.CityRows(query: String, onPick: (io.github.janhurn9400.liquidy.data.WorldClock.City?) -> Unit) {
     val context = LocalContext.current
-    var query by remember { mutableStateOf("") }
     val saved = remember { io.github.janhurn9400.liquidy.data.WorldClock.saved(context) }
     val online by produceState(emptyList<io.github.janhurn9400.liquidy.data.WorldClock.City>(), query) {
         value = emptyList(); delay(300)
@@ -261,8 +260,8 @@ private fun androidx.compose.foundation.layout.ColumnScope.CityRows(onPick: (io.
                 style = text(15f, FontWeight.Normal, GREY).copy(textAlign = TextAlign.Center))
             all.forEach { c -> PlaceRow(c.name, listOfNotNull(c.region.ifEmpty { null }, zoneLabel(c)).joinToString(" · ")) { onPick(c) } }
         }
+        Spacer(Modifier.height(io.github.janhurn9400.liquidy.glass.GlassSheetBottomBarSpace)) // Zeilen laufen unter dem Suchfeld durch
     }
-    SearchField(query) { query = it }
 }
 
 /** Zeitverschiebung gegenüber dem Gerät, z. B. „+6 Std.“ / „Gleiche Zeit“. */
@@ -345,8 +344,7 @@ private fun text(size: Float, weight: FontWeight, color: Color) =
 // Farben/Maße aus der Aufnahme (402 pt breit): Karte 350 × 345 pt, Ecken 38, Zeile 52 hoch
 private val CARD = Color(0xFF050505)
 private val ROW = Color(0xFF2C2C2E)
-private const val CARD_PUSH = 0.06f   // Karte rückt bei offenem Blatt um 6 % zurück
-private const val CARD_FADE = 0.35f   // … und wird etwas dunkler
+private const val SHEET_DIM = 0.35f // Abdunklung hinter dem Auswahlblatt [GESCHÄTZT]
 private val GREY = Color(0xFF8E8E93)
 private val BLUE = Color(0xFF0A84FF)
 private const val DIM = 0.35f

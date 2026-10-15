@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -93,6 +94,9 @@ fun BoxWithConstraintsScope.GlassSheet(
     maxWidthDp: Float = SHEET_MAX_W,
     heightShare: Float = SHEET_H_SHARE,
     onClose: () -> Unit = { state.close() },
+    /** Schwebt unten über dem Inhalt (z. B. Glas-Suchfeld): der Inhalt läuft darunter durch und wird von ihm gebrochen.
+     *  Der Inhalt sollte am Ende [GlassSheetBottomBarSpace] Platz lassen, damit die letzte Zeile frei gescrollt werden kann. */
+    bottomBar: (@Composable BoxScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (!state.visible) return
@@ -105,32 +109,36 @@ fun BoxWithConstraintsScope.GlassSheet(
             .graphicsLayer { translationY = (1f - state.progress.value) * size.height }
             .clickable(noRipple, null) { }, // Tipps im Blatt nicht an den Hintergrund durchreichen
     ) {
-        // Milchglas (iOS-Auswahlblätter: durchgehende graue Fläche, keine Brechung) [Nutzer am iPhone 10-15]; die Fläche ist
-        // selbst Glasquelle für Glas-Elemente im Blatt (z. B. Suchfeld) — sie brechen das Blatt, nicht den Homescreen dahinter
+        // Milchglas (iOS-Auswahlblätter: durchgehende graue Fläche, keine Brechung) [Nutzer am iPhone 10-15].
+        // Fläche UND Inhalt sind Glasquelle für [bottomBar]: das Suchfeld bricht die Zeilen, die unter ihm durchlaufen
         val surface = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-        Box(Modifier.matchParentSize().then(Modifier.layerBackdrop(surface))) {
+        Box(Modifier.matchParentSize().layerBackdrop(surface)) {
             LiquidGlass(shape = glassRect(SHEET_CORNER.dp), modifier = Modifier.matchParentSize(),
                 blur = SHEET_BLUR.dp, blackTint = SHEET_DARK, whiteTint = SHEET_GREY, refraction = false)
-        }
-        androidx.compose.runtime.CompositionLocalProvider(LocalGlassBackdrop provides surface) {
-        Column(Modifier.fillMaxSize().padding(bottom = SHEET_CORNER.dp)) {
-            Box(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 16.dp)) {
-                Box(Modifier.align(Alignment.CenterStart).size(44.dp).clip(CircleShape).background(SheetRowColor)
-                    .clickable(noRipple, null, onClick = onClose), contentAlignment = Alignment.Center) {
-                    Canvas(Modifier.size(16.dp)) {
-                        val sw = 2.2.dp.toPx()
-                        drawLine(Color.White, Offset.Zero, Offset(size.width, size.height), sw, StrokeCap.Round)
-                        drawLine(Color.White, Offset(size.width, 0f), Offset(0f, size.height), sw, StrokeCap.Round)
+            Column(Modifier.fillMaxSize().padding(bottom = SHEET_CORNER.dp)) {
+                Box(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 16.dp)) {
+                    Box(Modifier.align(Alignment.CenterStart).size(44.dp).clip(CircleShape).background(SheetRowColor)
+                        .clickable(noRipple, null, onClick = onClose), contentAlignment = Alignment.Center) {
+                        Canvas(Modifier.size(16.dp)) {
+                            val sw = 2.2.dp.toPx()
+                            drawLine(Color.White, Offset.Zero, Offset(size.width, size.height), sw, StrokeCap.Round)
+                            drawLine(Color.White, Offset(size.width, 0f), Offset(0f, size.height), sw, StrokeCap.Round)
+                        }
                     }
+                    BasicText(title, Modifier.align(Alignment.Center),
+                        style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Color.White))
                 }
-                BasicText(title, Modifier.align(Alignment.Center),
-                    style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Color.White))
+                content()
             }
-            content()
         }
+        if (bottomBar != null) androidx.compose.runtime.CompositionLocalProvider(LocalGlassBackdrop provides surface) {
+            Box(Modifier.matchParentSize().padding(bottom = SHEET_CORNER.dp), content = bottomBar)
         }
     }
 }
+
+/** Platz am Ende des Blatt-Inhalts für eine schwebende [GlassSheet]-bottomBar (Suchfeld 44 + Ränder). */
+val GlassSheetBottomBarSpace = 76.dp
 
 /** Hintergrund von Knöpfen/Feldern auf dem Glasblatt. */
 val SheetRowColor = Color.White.copy(alpha = 0.12f)

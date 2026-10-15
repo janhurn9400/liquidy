@@ -349,7 +349,7 @@ fun HomeScreen(
                     val from = Rect(c - Offset(geo.icon * s / 2, geo.icon * s / 2), Size(geo.icon * s, geo.icon * s))
                     // Ordner im Dock: sichtbares Icon kleiner (geo.iconRect / dockIconScale) → Mini-Plätze mitskalieren
                     val box = geo.iconRect(folderTl, target in model.display.dock)
-                    val k = box.width / geo.icon
+                    val k = box.width / geo.icon * DesignTokens.folderMiniScale
                     val mini = DesignTokens.folderMiniSize.value * density * k
                     val tl = box.topLeft + Offset(
                         (DesignTokens.folderMiniInset.value + DesignTokens.folderMiniPitch.value * (slot % DesignTokens.FOLDER_COLUMNS)) * density * k,
