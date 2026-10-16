@@ -78,18 +78,6 @@ object IconPacks {
     fun icon(context: Context, component: ComponentName, fallback: Drawable?, sizePx: Int): Drawable? =
         selected?.let { iconFrom(context, it, component, fallback, sizePx) }
 
-    /**
-     * Monochrome glyph the selected pack ships for [component] (many packs add "<name>_mono" next to each icon, drawn for
-     * themed/tinted icons), otherwise null. Clean line art instead of a glyph computed from the full-colour icon.
-     */
-    fun mono(context: Context, component: ComponentName): Drawable? {
-        val l = selected?.let { loaded[it] ?: parse(context, it)?.also { p -> loaded[it] = p } } ?: return null
-        val name = l.items["${component.packageName}/${component.className}"]
-            ?: l.items["${component.packageName}/${component.shortClassName}"]
-            ?: l.byClass[component.className] ?: return null
-        return drawable(l, name + MONO_SUFFIX)
-    }
-
     /** Like [icon], but from a specific pack (preview in the settings). */
     fun iconFrom(context: Context, pkg: String, component: ComponentName, fallback: Drawable?, sizePx: Int): Drawable? {
         val l = loaded[pkg] ?: parse(context, pkg)?.also { loaded[pkg] = it } ?: return null
@@ -165,5 +153,4 @@ object IconPacks {
         "com.teslacoilsw.launcher.THEME", "com.anddoes.launcher.THEME", "com.fede.launcher.THEME_ICONPACK",
         "ch.deletescape.lawnchair.ICONPACK", "app.lawnchair.icons.THEMED_ICON",
     )
-    private const val MONO_SUFFIX = "_mono"
 }

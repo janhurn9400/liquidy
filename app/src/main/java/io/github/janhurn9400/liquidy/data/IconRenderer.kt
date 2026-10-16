@@ -15,8 +15,7 @@ import androidx.compose.ui.graphics.asImageBitmap
  * so T-ICON-R stays live-adjustable in the debug panel.
  * Legacy icons: white background, icon centred at 80 %.
  */
-/** [designedMono]: [mono] is a drawn monochrome glyph (icon pack or the app's themed icon), not computed from the colours. */
-class IconLayers(val glyph: ImageBitmap, val mono: ImageBitmap, val designedMono: Boolean = false)
+class IconLayers(val glyph: ImageBitmap, val mono: ImageBitmap)
 
 object IconRenderer {
     private const val LEGACY_SCALE = 0.8f // [ESTIMATED] iOS has no legacy icons
@@ -50,28 +49,26 @@ object IconRenderer {
      *  - [IconLayers.mono]: monochrome mask (monochrome layer from API 33, otherwise from [glyph]) for Clear/Tinted.
      * Same geometry as [render] (layer 1.5× of the icon), so the motifs sit congruently.
      */
-    fun layers(drawable: Drawable, sizePx: Int, fullBleed: Boolean = false, designedMono: Drawable? = null): IconLayers {
-        val glyph = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-        val c = Canvas(glyph)
-        val inset = (sizePx * 0.25f).toInt()
+    fun layers(drawable: Drawable, sizePx: Int, fullBleed: Boolean = false): IconLayers {
+        // The plate is removed at GLYPH_SUPERSAMPLE× resolution and the result is box-filtered down in 2:1 steps —
+        // anti-aliased motif edges instead of the pixel steps a per-pixel decision leaves at icon size.
+        val big = sizePx * GLYPH_SUPERSAMPLE
+        val hi = Bitmap.createBitmap(big, big, Bitmap.Config.ARGB_8888)
+        val c = Canvas(hi)
+        val bigInset = (big * 0.25f).toInt()
         if (fullBleed && drawable !is AdaptiveIconDrawable) {
-            drawable.setBounds(0, 0, sizePx, sizePx); drawable.draw(c)
+            drawable.setBounds(0, 0, big, big); drawable.draw(c)
         } else if (drawable is AdaptiveIconDrawable) {
-            listOfNotNull(drawable.background, drawable.foreground).forEach { it.setBounds(-inset, -inset, sizePx + inset, sizePx + inset); it.draw(c) }
+            listOfNotNull(drawable.background, drawable.foreground).forEach { it.setBounds(-bigInset, -bigInset, big + bigInset, big + bigInset); it.draw(c) }
         } else {
-            val sz = (sizePx * LEGACY_SCALE).toInt(); val o = (sizePx - sz) / 2
+            val sz = (big * LEGACY_SCALE).toInt(); val o = (big - sz) / 2
             drawable.setBounds(o, o, o + sz, o + sz); drawable.draw(c)
         }
-        knockOutPlate(glyph)
+        knockOutPlate(hi)
+        var glyph = hi
+        while (glyph.width > sizePx) glyph = Bitmap.createScaledBitmap(glyph, glyph.width / 2, glyph.height / 2, true)
+        val inset = (sizePx * 0.25f).toInt()
         val monoLayer = (drawable as? AdaptiveIconDrawable)?.monochrome
-        if (designedMono != null) {
-            // drawn glyph (pack "_mono" icon or the app's own themed icon): it fills the icon square like the icon itself
-            val m = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-            if (designedMono is AdaptiveIconDrawable) (designedMono.monochrome ?: designedMono.foreground)?.let { it.setBounds(-inset, -inset, sizePx + inset, sizePx + inset); it.draw(Canvas(m)) }
-            else { designedMono.setBounds(0, 0, sizePx, sizePx); designedMono.draw(Canvas(m)) }
-            Canvas(m).drawColor(android.graphics.Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN)
-            return IconLayers(glyph.asImageBitmap(), m.asImageBitmap(), designedMono = true)
-        }
         val mono = if (monoLayer != null) {
             Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).also { b ->
                 monoLayer.setBounds(-inset, -inset, sizePx + inset, sizePx + inset); monoLayer.draw(Canvas(b))
@@ -222,6 +219,7 @@ object IconRenderer {
     private const val PLATE_SEED_INSET = 0.04f // second seed this far inside the edge (× size), past a light rim
     private const val PLATE_RIM_BAND = 2       // rim band removed outside the motif (× seed inset; the rim curves into the corners)
     private const val PLATE_MAX_SHARE = 0.995f // more than this share of the icon counted as plate → keep the icon
+    private const val GLYPH_SUPERSAMPLE = 4 // plate removal resolution × icon size (power of two: exact 2:1 box filter steps)
     private const val GLYPH_OVERSAMPLE = 4 // render the icon larger so the crop stays sharp
     private const val GLYPH_FILL = 0.92f   // the motif fills the box (glyphs in recording4 ≈ 16 pt in a 16.33 pt box)
     private const val ALPHA_MIN = 40

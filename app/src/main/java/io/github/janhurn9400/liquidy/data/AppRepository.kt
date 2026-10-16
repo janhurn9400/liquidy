@@ -157,10 +157,7 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
             val layers = runCatching {
                 val orig = info.getIcon(0)
                 val pack = IconPacks.icon(context, info.componentName, orig, px)
-                // monochrome glyph: the pack's drawn one, else the app's own themed icon (Android 13), else computed
-                val designed = IconPacks.mono(context, info.componentName)
-                    ?: (orig as? android.graphics.drawable.AdaptiveIconDrawable)?.takeIf { it.monochrome != null }
-                IconRenderer.layers(pack ?: orig, px, fullBleed = pack != null, designedMono = designed)
+                IconRenderer.layers(pack ?: orig, px, fullBleed = pack != null)
             }.getOrNull() ?: continue
             kotlinx.coroutines.withContext(Dispatchers.Main) { IconLayerCache.map[app.key] = layers }
         }

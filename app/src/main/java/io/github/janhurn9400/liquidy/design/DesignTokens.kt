@@ -336,11 +336,11 @@ object DesignTokens {
     const val TINT_GLYPH_V = 0.95f
     /** Widgets: content brightness → plate…glyph; × this so light content (≈ 0.85) already reaches the glyph colour. */
     const val TINT_WIDGET_GAIN = 1.15f
-    /** Icons: like iOS for apps without a designed tinted icon (WhatsApp, Spotify, Snapchat in the user's video 10-16) the
-     *  motif is mostly flat and light — what differs from the plate becomes glyph colour (the soft plate mask is the
-     *  alpha), brightness only adds a light shading: floor = minimum lift, gain on brightness [DERIVED]. */
-    const val TINT_ICON_GAIN = 1.2f
-    const val TINT_ICON_FLOOR = 0.75f
+    /** Icons: motif brightness gain and minimum lift towards the glyph colour (iOS glyphs are clearly lighter than the
+     *  plate everywhere, mostly near white) [DERIVED from the side-by-side comparison with the user's iPhone 10-16;
+     *  the user preferred this over flat glyphs and over the icon pack's monochrome icons]. */
+    const val TINT_ICON_GAIN = 1.3f
+    const val TINT_ICON_FLOOR = 0.35f
 
     // ── Wallpaper (own generated gradient; colours sampled from IMG_3123) ───
     val wallpaperBase = Color(0xFFC3C1C0)
