@@ -126,9 +126,13 @@ fun StyledIcon(
             Image(layers.mono, app.label, Modifier.matchParentSize(),
                 colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(if (dark) CLEAR_GLYPH_DARK else CLEAR_GLYPH_LIGHT))
         }
-        else -> { // Tinted
-            val bg = if (dark) ia.tint(TINT_DARK_BG_V, TINT_DARK_BG_S) else ia.tint(TINT_LIGHT_BG_V, TINT_LIGHT_BG_S)
-            val fg = if (dark) ia.tint(1f, TINT_DARK_FG_S) else ia.tint(TINT_LIGHT_FG_V)
+        else -> if (!dark) { // Tinted, Light: opaque plate + light glyph (iOS 27, T-TINT, measured 10-16)
+            Box(modifier.background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(ia.tintPlate(top = true), ia.tintPlate(top = false))))) {
+                Image(layers.mono, app.label, Modifier.matchParentSize(), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(ia.tintGlyph()))
+            }
+        } else { // Tinted, Dark
+            val bg = ia.tint(TINT_DARK_BG_V, TINT_DARK_BG_S)
+            val fg = ia.tint(1f, TINT_DARK_FG_S)
             // tinted glass: the wallpaper shines through slightly (recording7 24.5 s)
             io.github.janhurn9400.liquidy.glass.GlassSurface(
                 wallpaper = wallpaper,
@@ -153,9 +157,6 @@ private val CLEAR_GLYPH_DARK = Color(0xD9FFFFFF)
 private const val TINT_DARK_BG_V = 0.38f
 private const val TINT_DARK_BG_S = 1.15f
 private const val TINT_DARK_FG_S = 0.45f
-private const val TINT_LIGHT_BG_V = 0.96f
-private const val TINT_LIGHT_BG_S = 0.22f
-private const val TINT_LIGHT_FG_V = 0.62f
 private const val TINT_GLASS_TOP = 0.8f    // a bit more transparent at the top (gloss)
 private const val TINT_GLASS_BOTTOM = 0.93f
 

@@ -29,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -79,8 +81,43 @@ fun openWidgetApp(context: Context, type: String, from: android.graphics.RectF? 
     runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), opts?.toBundle()) }
 }
 
+/**
+ * True while a widget is drawn in the Tinted icon style: widgets then paint their own background black, and [IosWidget]
+ * maps the result by brightness from the tint plate (black) to the glyph colour (light content) — like iOS 27, where
+ * widgets get the same opaque plate as the icons with light content (T-TINT, measured 10-16).
+ */
+internal val LocalWidgetTinted = androidx.compose.runtime.staticCompositionLocalOf { false }
+
+/** Background of an own widget: [normal], or black in the Tinted style (becomes the tint plate). */
+@Composable
+internal fun widgetBackground(normal: Color): Color = if (LocalWidgetTinted.current) Color.Black else normal
+
 @Composable
 fun IosWidget(type: String, cols: Int, rows: Int = 2, modifier: Modifier = Modifier, config: String? = null) {
+    val ia = io.github.janhurn9400.liquidy.design.IconAppearance
+    if (ia.effective != io.github.janhurn9400.liquidy.design.IconStyle.Tinted || ia.dark) { IosWidgetContent(type, cols, rows, modifier, config); return }
+    val plate = ia.tintPlate(); val glyph = ia.tintGlyph()
+    val effect = androidx.compose.runtime.remember(plate, glyph) { tintEffect(plate, glyph) }
+    androidx.compose.runtime.CompositionLocalProvider(LocalWidgetTinted provides true) {
+        IosWidgetContent(type, cols, rows, modifier.graphicsLayer { renderEffect = effect }, config)
+    }
+}
+
+/** Brightness → plate…glyph (linear, per channel): black = plate, light content = glyph colour. */
+private fun tintEffect(plate: Color, glyph: Color): androidx.compose.ui.graphics.RenderEffect {
+    val g = io.github.janhurn9400.liquidy.design.DesignTokens.TINT_WIDGET_GAIN
+    fun row(p: Float, q: Float) = (q - p) * g // input and output are both 0…255
+    val m = android.graphics.ColorMatrix(floatArrayOf(
+        row(plate.red, glyph.red) * 0.299f, row(plate.red, glyph.red) * 0.587f, row(plate.red, glyph.red) * 0.114f, 0f, plate.red * 255f,
+        row(plate.green, glyph.green) * 0.299f, row(plate.green, glyph.green) * 0.587f, row(plate.green, glyph.green) * 0.114f, 0f, plate.green * 255f,
+        row(plate.blue, glyph.blue) * 0.299f, row(plate.blue, glyph.blue) * 0.587f, row(plate.blue, glyph.blue) * 0.114f, 0f, plate.blue * 255f,
+        0f, 0f, 0f, 1f, 0f,
+    ))
+    return android.graphics.RenderEffect.createColorFilterEffect(android.graphics.ColorMatrixColorFilter(m)).asComposeRenderEffect()
+}
+
+@Composable
+private fun IosWidgetContent(type: String, cols: Int, rows: Int, modifier: Modifier, config: String?) {
     when (type) {
         IosWidgetTypes.WEATHER -> WeatherWidget(cols, rows, modifier, io.github.janhurn9400.liquidy.data.WeatherRepository.Place.decode(config))
         IosWidgetTypes.PHOTOS -> PhotoWidget(modifier, config)
@@ -100,15 +137,16 @@ private fun ClockWidget(modifier: Modifier, city: io.github.janhurn9400.liquidy.
     val now by produceState(LocalTime.now(zone), zone) { while (true) { value = LocalTime.now(zone); delay(1000L - System.currentTimeMillis() % 1000) } }
     val night = city != null && (now.hour < CLOCK_DAY_FROM || now.hour >= CLOCK_NIGHT_FROM)
     val face = if (night) Color.Black else Color.White
-    val ink = if (night) Color.White else Color.Black
+    val ink = if (night || LocalWidgetTinted.current) Color.White else Color.Black
     val minorTick = if (night) Color(0xFF6E6E73) else Color(0xFF9A9A9A)
     val label = city?.name?.filter { it.isLetter() }?.take(3)?.uppercase()
     val measurer = androidx.compose.ui.text.rememberTextMeasurer()
-    Box(modifier.background(Color(0xFF1C1C1E)), contentAlignment = Alignment.Center) {
+    val tinted = LocalWidgetTinted.current
+    Box(modifier.background(widgetBackground(Color(0xFF1C1C1E))), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize().padding(CLOCK_PAD.dp)) {
             val r = size.minDimension / 2
             val c = center
-            drawCircle(face, r, c)
+            if (!tinted) drawCircle(face, r, c) // tinted: the dial is part of the plate, ticks/hands light (iOS 27)
             if (label != null) {
                 val t = measurer.measure(label, androidx.compose.ui.text.TextStyle(fontFamily = io.github.janhurn9400.liquidy.ui.Inter,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = (r * 0.2f / density).sp, color = minorTick))
@@ -144,7 +182,7 @@ private fun CalendarWidget(cols: Int, modifier: Modifier, config: String? = null
     val today = LocalDate.now()
     val events by produceState(emptyList<CalEvent>(), today, config) { value = loadEvents(context, config) }
     val locale = Locale.getDefault()
-    Row(modifier.background(Color.Black).padding(WIDGET_PAD.dp)) {
+    Row(modifier.background(widgetBackground(Color.Black)).padding(WIDGET_PAD.dp)) {
         Column(Modifier.then(if (cols >= 4) Modifier.width(MEDIUM_DATE_W.dp) else Modifier.fillMaxWidth())) {
             BasicText(today.dayOfWeek.getDisplayName(JTextStyle.FULL, locale).uppercase(locale),
                 style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = RED))
@@ -233,7 +271,8 @@ private fun BatteryWidget(modifier: Modifier) {
     val level by produceState(batteryLevel(context)) { while (true) { value = batteryLevel(context); delay(60_000) } }
     Box(modifier, contentAlignment = Alignment.Center) {
         // Tinted glass like iOS "Batteries" (recording8 12.5 s: inside ≈ 35 % of the background brightness, colour stays)
-        if (io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current != null) io.github.janhurn9400.liquidy.glass.LiquidGlass(
+        if (LocalWidgetTinted.current) Box(Modifier.fillMaxSize().background(Color.Black))
+        else if (io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current != null) io.github.janhurn9400.liquidy.glass.LiquidGlass(
             shape = io.github.janhurn9400.liquidy.glass.glassRect(io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.dp),
             modifier = Modifier.fillMaxSize(), blur = WIDGET_GLASS_BLUR.dp, blackTint = WIDGET_GLASS_DARK, whiteTint = 0f,
         ) else Box(Modifier.fillMaxSize().background(Color(0xFF1C1C1E)))

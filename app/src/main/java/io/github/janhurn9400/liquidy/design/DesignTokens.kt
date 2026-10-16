@@ -326,6 +326,17 @@ object DesignTokens {
         0xFFACC0A4.toInt(), 0xFF9BB8C0.toInt(), 0xFFC0A9BF.toInt(), 0xFFC9BDB0.toInt(), 0xFFFFFFFF.toInt(), 0xFF000000.toInt(),
     )
 
+    // ── Tinted icon style, Light variant (T-TINT) [MEASURED] user iPhone 10-16 (iOS 27, hue 315, saturation slider at max):
+    // icons AND widgets get the same opaque plate hsv(h, 0.69, 0.54 → 0.51 top to bottom); icon glyphs almost white with
+    // a hint of the hue (S 0.07–0.21, V 0.85–1.0); widget text white. Saturations scale with the saturation slider.
+    const val TINT_PLATE_S = 0.69f
+    const val TINT_PLATE_V_TOP = 0.54f
+    const val TINT_PLATE_V_BOTTOM = 0.51f
+    const val TINT_GLYPH_S = 0.12f
+    const val TINT_GLYPH_V = 0.95f
+    /** Widgets: content brightness → plate…glyph; × this so light content (≈ 0.85) already reaches the glyph colour. */
+    const val TINT_WIDGET_GAIN = 1.15f
+
     // ── Wallpaper (own generated gradient; colours sampled from IMG_3123) ───
     val wallpaperBase = Color(0xFFC3C1C0)
     val wallpaperLight = Color(0xFFD4D2CF)

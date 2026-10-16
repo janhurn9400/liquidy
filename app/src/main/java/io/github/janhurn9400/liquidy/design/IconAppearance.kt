@@ -37,6 +37,13 @@ object IconAppearance {
     fun tint(value: Float, satScale: Float = 1f): Color =
         Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, (saturation * satScale).coerceIn(0f, 1f), value.coerceIn(0f, 1f))))
 
+    /** Tinted (Light variant): opaque plate colour for icons and widgets, top or bottom of its slight gradient. */
+    fun tintPlate(top: Boolean = true): Color =
+        tint(if (top) DesignTokens.TINT_PLATE_V_TOP else DesignTokens.TINT_PLATE_V_BOTTOM, DesignTokens.TINT_PLATE_S)
+
+    /** Tinted (Light variant): glyph colour — almost white with a hint of the hue. */
+    fun tintGlyph(): Color = tint(DesignTokens.TINT_GLYPH_V, DesignTokens.TINT_GLYPH_S)
+
     fun load(context: Context) {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         style = runCatching { IconStyle.valueOf(p.getString("style", null) ?: "") }.getOrDefault(IconStyle.Default)

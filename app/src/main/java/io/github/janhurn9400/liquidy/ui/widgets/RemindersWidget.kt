@@ -98,7 +98,7 @@ internal fun RemindersWidget(cols: Int, rows: Int, modifier: Modifier) {
     val context = LocalContext.current
     remember { RemindersStore.load(context) }
     val open = RemindersStore.open
-    BoxWithConstraints(modifier.background(Color(0xFF1C1C1E))) {
+    BoxWithConstraints(modifier.background(widgetBackground(Color(0xFF1C1C1E)))) {
         val s = maxHeight.value / (if (rows >= 4) 363f else 163f)
         Column(Modifier.fillMaxSize().padding(horizontal = (16 * s).dp, vertical = (14 * s).dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
