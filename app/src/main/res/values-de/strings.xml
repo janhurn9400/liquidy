@@ -281,4 +281,14 @@
     <string name="settings_iconpack_footer">Unterstützt werden Icon-Pakete im verbreiteten ADW/Nova-Format. Apps ohne Symbol im Paket behalten ihr eigenes.</string>
     <string name="settings_iconpack_none">Kein Icon-Paket installiert. Installiere eins aus dem Play Store oder als APK (ADW/Nova-Format) und komm dann hierher zurück.</string>
     <string name="delete_app_menu">App löschen</string>
+    <string name="settings_report_record">Bildschirm aufnehmen &amp; melden</string>
+    <string name="settings_report_recording">Aufnahme läuft … Stopp über die Mitteilung</string>
+    <string name="settings_report_record_footer">Nimmt bis zu einer Minute auf, während du das Problem zeigst. Ein kurzes Video hilft enorm, einen Fehler nachzustellen und zu beheben. Stoppe über die Mitteilung – das Issue öffnet sich und du hängst nur noch das Video aus Filme/Liquidy an. Liquidy lädt nichts hoch.</string>
+    <string name="settings_report_video_hint">**Bildschirmaufnahme:** bitte `%1$s` aus Filme/Liquidy anhängen – in dieses Textfeld ziehen oder unten „Paste, drop, or click to add files“ verwenden. Das hilft enorm, den Fehler nachzustellen und zu beheben.</string>
+    <string name="bugrec_channel">Aufnahme für Fehlerbericht</string>
+    <string name="bugrec_running">Aufnahme für Fehlerbericht</string>
+    <string name="bugrec_running_text">Zeige das Problem, dann „Stoppen &amp; melden“ tippen.</string>
+    <string name="bugrec_stop">Stoppen &amp; melden</string>
+    <string name="bugrec_done">Aufnahme gespeichert</string>
+    <string name="bugrec_done_text">Tippen, um den Fehlerbericht zu öffnen.</string>
 </resources>

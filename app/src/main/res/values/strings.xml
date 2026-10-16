@@ -281,4 +281,14 @@
     <string name="settings_iconpack_footer">Icon packs in the common ADW/Nova format are supported. Apps without an icon in the pack keep their own icon.</string>
     <string name="settings_iconpack_none">No icon pack installed. Install one from the Play Store or as an APK (ADW/Nova format), then come back here.</string>
     <string name="delete_app_menu">Delete App</string>
+    <string name="settings_report_record">Record Screen &amp; Report</string>
+    <string name="settings_report_recording">Recording… stop it from the notification</string>
+    <string name="settings_report_record_footer">Records up to one minute while you show the problem. A short video helps a lot to reproduce and fix a bug. Stop it from the notification — the issue opens and you just attach the video from Movies/Liquidy. Nothing is uploaded by Liquidy.</string>
+    <string name="settings_report_video_hint">**Screen recording:** please attach `%1$s` from Movies/Liquidy — drag it into this text field or use \"Paste, drop, or click to add files\" below. It helps a lot to reproduce and fix the bug.</string>
+    <string name="bugrec_channel">Bug report recording</string>
+    <string name="bugrec_running">Recording for bug report</string>
+    <string name="bugrec_running_text">Show the problem, then tap Stop &amp; Report.</string>
+    <string name="bugrec_stop">Stop &amp; Report</string>
+    <string name="bugrec_done">Recording saved</string>
+    <string name="bugrec_done_text">Tap to open the bug report.</string>
 </resources>

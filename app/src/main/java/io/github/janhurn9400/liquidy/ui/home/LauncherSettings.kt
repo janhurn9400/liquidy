@@ -250,7 +250,7 @@ private fun Detail(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolea
                 SubPage.IconPacks -> IconPackPage(categoryTitle(c)) { subPage = SubPage.None }
                 SubPage.Glass -> GlassPage(categoryTitle(c)) { subPage = SubPage.None }
                 SubPage.Module -> ModulePage(categoryTitle(c), tick) { subPage = SubPage.None }
-                SubPage.Report -> ReportPage(categoryTitle(c)) { subPage = SubPage.None }
+                SubPage.Report -> ReportPage(categoryTitle(c), onClose = { subPage = SubPage.None; model.closeSettings() }) { subPage = SubPage.None }
                 SubPage.None -> DetailBody(c, model, tick, inlineTitle) { subPage = it }
             }
         }
@@ -831,7 +831,7 @@ private fun ModulePage(backLabel: String, tick: Int, onBack: () -> Unit) {
  * themselves to read — nothing is sent without the user.
  */
 @Composable
-private fun ReportPage(backLabel: String, onBack: () -> Unit) {
+private fun ReportPage(backLabel: String, onClose: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     val noRipple = remember { MutableInteractionSource() }
     val report = remember { io.github.janhurn9400.liquidy.data.Diagnostics.report(context) }
@@ -867,6 +867,35 @@ private fun ReportPage(backLabel: String, onBack: () -> Unit) {
             }
         }
         BasicText(stringResource(R.string.settings_diagnostics_footer), Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp),
+            style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = GREY))
+        Spacer(Modifier.height(SECTION_GAP.dp))
+        // Screen recording for the report: consent (system dialog) → recording with a Stop notification → issue opens
+        val bugRec = io.github.janhurn9400.liquidy.data.BugRecorder
+        val capture = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { r ->
+            if (r.resultCode == android.app.Activity.RESULT_OK && r.data != null) {
+                bugRec.start(context, r.resultCode, r.data!!)
+                onClose() // close the settings: the user shows the problem right away on the home screen
+            }
+        }
+        val askCapture = {
+            val mpm = context.getSystemService(android.media.projection.MediaProjectionManager::class.java)
+            // whole screen, not "share one app": the bug can be anywhere (Android 14+ can preselect this)
+            capture.launch(if (android.os.Build.VERSION.SDK_INT >= 34)
+                mpm.createScreenCaptureIntent(android.media.projection.MediaProjectionConfig.createConfigForDefaultDisplay())
+            else mpm.createScreenCaptureIntent())
+        }
+        val notifications = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { askCapture() } // Stop lives in the notification
+        Group {
+            if (bugRec.recording) LinkRow(stringResource(R.string.settings_report_recording)) { }
+            else LinkRow(stringResource(R.string.settings_report_record)) {
+                if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                    notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                else askCapture()
+            }
+        }
+        BasicText(stringResource(R.string.settings_report_record_footer), Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp),
             style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = GREY))
         Spacer(Modifier.height(SECTION_GAP.dp))
         BasicText(stringResource(R.string.settings_report_included), Modifier.padding(start = 20.dp, bottom = 8.dp),

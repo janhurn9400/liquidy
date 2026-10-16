@@ -4,6 +4,10 @@
 
     <!-- "Delete App" in edit mode (system uninstall dialog) -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Bug report screen recording (Settings › Advanced › Report a Problem): foreground service + its notification -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- App list via LauncherApps; package visibility for all launcher activities -->
     <queries>
@@ -87,5 +91,17 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+        <!-- Bug report screen recording + the invisible step that opens the GitHub issue after stopping -->
+        <service
+            android:name=".data.BugRecorder"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+        <activity
+            android:name=".data.BugReportActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     </application>
 </manifest>
