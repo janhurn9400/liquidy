@@ -3,18 +3,18 @@ package io.github.janhurn9400.liquidy.ui.home
 import io.github.janhurn9400.liquidy.design.DesignTokens
 
 /**
- * Raster-Platzierung wie iOS: Items der Reihe nach in die erste freie Stelle (zeilenweise), in die sie passen.
- * Icons belegen 1 Zelle, Widgets 2×2 / 4×2 / 4×4 und rasten wie bei iOS nur in Spalte 0 oder 2 und in den Reihenpaaren
- * (Reihe 1, 3, 5) ein — keine einzelne App-Reihe über einem Widget (Nutzer 10-14); lockerbar über Quirks.freeWidgetRows.
- * Zelle = Zeile · Spalten + Spalte.
+ * Grid placement like iOS: items in order into the first free spot (row by row) they fit into.
+ * Icons occupy 1 cell, widgets 2×2 / 4×2 / 4×4 and snap like on iOS only into column 0 or 2 and into the row pairs
+ * (row 1, 3, 5) — no single app row above a widget (user 10-14); can be relaxed via Quirks.freeWidgetRows.
+ * cell = row · columns + column.
  */
 object GridPlacement {
     private const val COLS = DesignTokens.GRID_COLUMNS
     private const val ROWS = DesignTokens.GRID_ROWS
-    /** Mehrreihige Widgets nur in geraden Reihen (iOS). */
+    /** Multi-row widgets only in even rows (iOS). */
     private val rowPairs get() = !io.github.janhurn9400.liquidy.data.Quirks.freeWidgetRows
 
-    /** Zelle je Key (Reihenfolge wie [keys]); -1 = passt nicht mehr auf die Seite. */
+    /** Cell per key (order like [keys]); -1 = doesn't fit on the page anymore. */
     fun place(keys: List<String>, size: (String) -> Pair<Int, Int>): IntArray {
         val used = Array(ROWS) { BooleanArray(COLS) }
         return IntArray(keys.size) { i ->
@@ -35,27 +35,27 @@ object GridPlacement {
 
     fun fits(keys: List<String>, size: (String) -> Pair<Int, Int>) = place(keys, size).none { it < 0 }
 
-    // ── Freie Platzierung (aktuelles iOS: Icons bleiben, wo man sie ablegt — auch mit Lücken) ─────────────────
-    // Leere Zellen stehen als unsichtbare Platzhalter („gap:…“, 1×1) in der Seitenliste. Weil [place] der Reihe nach
-    // die erste freie Stelle nimmt, legt eine zeilenweise sortierte Liste mit Platzhaltern jede Position genau fest.
-    // Anzeige, Treffer und Animationen bekommen die Platzhalter nie zu sehen (HomeModel.display filtert sie).
+    // ── Free placement (current iOS: icons stay where you drop them — even with gaps) ─────────────────
+    // Empty cells are invisible placeholders ("gap:…", 1×1) in the page list. Because [place] takes the first free spot
+    // in order, a row-sorted list with placeholders pins down every position exactly.
+    // Display, hits and animations never see the placeholders (HomeModel.display filters them).
 
     const val GAP_PREFIX = "gap:"
     fun isGap(key: String) = key.startsWith(GAP_PREFIX)
     fun newGap() = GAP_PREFIX + java.util.UUID.randomUUID().toString().take(12)
-    /** Seite ohne echte Items (nur Platzhalter oder leer). */
+    /** Page without real items (only placeholders or empty). */
     fun isBlank(keys: List<String>) = keys.all(::isGap)
-    /** Platzhalter am Ende haben keine Wirkung → weg. */
+    /** Placeholders at the end have no effect → remove. */
     fun trim(keys: List<String>) = keys.dropLastWhile(::isGap)
     fun stripGaps(keys: List<String>) = keys.filterNot(::isGap)
 
-    /** Zellen der echten Items (gleiche Reihenfolge wie [stripGaps]). */
+    /** Cells of the real items (same order as [stripGaps]). */
     fun placeReal(keys: List<String>, size: (String) -> Pair<Int, Int>): IntArray {
         val all = place(keys, size)
         return keys.indices.filter { !isGap(keys[it]) }.map { all[it] }.toIntArray()
     }
 
-    /** Liste aus festen Positionen (Key → Zelle oben links): zeilenweise, freie Zellen davor als Platzhalter. */
+    /** List from fixed positions (key → top-left cell): row by row, free cells before them as placeholders. */
     fun canonical(items: List<Pair<String, Int>>, size: (String) -> Pair<Int, Int>): List<String> {
         if (items.isEmpty()) return emptyList()
         val covered = BooleanArray(COLS * ROWS)
@@ -74,10 +74,10 @@ object GridPlacement {
     }
 
     /**
-     * [key] an Zelle [cell] legen (Widgets rasten in Spalte 0/2 ein und bleiben im Raster):
-     *  - Zielfläche frei → dort hin, alle anderen bleiben stehen,
-     *  - belegt → vor das Item an dieser Stelle einfügen; die Folgenden rücken nur bis zur nächsten Lücke auf
-     *    (die Lücke wird verbraucht), sonst wie bisher auf die nächste Seite (Aufrufer: [flow]).
+     * Put [key] at cell [cell] (widgets snap into column 0/2 and stay in the grid):
+     *  - target area free → there, all others stay put,
+     *  - occupied → insert before the item at this spot; the following ones only move up to the next gap
+     *    (the gap is used up), otherwise onto the next page as before (caller: [flow]).
      */
     fun placeAt(keys: List<String>, key: String, cell: Int, size: (String) -> Pair<Int, Int>): List<String> {
         val (c, r) = size(key)
@@ -100,7 +100,7 @@ object GridPlacement {
         }
         val region = (0 until r).flatMap { y -> (0 until c).map { x -> target + y * COLS + x } }
         if (region.all { occ[it] == null }) return canonical(items + (key to target), size) + overflow
-        // belegt: vor das (in Listenreihenfolge) erste Item der Zielfläche
+        // occupied: before the first item (in list order) of the target area
         val hit = region.mapNotNull { occ[it] }.toSet()
         val idx = keys.indexOfFirst { it in hit }.coerceAtLeast(0)
         val out = keys.toMutableList()
@@ -110,7 +110,7 @@ object GridPlacement {
         return out
     }
 
-    /** Schiebt, was nicht mehr passt, auf die Folgeseiten (wie iOS beim Einfügen); Platzhalter am Ende fallen weg. */
+    /** Pushes what doesn't fit anymore onto the following pages (like iOS when inserting); placeholders at the end drop out. */
     fun flow(pages: List<List<String>>, size: (String) -> Pair<Int, Int>): List<List<String>> {
         val p = pages.map { trim(it).toMutableList() }.toMutableList()
         var i = 0

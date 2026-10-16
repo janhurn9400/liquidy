@@ -66,23 +66,23 @@ private sealed interface Entry {
 
 private fun letterOf(app: AppEntry): Char {
     val c = app.label.trim().firstOrNull()?.uppercaseChar() ?: '#'
-    // Umlaute/Akzente unter ihren Grundbuchstaben
+    // Umlauts/accents under their base letters
     val base = java.text.Normalizer.normalize(c.toString(), java.text.Normalizer.Form.NFD).first()
     return if (base in 'A'..'Z') base else '#'
 }
 
 /**
- * A–Z-Liste der Mediathek (recording2 12,4 s): Abschnittsköpfe, Zeilen mit 48-pt-Icon + Name, Haarlinien,
- * Index rechts. Liegt über der Gesten-Arena; beim Herunterziehen folgt sie dem Finger 1:1 (M-LIB-LIST).
- * Das Suchfeld + „Cancel“ zeichnet [LibraryChrome]; hier nur deren Trefferflächen.
+ * A–Z list of the App Library (recording2 12.4 s): section headers, rows with a 48 pt icon + name, hairlines,
+ * index on the right. Lies above the gesture arena; when pulling down it follows the finger 1:1 (M-LIB-LIST).
+ * The search field + "Cancel" are drawn by [LibraryChrome]; only their hit areas are here.
  */
 @Composable
 fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX: () -> Float = { 0f },
                 listBackdrop: com.kyant.backdrop.backdrops.LayerBackdrop? = null, onLaunch: (AppEntry, Rect) -> Unit) {
     val apps = model.libListApps()
     val duo = geo.duo
-    // Duo [GEMESSEN Video 2, 18 s, echte Displaykanten]: Liste in der Mediathek-Spalte, ohne Buchstaben-Köpfe,
-    // Icon 44 pt bei Spalten-x 66, Name ab 130, Trennlinie bis 400, erste Zeile Mitte 168 pt, A–Z in der Dock-Spalte
+    // Duo [MEASURED video 2, 18 s, real display edges]: list in the App Library column, without letter headers,
+    // icon 44 pt at column x 66, name from 130, separator until 400, first row centre 168 pt, A–Z in the dock column
     val lay = if (duo) ListLayout(side = 66f, icon = 44f, textX = 130f, sepRight = geo.duoSepRight, top = 132f, indexTop = 214f)
         else ListLayout(DesignTokens.libListSide.value, DesignTokens.libListIcon.value, DesignTokens.libListTextX.value,
             DesignTokens.libListSepRight.value, DesignTokens.libListTop.value, DesignTokens.libIndexTop.value)
@@ -93,7 +93,7 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
                 val groups = apps.groupBy(::letterOf).toSortedMap(compareBy { if (it == '#') 'Z' + 1 else it })
                 groups.forEach { (letter, list) ->
                     if (!duo) add(Entry.Header(letter))
-                    // Duo (ohne Köpfe): Trennlinie unter jeder Zeile außer der allerletzten
+                    // Duo (without headers): separator below every row except the very last
                     list.forEachIndexed { i, a -> add(Entry.Row(a, if (duo) a == apps.last() else i == list.lastIndex)) }
                 }
             }
@@ -110,24 +110,24 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
                 translationY = model.libListPull.value * density
                 compositingStrategy = CompositingStrategy.Offscreen
             }
-            // Oben unter dem Feld weich ausblenden (Scroll-Kante) — Duo: nicht ausblenden, Zeilen laufen unter dem
-            // Feld bis zum Rand weiter und werden dort progressiv unscharf (ListEdge unten) [Video 2, 24,8 s]
+            // Fade out softly at the top below the field (scroll edge) — Duo: don't fade, rows run on below the
+            // field to the edge and become progressively blurred there (ListEdge below) [video 2, 24.8 s]
             .drawWithContent {
                 drawContent()
-                if (duo) return@drawWithContent // Duo: kein Ausblenden — das Suchfeld liegt darüber und bricht die Zeilen
+                if (duo) return@drawWithContent // Duo: no fading — the search field lies above and refracts the rows
                 val a = geo.search.bottom
                 val b = DesignTokens.libListTop.value * density
                 drawRect(Brush.verticalGradient(0f to Color.Transparent, a / size.height to Color.Transparent, b / size.height to Color.Black, 1f to Color.Black), blendMode = BlendMode.DstIn)
             }
     ) {
-        // Android-Overscroll aus: iOS federt, die Liste klebt sonst mit Stretch-Effekt
+        // Android overscroll off: iOS bounces, otherwise the list sticks with a stretch effect
         val edgeEnd = geo.search.bottom + LIST_EDGE_BELOW * density
         val edgeSolid = (geo.search.center.y / edgeEnd).coerceIn(0f, 1f)
         Box(Modifier.fillMaxSize().then(if (listBackdrop == null) Modifier else Modifier
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .drawWithContent {
                 drawContent()
-                // scharfe Zeilen dort weg, wo die verwischte Kopie (ListEdge) voll deckt → kein Doppelbild/„Glühen“
+                // remove the sharp rows where the blurred copy (ListEdge) fully covers → no double image/"glow"
                 val k = edgeAmount(state, density)
                 if (k > 0f) drawRect(Brush.verticalGradient(0f to Color.Black.copy(alpha = k), edgeSolid * edgeEnd / size.height to Color.Black.copy(alpha = k),
                     edgeEnd / size.height to Color.Transparent), blendMode = BlendMode.DstOut)
@@ -156,14 +156,14 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
         }
         if (listBackdrop != null) ListEdge(listBackdrop, state, geo, density)
         if (model.libQuery.isEmpty()) IndexBar(state, entries, enabled = active, lay = lay,
-            // Duo: Index in der Dock-Spalte (Bildschirm − 47 pt), relativ zur verschobenen Liste
+            // Duo: index in the dock column (screen − 47 pt), relative to the shifted list
             x = { if (duo) geo.width / density - DUO_INDEX_FROM_RIGHT - offsetX() / density else DesignTokens.libIndexX.value })
     }
 
-    // Trefferflächen über dem Feld: „Cancel“ schließt, das Feld selbst bleibt fokussiert
+    // Hit areas above the field: "Cancel" closes, the field itself stays focused
     if (active) {
         val noRipple = remember { MutableInteractionSource() }
-        // Duo: runder ×-Knopf (Spalten-x 375 ± 22) statt „Cancel“
+        // Duo: round × button (column x 375 ± 22) instead of "Cancel"
         val cancelX = if (duo) geo.duoCloseX - LIB_DUO_CLOSE_D / 2 else DesignTokens.libCancelX.value
         val cancelW = if (duo) LIB_DUO_CLOSE_D else geo.width / density - DesignTokens.libCancelX.value
         Box(
@@ -172,7 +172,7 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
                 .size((cancelW + 2 * CANCEL_SLOP).dp, (geo.search.height / density).dp)
                 .clickable(interactionSource = noRipple, indication = null) { model.closeLibList() }
         )
-        // Feld selbst: Tippen schluckt (Fokus bleibt), statt eine Zeile darunter zu treffen
+        // The field itself: tapping is swallowed (focus stays) instead of hitting a row below
         Box(
             Modifier
                 .offset { IntOffset((geo.search.left + offsetX()).roundToInt(), geo.search.top.roundToInt()) }
@@ -234,11 +234,11 @@ private fun AppRow(app: AppEntry, separator: Boolean, enabled: Boolean, lay: Lis
     }
 }
 
-/** A–Z/#-Index rechts; Tippen oder Ziehen springt zum Abschnitt (bzw. dem nächsten vorhandenen). */
+/** A–Z/# index on the right; tapping or dragging jumps to the section (or the next existing one). */
 @Composable
 private fun IndexBar(state: LazyListState, entries: List<Entry>, enabled: Boolean, lay: ListLayout, x: () -> Float) {
     val scope = rememberCoroutineScope()
-    // Sprungziel je Buchstabe: der Kopf (iPhone) bzw. die erste Zeile mit dem Buchstaben (Duo, ohne Köpfe)
+    // Jump target per letter: the header (iPhone) or the first row with the letter (Duo, without headers)
     val headerIndex = remember(entries) {
         val m = LinkedHashMap<Char, Int>()
         entries.forEachIndexed { i, e ->
@@ -275,13 +275,13 @@ private fun IndexBar(state: LazyListState, entries: List<Entry>, enabled: Boolea
     }
 }
 
-private const val INDEX_W = 20f   // pt, Trefferbreite des Index
-private const val DUO_INDEX_FROM_RIGHT = 47f // Dock-Spaltenmitte
+private const val INDEX_W = 20f   // pt, hit width of the index
+private const val DUO_INDEX_FROM_RIGHT = 47f // dock column centre
 const val LIB_DUO_CLOSE_D = 44f
 
 /**
- * Duo: progressiver Blur über dem Suchfeld — verwischte Kopie der Liste, bis zur Feldmitte voll, bis zur Feldunterkante
- * auslaufend; erscheint erst, wenn Zeilen hochgescrollt sind.
+ * Duo: progressive blur above the search field — blurred copy of the list, full up to the field centre, fading out
+ * by the field bottom; appears only once rows have been scrolled up.
  */
 @Composable
 private fun ListEdge(backdrop: com.kyant.backdrop.Backdrop, state: LazyListState, geo: LibraryGeometry, density: Float) {
@@ -303,17 +303,17 @@ private fun ListEdge(backdrop: com.kyant.backdrop.Backdrop, state: LazyListState
     )
 }
 
-/** 0…1: wie weit Zeilen über das Feld hinaufgescrollt sind (Kante erscheint erst dann). */
+/** 0…1: how far rows have been scrolled up over the field (the edge appears only then). */
 private fun edgeAmount(state: LazyListState, density: Float): Float {
     val scrolled = if (state.firstVisibleItemIndex > 0) Float.MAX_VALUE else state.firstVisibleItemScrollOffset.toFloat()
     return (scrolled / (LIST_EDGE_FADE_IN * density)).coerceIn(0f, 1f)
 }
 
-private const val LIST_EDGE_BELOW = 14f   // pt unter dem Feld läuft der Blur aus
+private const val LIST_EDGE_BELOW = 14f   // pt below the field the blur fades out
 private const val LIST_EDGE_BLUR = 12f
 private const val LIST_EDGE_FADE_IN = 24f
 
-/** Zeilen-Maße (pt): iPhone aus den Token, Duo gemessen. */
+/** Row dimensions (pt): iPhone from the tokens, Duo measured. */
 private class ListLayout(val side: Float, val icon: Float, val textX: Float, val sepRight: Float, val top: Float, val indexTop: Float)
 private const val LIST_BOTTOM = 16f
 private const val CANCEL_SLOP = 8f

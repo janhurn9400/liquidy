@@ -11,38 +11,38 @@ import kotlin.math.ceil
 import kotlin.math.sqrt
 
 /**
- * Welchen Ausschnitt eines statischen Wallpapers zeigt Android auf dem aktuellen Display?
+ * Which crop of a static wallpaper does Android show on the current display?
  *
- * Nachbau der AOSP-Logik (Android 15+, „multi-crop“), damit unser selbst gezeichneter Hintergrund und Androids
- * Wallpaper hinter der Wisch-nach-Hause-Geste pixelgleich sind — auf jedem Gerät, statt mit gemessenen Konstanten:
- *  1. WallpaperCropper.getDefaultCrops/getCrop (services/core/.../wallpaper/WallpaperCropper.java): Zuschnitt je
- *     Bildschirm-Ausrichtung aus den möglichen Displaygrößen (WallpaperDisplayHelper: getPossibleMaximumWindowMetrics,
- *     Foldable-Paare aufgeklappt/zugeklappt). setBitmap(…, sichtbarer Bereich) = ORIENTATION_UNKNOWN → die Datei wird auf
- *     die Vereinigung aller Zuschnitte gekürzt; gezeigt wird getCrop(Display, gekürzte Größe, keine Vorgaben).
- *  2. WallpaperController.updateWallpaperOffset: breiterer Zuschnitt = Parallax-Rand, Lage nach Wallpaper-Offset
- *     (wir setzen 0,5); dazu Zoom zoomOutToScale(0) = config_wallpaperMaxScale (Standard 1,10), mittig.
- * [GEPRÜFT] Emulator Pixel Fold: Duo-Display (2854 × 2007) Versatz Homescreen ↔ Geste ≤ 1 px, Z-Fold-Größe (2160 × 1856) 0 px,
- * Außendisplay (1398 × 2034, mit Parallax-Rand → kein Zoom) ±2 px.
- * Displaygrößen: versteckte WindowManager-Methode, sonst DisplayManager (alle Displays inkl. ausgeschaltetem), sonst gemerkt.
- * Hersteller mit eigener Wallpaper-Logik können abweichen.
+ * Rebuild of the AOSP logic (Android 15+, "multi-crop"), so our self-drawn background and Android's
+ * wallpaper behind the swipe-home gesture are pixel-identical — on every device, instead of with measured constants:
+ *  1. WallpaperCropper.getDefaultCrops/getCrop (services/core/.../wallpaper/WallpaperCropper.java): crop per
+ *     screen orientation from the possible display sizes (WallpaperDisplayHelper: getPossibleMaximumWindowMetrics,
+ *     foldable pairs unfolded/folded). setBitmap(…, visible area) = ORIENTATION_UNKNOWN → the file is trimmed to
+ *     the union of all crops; what's shown is getCrop(display, trimmed size, no hints).
+ *  2. WallpaperController.updateWallpaperOffset: wider crop = parallax margin, position by wallpaper offset
+ *     (we set 0.5); plus zoom zoomOutToScale(0) = config_wallpaperMaxScale (default 1.10), centred.
+ * [CHECKED] emulator Pixel Fold: Duo display (2854 × 2007) offset home screen ↔ gesture ≤ 1 px, Z Fold size (2160 × 1856) 0 px,
+ * outer display (1398 × 2034, with parallax margin → no zoom) ±2 px.
+ * Display sizes: hidden WindowManager method, otherwise DisplayManager (all displays incl. the turned-off one), otherwise remembered.
+ * Vendors with their own wallpaper logic may differ.
  */
 object WallpaperCropModel {
     private const val L = 1; private const val SL = 2; private const val SP = 3; private const val P = 0; private const val U = -1
     private const val ADD = 1; private const val REMOVE = 2; private const val BALANCE = 3
     private const val MAX_PARALLAX = 1f
 
-    /** Gezeigter Bereich (in Pixeln des gesetzten Bilds der Größe [bmpW]×[bmpH]) oder null, wenn Android nichts zuschneidet. */
+    /** Displayed area (in pixels of the set image of size [bmpW]×[bmpH]) or null if Android doesn't crop anything. */
     fun shownRegion(context: Context, screenW: Int, screenH: Int, bmpW: Int, bmpH: Int): RectF? {
         if (Build.VERSION.SDK_INT < 35 || screenW <= 0 || screenH <= 0 || bmpW <= 0 || bmpH <= 0) return null
         val helper = helper(context) ?: return null
         val rtl = context.resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
         val full = Point(bmpW, bmpH)
-        // 1. gespeicherter Zuschnitt (Vereinigung der Standard-Zuschnitte) und Zuschnitt fürs aktuelle Display
+        // 1. saved crop (union of the default crops) and crop for the current display
         val hint = total(helper.sizes.map { (_, ds) -> getCrop(helper, ds, full, emptyMap(), rtl) })
         val cropped = Point(hint.width(), hint.height())
         val screen = Point(screenW, screenH)
         val crop = getCrop(helper, screen, cropped, emptyMap(), rtl)
-        // 2. Parallax-Rand: sichtbarer Teil nach Offset 0,5 (mittig); dann Zoom um die Mitte
+        // 2. parallax margin: visible part at offset 0.5 (centred); then zoom around the centre
         val sr = screenW.toFloat() / screenH
         val fr = crop.width().toFloat() / crop.height()
         val vis = if (fr >= sr) {
@@ -55,17 +55,17 @@ object WallpaperCropModel {
         val z = zoomFor(context, helper, Point(screenW, screenH))
         val cx = vis.centerX(); val cy = vis.centerY(); val hw = vis.width() / 2 / z; val hh = vis.height() / 2 / z
         val r = RectF(cx - hw + hint.left, cy - hh + hint.top, cx + hw + hint.left, cy + hh + hint.top)
-        // nichts zu tun, wenn Android das Bild 1:1 zeigt
+        // nothing to do if Android shows the image 1:1
         if (kotlin.math.abs(r.left) < 0.5f && kotlin.math.abs(r.top) < 0.5f && kotlin.math.abs(r.right - bmpW) < 0.5f && kotlin.math.abs(r.bottom - bmpH) < 0.5f) return null
         return r
     }
 
-    /** Bereich relativ zur von Android gespeicherten (gekürzten) Datei — für WallpaperManager.getDrawable(). */
+    /** Area relative to the (trimmed) file saved by Android — for WallpaperManager.getDrawable(). */
     fun shownRegionInCroppedFile(context: Context, screenW: Int, screenH: Int, fileW: Int, fileH: Int): RectF? {
         if (Build.VERSION.SDK_INT < 35) return null
         val helper = helper(context) ?: return null
         val rtl = context.resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
-        // Die Datei IST schon der gekürzte Bereich → nur noch Zuschnitt fürs Display + Parallax + Zoom
+        // The file ALREADY IS the trimmed area → only the crop for the display + parallax + zoom remain
         val crop = getCrop(helper, Point(screenW, screenH), Point(fileW, fileH), emptyMap(), rtl)
         val sr = screenW.toFloat() / screenH
         val fr = crop.width().toFloat() / crop.height()
@@ -82,15 +82,15 @@ object WallpaperCropModel {
     }
 
     /**
-     * Zoom, den Android auf den sichtbaren Ausschnitt legt: aufgeklappt bzw. auf normalen Displays config_wallpaperMaxScale,
-     * auf dem zugeklappten Display eines Foldables keiner — dort rendert ImageWallpaper breiter als das Display (1831 statt
-     * 1398 px, Parallax-Rand) und zeigt ungezoomt die Mitte [GEMESSEN Emulator Pixel Fold 10-14: zugeklappt ohne Zoom ±2 px,
-     * aufgeklappt mit Zoom 0,4 Grauwerte Abweichung].
+     * Zoom Android puts on the visible crop: unfolded or on normal displays config_wallpaperMaxScale,
+     * on the folded display of a foldable none — there ImageWallpaper renders wider than the display (1831 instead of
+     * 1398 px, parallax margin) and shows the centre unzoomed [MEASURED emulator Pixel Fold 10-14: folded without zoom ±2 px,
+     * unfolded with zoom 0.4 grey levels deviation].
      */
     private fun zoomFor(context: Context, h: Helper, screen: Point): Float =
         if (h.isFoldedDisplay(screen)) 1f else maxScale(context)
 
-    /** Für die Diagnose (Launcher-Einstellungen › Erweitert): was das Modell für dieses Display annimmt. */
+    /** For diagnostics (Launcher settings › Advanced): what the model assumes for this display. */
     fun describe(context: Context, screenW: Int, screenH: Int): String {
         val h = helper(context) ?: return "crop model: no display metrics"
         val screen = Point(screenW, screenH)
@@ -106,21 +106,21 @@ object WallpaperCropModel {
     }
 
     // ── WallpaperDisplayHelper ────────────────────────────────────────────────
-    /** [foldedArea] = Pixelfläche des zugeklappten Displays eines Foldables (0 = kein Foldable-Paar bekannt). */
+    /** [foldedArea] = pixel area of a foldable's folded display (0 = no foldable pair known). */
     private class Helper(val sizes: Map<Int, Point>, val pairs: List<Pair<Int, Int>>, val foldedArea: Long = 0) {
         fun unfolded(o: Int) = pairs.firstOrNull { it.first == o }?.second ?: U
-        /** [screen] ist das (kleinere) zugeklappte Display eines Foldables — nach Fläche, nicht Ausrichtung (die Paare gibt es
-         *  auch gedreht, dann sähe das große Display im Querformat wie „zugeklappt“ aus). */
+        /** [screen] is the (smaller) folded display of a foldable — by area, not orientation (the pairs also exist
+         *  rotated, then the large display in landscape would look "folded"). */
         fun isFoldedDisplay(screen: Point) = foldedArea > 0 && screen.x.toLong() * screen.y <= foldedArea
         fun folded(o: Int) = pairs.firstOrNull { it.second == o }?.first ?: U
     }
 
-    /** Displaygröße (px) + Dichte, wie WallpaperDisplayHelper sie sieht. */
+    /** Display size (px) + density, as WallpaperDisplayHelper sees them. */
     private data class Metric(val w: Int, val h: Int, val density: Float)
 
     /**
-     * Mögliche Displaygrößen: über die (versteckte) WindowManager-Methode, die auch das System nutzt; ist sie gesperrt,
-     * die vom Launcher selbst gesehenen Größen (aufgeklappt + zugeklappt, [rememberDisplay]).
+     * Possible display sizes: via the (hidden) WindowManager method the system uses too; if it's blocked,
+     * the sizes seen by the launcher itself (unfolded + folded, [rememberDisplay]).
      */
     private fun metrics(context: Context): List<Metric> {
         val wm = context.getSystemService(WindowManager::class.java)
@@ -131,7 +131,7 @@ object WallpaperCropModel {
             set.map { Metric(it.bounds.width(), it.bounds.height(), it.density) }
         }.getOrNull()
         if (!viaSystem.isNullOrEmpty()) return viaSystem
-        // Alle Displays inkl. ausgeschaltetem (Foldable: das gerade zugeklappte) — öffentliche Methode, Kategorie-Name aus AOSP
+        // All displays incl. the turned-off one (foldable: the one currently folded away) — public method, category name from AOSP
         val viaDisplays = runCatching {
             val dm = context.getSystemService(android.hardware.display.DisplayManager::class.java)
             dm.getDisplays("android.hardware.display.category.ALL_INCLUDING_DISABLED")
@@ -149,7 +149,7 @@ object WallpaperCropModel {
             ?.mapNotNull { e -> e.split(',').takeIf { it.size == 3 }?.let { runCatching { Metric(it[0].toInt(), it[1].toInt(), it[2].toFloat()) }.getOrNull() } }
             ?: emptyList()
 
-    /** Vom Launcher bei jeder Fenstergröße gemeldet: merkt sich bis zu zwei verschiedene Displays (Foldable: innen/außen). */
+    /** Reported by the launcher on every window size: remembers up to two different displays (foldable: inner/outer). */
     fun rememberDisplay(context: Context) {
         val wm = context.getSystemService(WindowManager::class.java) ?: return
         val m = wm.maximumWindowMetrics
@@ -202,7 +202,7 @@ object WallpaperCropModel {
             val c = Rect(0, 0, bmp.x, bmp.y)
             val u = h.unfolded(o)
             if (u != U) return getCrop(h, ds, bmp, mapOf(u to c), rtl)
-            // (Tablet im Hochformat: Sonderfall in AOSP; hier wie Querformat-Zuschnitt ohne Rand behandelt)
+            // (Tablet in portrait: special case in AOSP; treated here like a landscape crop without margin)
             return adjusted(c, bmp, ds, true, rtl, ADD)
         }
         sug[o]?.let { return adjusted(it, bmp, ds, true, rtl, ADD) }

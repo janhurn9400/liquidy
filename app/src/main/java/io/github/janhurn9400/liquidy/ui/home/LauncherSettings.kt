@@ -83,15 +83,15 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-/** Bereiche der Einstellungen — jede Einstellung genau dort, wo man sie sucht. */
+/** Sections of the settings — every setting exactly where you'd look for it. */
 private enum class Category { General, Appearance, HomeScreen, Quirks, Permissions, Advanced, About }
 
 /**
- * Launcher-Einstellungen im Stil der iOS-Einstellungs-App [Aufnahme 09:39, Duo]:
- * breit (aufgeklappt/Tablet): links Seitenleiste (≈ ⅓, max 320 pt) mit Kopfkarte + Bereichen (Icon 29 pt, Zeile 52 pt,
- * Auswahl als graue Kapsel), rechts der gewählte Bereich mit kleinem Titel oben und runden Gruppen (Radius 24).
- * Schmal (zugeklappt/Handy): Liste mit großem Titel, Antippen schiebt den Bereich herein (Zurück-Knopf).
- * Duo: rechte Spalte bleibt frei für Statussymbole + runden Zurück/Schließen-Knopf (wie im Original).
+ * Launcher settings in the style of the iOS Settings app [recording 09:39, Duo]:
+ * wide (unfolded/tablet): sidebar on the left (≈ ⅓, max 320 pt) with header card + sections (icon 29 pt, row 52 pt,
+ * selection as a grey capsule), on the right the selected section with a small title at the top and round groups (radius 24).
+ * Narrow (folded/phone): list with a large title, tapping slides the section in (back button).
+ * Duo: the right column stays free for status symbols + round back/close button (like the original).
  */
 @Composable
 fun LauncherSettingsSheet(model: HomeModel, onClose: () -> Unit) {
@@ -99,7 +99,7 @@ fun LauncherSettingsSheet(model: HomeModel, onClose: () -> Unit) {
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) { appear.animateTo(1f, Motion.wpeSheet.spec()) }
     LaunchedEffect(model.settingsClosing) { if (model.settingsClosing) { appear.animateTo(0f, Motion.wpeSheet.spec()); onClose() } }
-    // Berechtigungen/Standard-App können sich in Android-Einstellungen ändern → Status regelmäßig neu lesen
+    // Permissions/default app can change in Android's settings → re-read the status regularly
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { while (true) { delay(1000); tick++ } }
     val backdrop = rememberLayerBackdrop()
@@ -109,11 +109,11 @@ fun LauncherSettingsSheet(model: HomeModel, onClose: () -> Unit) {
         val screenW = constraints.maxWidth / density; val screenH = constraints.maxHeight / density
         val duo = FoldableStyle.duoStyle
         val wide = screenW >= WIDE_MIN
-        // Duo: rechte Spalte (Dock-Spalte) frei lassen
+        // Duo: keep the right column (dock column) free
         val rightRoom = if (duo) DUO_RIGHT_ROOM else 0f
         var selected by remember { mutableStateOf(if (wide) Category.General else null) }
         androidx.activity.compose.BackHandler(enabled = !wide && selected != null) { selected = null }
-        // Zurück auf der obersten Ebene schließt die Einstellungen (wie eine App verlassen)
+        // Back on the top level closes the settings (like leaving an app)
         androidx.activity.compose.BackHandler(enabled = wide || selected == null) { model.closeSettings() }
 
         Box(
@@ -144,7 +144,7 @@ fun LauncherSettingsSheet(model: HomeModel, onClose: () -> Unit) {
                     }
                 }
             }
-            // Duo: Statussymbole + runder Glas-Knopf in der rechten Spalte; sonst Knopf oben rechts
+            // Duo: status symbols + round glass button in the right column; otherwise button top right
             CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
                 if (duo && OwnStatusBar.enabled) {
                     val info by io.github.janhurn9400.liquidy.data.rememberStatusInfo()
@@ -153,14 +153,14 @@ fun LauncherSettingsSheet(model: HomeModel, onClose: () -> Unit) {
                 val back = !wide && selected != null
                 val btnModifier = if (duo) Modifier.offset { IntOffset(((screenW - DUO_COLUMN_FROM_RIGHT - 22f) * density).roundToInt(), ((DUO_BUTTON_Y - 22f) * density).roundToInt()) }
                     else Modifier.align(Alignment.TopEnd).padding(top = 36.dp, end = 16.dp)
-                // Kein ×: die Einstellungen verlässt man wie eine App mit der Home-Geste (oder Zurück) — Nutzer 10-15
+                // No ×: you leave the settings like an app with the home gesture (or Back) — user 10-15
                 if (back) Box(btnModifier) { GlassBackButton(onClick = { selected = null }) }
             }
         }
     }
 }
 
-// ── Seitenleiste / Liste ─────────────────────────────────────────────────────────────
+// ── Sidebar / list ─────────────────────────────────────────────────────────────
 
 @Composable
 private fun Sidebar(selected: Category?, tick: Int, onSelect: (Category) -> Unit) {
@@ -172,7 +172,7 @@ private fun Sidebar(selected: Category?, tick: Int, onSelect: (Category) -> Unit
             if (!visible(c)) return@forEach
             val sel = c == selected
             Row(
-                // schmale Seitenleiste (andere Foldables): langer Titel bricht wie bei iOS in zwei Zeilen um, Zeile wird höher
+                // narrow sidebar (other foldables): a long title wraps into two lines like on iOS, the row gets taller
                 Modifier.fillMaxWidth().heightIn(min = ROW_H.dp).clip(RoundedCornerShape((ROW_H / 2).dp)).background(if (sel) SELECTED else Color.Transparent)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSelect(c) }
                     .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -215,7 +215,7 @@ private fun CategoryList(tick: Int, largeTitle: Boolean, onSelect: (Category) ->
     }
 }
 
-/** Kopfkarte wie „Apple Account“: Launcher-Symbol, Name, Version. */
+/** Header card like "Apple Account": launcher icon, name, version. */
 @Composable
 private fun HeaderCard(compact: Boolean) {
     val context = LocalContext.current
@@ -234,7 +234,7 @@ private fun HeaderCard(compact: Boolean) {
     }
 }
 
-// ── Bereiche ────────────────────────────────────────────────────────────────────────
+// ── Sections ────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun Detail(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolean) {
@@ -262,7 +262,7 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
     val context = LocalContext.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(TOP_PAD.dp))
-        // „Allgemein“ mit großer Kopfkarte wie iOS (Symbol, Titel, Beschreibung), sonst kleiner Titel oben
+        // "General" with a large header card like iOS (icon, title, description), otherwise a small title at the top
         if (c == Category.General) {
             Spacer(Modifier.height(HERO_TOP.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(GROUP_CORNER.dp)).background(Color.White).padding(20.dp)) {
@@ -293,12 +293,12 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                     Divider()
                     LinkRow(stringResource(R.string.edit_wallpaper)) { model.closeSettings(); model.wallpaperEditorOpen = true }
                     Divider()
-                    // Icon-Pakete: eigene Unterseite mit Vorschau je Paket
+                    // Icon packs: own subpage with a preview per pack
                     val chosen = io.github.janhurn9400.liquidy.data.IconPacks.selected
                     val label = remember(chosen) { chosen?.let { io.github.janhurn9400.liquidy.data.IconPacks.available(context).firstOrNull { p -> p.packageName == it }?.label } }
                     LinkRow(stringResource(R.string.settings_sec_iconpack), label ?: stringResource(R.string.settings_iconpack_system)) { openSub(SubPage.IconPacks) }
                 }
-                // wie iOS: Einstellungen › Darstellung › Liquid Glass (eigene Seite mit Vorschau + Regler klar ↔ getönt)
+                // like iOS: Settings › Appearance › Liquid Glass (own page with preview + clear ↔ tinted slider)
                 Section(null) {
                     val t = io.github.janhurn9400.liquidy.glass.GlassClarity.amount
                     LinkRow(stringResource(R.string.settings_sec_glass), stringResource(when {
@@ -334,7 +334,7 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                         model.reflowPages()
                     }
                 }
-                // eigene Erweiterung: senkrechtes Duo-Dock mit mehr als 4 Apps; beim Ausschalten wandern überzählige auf den Homescreen
+                // own extension: vertical Duo dock with more than 4 apps; when turned off the extra ones move to the home screen
                 if (FoldableStyle.duoStyle) Section(stringResource(R.string.settings_sec_dock), footer = stringResource(R.string.settings_more_dock_footer)) {
                     ToggleRow(stringResource(R.string.settings_more_dock), FoldableStyle.moreDockApps) {
                         FoldableStyle.setMoreDockApps(context, it)
@@ -345,14 +345,14 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
             Category.Permissions -> {
                 fun granted(p: String) = context.checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 val cal = remember(tick) { granted(android.Manifest.permission.READ_CALENDAR) }
-                // Fotos: auch „nur ausgewählte Fotos“ (Android 14) zählt als erlaubt
+                // Photos: "selected photos only" (Android 14) counts as allowed too
                 val photos = remember(tick) { granted(android.Manifest.permission.READ_MEDIA_IMAGES) || granted(android.Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) }
                 val contacts = remember(tick) { granted(android.Manifest.permission.READ_CONTACTS) }
                 val location = remember(tick) { granted(android.Manifest.permission.ACCESS_COARSE_LOCATION) }
                 val badges = remember(tick) { io.github.janhurn9400.liquidy.data.NotificationBadges.hasAccess(context) }
                 val files = remember(tick) { io.github.janhurn9400.liquidy.glass.SystemWallpaper.canRead() }
                 val usage = remember(tick) { model.hasUsageAccess() }
-                // Jede Zeile sagt, wofür die Erlaubnis gebraucht wird — niemand soll blind etwas freigeben
+                // Every row says what the permission is needed for — nobody should grant anything blindly
                 Section(stringResource(R.string.settings_sec_access), footer = stringResource(R.string.settings_perm_footer)) {
                     PermissionRow(stringResource(R.string.welcome_perm_calendar), cal, stringResource(R.string.settings_perm_calendar_why)) { openAppSettings(context) }
                     Divider()
@@ -379,13 +379,13 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
             }
             Category.Advanced -> {
                 val module = remember(tick) { context.checkSelfPermission("android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS") == android.content.pm.PackageManager.PERMISSION_GRANTED }
-                // Animationsmodul: eigene Unterseite (Erklärung, Status, Anleitung) — hier nur Zeile mit Status
+                // Animation Module: own subpage (explanation, status, instructions) — here only a row with status
                 Section(null) {
                     LinkRow(stringResource(R.string.settings_module), stringResource(if (module) R.string.settings_active else R.string.settings_module_missing)) {
                         openSub(SubPage.Module)
                     }
                 }
-                // Fehler melden: eigene Unterseite (Erklärung, Diagnose ansehen, Issue auf GitHub mit Diagnose vorausgefüllt)
+                // Report a Problem: own subpage (explanation, view diagnostics, GitHub issue prefilled with diagnostics)
                 Section(null) {
                     LinkRow(stringResource(R.string.settings_report)) { openSub(SubPage.Report) }
                 }
@@ -423,7 +423,7 @@ private fun categoryTitle(c: Category) = stringResource(when (c) {
     Category.About -> R.string.settings_section_about
 })
 
-/** Das App-Icon (res/mipmap ic_launcher) als Kachel: Hintergrund + Vordergrund wie das adaptive Icon (sichtbar 72 von 108). */
+/** The app icon (res/mipmap ic_launcher) as a tile: background + foreground like the adaptive icon (visible 72 of 108). */
 @Composable
 private fun LiquidyAppIcon(sizePt: Float) {
     Box(Modifier.size(sizePt.dp).clip(io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((sizePt * TILE_CORNER).dp)), contentAlignment = Alignment.Center) {
@@ -435,10 +435,10 @@ private fun LiquidyAppIcon(sizePt: Float) {
 }
 
 /**
- * Kategorie-Kachel wie in den iOS-27-Einstellungen [GEMESSEN Nutzer-Screenshot 10-15]: kontinuierliche Ecken (≈ 23 % der
- * Kante), leichter Verlauf nach unten (≈ 6 % dunkler) und ein feiner heller Lichtrand oben/unten; weiße Glyphe.
- * Zahnrad und Darstellung selbst gezeichnet im iOS-Stil, übrige Glyphen Material Symbols Rounded (Apache-2.0) —
- * keine SF Symbols. Farben aus dem Screenshot (Blau 2/140/252, Grau 155→141, Schwarz 9→0), Orange/Indigo [GESCHÄTZT].
+ * Category tile like in the iOS 27 settings [MEASURED user screenshot 10-15]: continuous corners (≈ 23 % of the
+ * edge), slight gradient downwards (≈ 6 % darker) and a fine light rim at the top/bottom; white glyph.
+ * Gear and Appearance drawn ourselves in iOS style, the other glyphs Material Symbols Rounded (Apache-2.0) —
+ * no SF Symbols. Colours from the screenshot (blue 2/140/252, grey 155→141, black 9→0), orange/indigo [ESTIMATED].
  */
 @Composable
 private fun CategoryIcon(c: Category, sizePt: Float = ICON) {
@@ -455,7 +455,7 @@ private fun CategoryIcon(c: Category, sizePt: Float = ICON) {
         Modifier.size(sizePt.dp).clip(shape).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(bg, bottom)))
             .drawWithContent {
                 drawContent()
-                // Lichtrand: oben und unten heller, seitlich kaum (Liquid Glass)
+                // Light rim: brighter at the top and bottom, barely at the sides (Liquid Glass)
                 val outline = shape.createOutline(size, layoutDirection, this)
                 drawOutline(outline, androidx.compose.ui.graphics.Brush.verticalGradient(
                     0f to Color.White.copy(alpha = TILE_RIM), 0.25f to Color.Transparent, 0.75f to Color.Transparent, 1f to Color.White.copy(alpha = TILE_RIM * 0.6f)),
@@ -481,11 +481,11 @@ private fun CategoryIcon(c: Category, sizePt: Float = ICON) {
     }
 }
 
-/** Zahnrad wie die iOS-Einstellungen [Screenshot 10-15]: ≈ 26 feine Zähne, Innenring, drei Speichen, Nabe. */
+/** Gear like the iOS settings [screenshot 10-15]: ≈ 26 fine teeth, inner ring, three spokes, hub. */
 private fun DrawScope.iosGear() {
     val s = size.minDimension; val c = center
     val teeth = GEAR_TEETH
-    val ro = s * 0.5f; val rt = s * 0.43f // Zahnspitze / Zahnfuß
+    val ro = s * 0.5f; val rt = s * 0.43f // tooth tip / tooth root
     val ring = androidx.compose.ui.graphics.Path().apply {
         for (k in 0 until teeth) {
             val a0 = (k.toFloat() / teeth) * 2 * Math.PI.toFloat()
@@ -496,13 +496,13 @@ private fun DrawScope.iosGear() {
             lineTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y)
         }
         close()
-        // Loch: Innenring bleibt als schmaler Kranz stehen
+        // Hole: the inner ring stays as a narrow rim
         addOval(androidx.compose.ui.geometry.Rect(c, s * 0.355f))
         fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
     }
     drawPath(ring, Color.White)
     drawCircle(Color.White, s * 0.30f, c, style = Stroke(s * 0.045f))
-    // drei Speichen (rechts oben, links oben, unten) von der Nabe zum Innenring
+    // three spokes (top right, top left, bottom) from the hub to the inner ring
     for (a in listOf(-30f, -150f, 90f)) {
         val r = Math.toRadians(a.toDouble()); val d = Offset(kotlin.math.cos(r).toFloat(), kotlin.math.sin(r).toFloat())
         drawLine(Color.White, c, c + d * (s * 0.30f), s * 0.05f, StrokeCap.Round)
@@ -510,7 +510,7 @@ private fun DrawScope.iosGear() {
     drawCircle(Color.White, s * 0.06f, c)
 }
 
-/** Darstellung wie iOS [Screenshot 10-15]: Kreis links weiß gefüllt, rechts nur Rand; kleiner Innenkreis umgekehrt. */
+/** Appearance like iOS [screenshot 10-15]: circle filled white on the left, only outlined on the right; small inner circle the other way round. */
 private fun DrawScope.contrastGlyph() {
     val s = size.minDimension; val c = center; val r = s * 0.44f; val w = s * 0.085f
     drawCircle(Color.White, r - w / 2, c, style = Stroke(w))
@@ -520,7 +520,7 @@ private fun DrawScope.contrastGlyph() {
     drawArc(Color.White, -90f, 180f, true, Offset(c.x - ri, c.y - ri), Size(2 * ri, 2 * ri))
 }
 
-// ── Bausteine ───────────────────────────────────────────────────────────────────────
+// ── Building blocks ───────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun Section(title: String?, footer: String? = null, content: @Composable () -> Unit) {
@@ -557,8 +557,8 @@ private fun ValueRow(label: String, value: String) {
 }
 
 /**
- * Unterseite „Icon-Paket“: je Paket eine Karte mit Name, Häkchen und einer Vorschau-Reihe aus vier Standard-Apps
- * (Telefon, Nachrichten, Fotos, Kalender), so wie sie mit diesem Paket aussehen. Oben „‹ Zurück“ wie iOS.
+ * Subpage "Icon Pack": per pack a card with name, checkmark and a preview row of four default apps
+ * (Phone, Messages, Photos, Calendar), as they look with this pack. "‹ Back" at the top like iOS.
  */
 @Composable
 private fun IconPackPage(backLabel: String, onBack: () -> Unit) {
@@ -623,7 +623,7 @@ private fun PreviewIcon(pack: String?, cn: android.content.ComponentName, label:
         Box(Modifier.size(PREVIEW_ICON.dp).clip(io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((PREVIEW_ICON * ICON_CORNER_SHARE).dp))
             .background(Color(0xFFE5E5EA))) {
             img?.let { androidx.compose.foundation.Image(it, null, Modifier.fillMaxSize()) }
-            // feiner Rand: weiße Symbole sonst unsichtbar auf der weißen Karte
+            // fine rim: white glyphs would otherwise be invisible on the white card
             Box(Modifier.fillMaxSize().border(0.5.dp, Color.Black.copy(alpha = 0.12f), io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((PREVIEW_ICON * ICON_CORNER_SHARE).dp)))
         }
         Spacer(Modifier.height(5.dp))
@@ -632,7 +632,7 @@ private fun PreviewIcon(pack: String?, cn: android.content.ComponentName, label:
     }
 }
 
-/** Vier Standard-Apps für die Vorschau (Telefon, Nachrichten, Fotos, Kalender) — jeweils die Launcher-Activity. */
+/** Four default apps for the preview (Phone, Messages, Photos, Calendar) — each the launcher activity. */
 private fun previewApps(c: android.content.Context): List<Pair<android.content.ComponentName, String>> {
     val pm = c.packageManager
     fun launcherOf(i: android.content.Intent): Pair<android.content.ComponentName, String>? {
@@ -667,9 +667,9 @@ private fun LinkRow(label: String, value: String? = null, onClick: () -> Unit) {
 private enum class SubPage { None, IconPacks, Glass, Module, Report }
 
 /**
- * Unterseite „Liquid Glass“ wie iOS (Einstellungen › Darstellung › Liquid Glass, Nutzer-Screenshot 10-14): Vorschaukarte
- * (Bild oben, dunkler Textteil, darüber runder Glasknopf + Glas-Suchfeld, die den Text darunter live brechen), darunter der
- * Regler klar ↔ getönt und die Erklärung. Bild = eigenes Wallpaper (keine Apple-Bilder), sonst farbiger Ersatz.
+ * Subpage "Liquid Glass" like iOS (Settings › Appearance › Liquid Glass, user screenshot 10-14): preview card
+ * (image at the top, dark text part, above it a round glass button + glass search field that refract the text below live), below the
+ * clear ↔ tinted slider and the explanation. Image = own wallpaper (no Apple images), otherwise a colourful substitute.
  */
 @Composable
 private fun GlassPage(backLabel: String, onBack: () -> Unit) {
@@ -706,7 +706,7 @@ private fun GlassPage(backLabel: String, onBack: () -> Unit) {
     }
 }
 
-/** Vorschaukarte: Bild + Text bilden die Glasquelle, Knopf und Suchfeld darüber sind echtes LiquidGlass (folgt dem Regler). */
+/** Preview card: image + text form the glass source, button and search field above are real LiquidGlass (follows the slider). */
 @Composable
 private fun GlassPreviewCard(modifier: Modifier) {
     val wallpaper = LocalWallpaper.current
@@ -714,7 +714,7 @@ private fun GlassPreviewCard(modifier: Modifier) {
     val image = wallpaper ?: fallback!!
     val source = rememberLayerBackdrop()
     Box(modifier.aspectRatio(1f).clip(RoundedCornerShape(PREVIEW_CORNER.dp)).background(PREVIEW_DARK)) {
-        // Glasquelle: Bild (oben ≈ 55 %) + dunkler Textteil
+        // Glass source: image (top ≈ 55 %) + dark text part
         Column(Modifier.matchParentSize().layerBackdrop(source)) {
             androidx.compose.foundation.Image(image, null, Modifier.fillMaxWidth().weight(PREVIEW_IMAGE_SHARE),
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop)
@@ -728,13 +728,13 @@ private fun GlassPreviewCard(modifier: Modifier) {
                     style = TextStyle(fontFamily = Inter, fontSize = 17.sp, lineHeight = 22.sp, color = Color.White))
             }
         }
-        // Glas über dem Text: runder Knopf (Filter) + Suchfeld, wie in der iOS-Vorschau
+        // Glass over the text: round button (filter) + search field, like in the iOS preview
         CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop provides source) {
             Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = PREVIEW_CONTROLS_BOTTOM.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 io.github.janhurn9400.liquidy.glass.LiquidGlass(io.github.janhurn9400.liquidy.glass.glassCapsule(), Modifier.size(PREVIEW_CONTROL_H.dp),
                     whiteTint = PREVIEW_GLASS_WHITE, blackTint = 0f) {
-                    Canvas(Modifier.matchParentSize()) { // Filter-Symbol: drei kürzer werdende Linien
+                    Canvas(Modifier.matchParentSize()) { // filter glyph: three lines getting shorter
                         val sw = 2.dp.toPx(); val cx = size.width / 2; val cy = size.height / 2
                         listOf(16f, 11f, 6f).forEachIndexed { i, len ->
                             val y = cy + (i - 1) * 6.dp.toPx(); val half = len.dp.toPx() / 2
@@ -746,7 +746,7 @@ private fun GlassPreviewCard(modifier: Modifier) {
                 io.github.janhurn9400.liquidy.glass.LiquidGlass(io.github.janhurn9400.liquidy.glass.glassCapsule(), Modifier.weight(1f).height(PREVIEW_CONTROL_H.dp),
                     whiteTint = PREVIEW_GLASS_WHITE, blackTint = 0f) {
                     Row(Modifier.matchParentSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Canvas(Modifier.size(18.dp)) { // Lupe
+                        Canvas(Modifier.size(18.dp)) { // magnifier
                             val sw = 2.dp.toPx(); val r = size.width * 0.33f; val c = Offset(size.width * 0.42f, size.height * 0.42f)
                             drawCircle(Color.White, r, c, style = Stroke(sw))
                             drawLine(Color.White, c + Offset(r * 0.72f, r * 0.72f), Offset(size.width * 0.92f, size.height * 0.92f), sw, StrokeCap.Round)
@@ -761,9 +761,9 @@ private fun GlassPreviewCard(modifier: Modifier) {
 }
 
 /**
- * Unterseite „Animationsmodul“ wie ein iOS-Untermenü (Nutzer-Screenshot WLAN 10-15): oben eine Karte mit großem Symbol,
- * fettem Titel, Erklärung + Link, darunter in derselben Karte die Zeile mit dem Status (statt Schalter). Darunter immer die
- * Installationsschritte, Download (fester Link aufs neueste Release) und „Magisk öffnen“.
+ * Subpage "Animation Module" like an iOS submenu (user screenshot Wi-Fi 10-15): at the top a card with a large icon,
+ * bold title, explanation + link, below it in the same card the row with the status (instead of a switch). Below always the
+ * installation steps, download (fixed link to the latest release) and "Open Magisk".
  */
 @Composable
 private fun ModulePage(backLabel: String, tick: Int, onBack: () -> Unit) {
@@ -782,7 +782,7 @@ private fun ModulePage(backLabel: String, tick: Int, onBack: () -> Unit) {
             Spacer(Modifier.width(6.dp))
             BasicText(backLabel, style = LABEL.copy(color = Color(0xFF007AFF)))
         }
-        // Karte: Symbol, Titel, Erklärung + Link, Status
+        // Card: icon, title, explanation + link, status
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(GROUP_CORNER.dp)).background(Color.White)) {
             Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 14.dp)) {
                 ModuleTile(MODULE_HERO)
@@ -807,10 +807,10 @@ private fun ModulePage(backLabel: String, tick: Int, onBack: () -> Unit) {
         BasicText(stringResource(R.string.settings_module_footer), Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp),
             style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = GREY))
         Spacer(Modifier.height(SECTION_GAP.dp))
-        // Anleitung (immer sichtbar)
+        // Instructions (always visible)
         BasicText(stringResource(R.string.settings_module_install), Modifier.padding(start = 20.dp, bottom = 8.dp),
             style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = GREY))
-        // Willkommen hat eigene Kartenfarbe → hier wie die übrigen Gruppen weiß
+        // Welcome has its own card colour → white here like the other groups
         io.github.janhurn9400.liquidy.ui.welcome.RootSteps(active = false, cardColor = Color.White, cardCorner = GROUP_CORNER)
         Spacer(Modifier.height(10.dp))
         Group {
@@ -826,9 +826,9 @@ private fun ModulePage(backLabel: String, tick: Int, onBack: () -> Unit) {
 }
 
 /**
- * Unterseite „Fehler melden“ (Aufbau wie das Animationsmodul): Karte mit Symbol, Titel, Erklärung; darunter „Auf GitHub
- * melden“ (öffnet ein neues Issue, Vorlage + Diagnose schon im Textfeld) und „Diagnose kopieren“, dann die Diagnose selbst
- * zum Nachlesen — nichts wird ohne den Nutzer gesendet.
+ * Subpage "Report a Problem" (layout like the Animation Module): card with icon, title, explanation; below it "Report on
+ * GitHub" (opens a new issue, template + diagnostics already in the text field) and "Copy Diagnostics", then the diagnostics
+ * themselves to read — nothing is sent without the user.
  */
 @Composable
 private fun ReportPage(backLabel: String, onBack: () -> Unit) {
@@ -877,7 +877,7 @@ private fun ReportPage(backLabel: String, onBack: () -> Unit) {
     }
 }
 
-/** Große Kachel oben auf Unterseiten (Kategorie-Stil: Verlauf, kontinuierliche Ecken, weiße Glyphe). */
+/** Large tile at the top of subpages (category style: gradient, continuous corners, white glyph). */
 @Composable
 private fun HeroTile(sizePt: Float, bg: Color, glyph: androidx.compose.ui.graphics.vector.ImageVector) {
     val shape = io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((sizePt * TILE_CORNER).dp)
@@ -888,7 +888,7 @@ private fun HeroTile(sizePt: Float, bg: Color, glyph: androidx.compose.ui.graphi
     }
 }
 
-/** Kachel des Animationsmoduls (Funkeln auf Indigo) im Stil der Kategorie-Kacheln. */
+/** Tile of the Animation Module (sparkle on indigo) in the style of the category tiles. */
 @Composable
 private fun ModuleTile(sizePt: Float) {
     val bg = Color(0xFF5856D6)
@@ -900,7 +900,7 @@ private fun ModuleTile(sizePt: Float) {
     }
 }
 
-/** Symbol am Glas-Regler (iOS): zwei versetzte abgerundete Flächen — links nur Umriss (klar), rechts gefüllt (getönt). */
+/** Glyph on the glass slider (iOS): two offset rounded shapes — left only outlined (clear), right filled (tinted). */
 @Composable
 private fun GlassStyleGlyph(filled: Boolean) = Canvas(Modifier.size(26.dp, 22.dp)) {
     val w = 18.dp.toPx(); val h = 13.dp.toPx(); val r = CornerRadius(4.dp.toPx()); val sw = 1.6.dp.toPx()
@@ -915,7 +915,7 @@ private fun GlassStyleGlyph(filled: Boolean) = Canvas(Modifier.size(26.dp, 22.dp
     }
 }
 
-/** Berechtigung: Name + Status, darunter in Grau, wofür sie gebraucht wird. */
+/** Permission: name + status, below it in grey what it's needed for. */
 @Composable
 private fun PermissionRow(label: String, granted: Boolean, why: String, onClick: () -> Unit) {
     Row(
@@ -949,18 +949,18 @@ private fun open(c: android.content.Context, i: android.content.Intent) { runCat
 private fun openAppSettings(c: android.content.Context) = open(c, android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
     android.net.Uri.fromParts("package", c.packageName, null)))
 
-// Maße [GEMESSEN Aufnahme 09:39, 0,729 pt/px] bzw. iOS-Standard
+// Dimensions [MEASURED recording 09:39, 0.729 pt/px] or iOS default
 private const val WIDE_MIN = 700f
 private const val SIDEBAR_MAX = 320f
 private const val SIDEBAR_SHARE = 0.34f
-private const val DUO_RIGHT_ROOM = 85f        // Inhalt endet 85 pt vor dem rechten Rand (866 von 951)
+private const val DUO_RIGHT_ROOM = 85f        // content ends 85 pt before the right edge (866 of 951)
 private const val DUO_COLUMN_FROM_RIGHT = 47f
 private const val DUO_BUTTON_Y = 190f
 private const val TOP_PAD = 34f
-private const val SIDEBAR_TOP = 86f   // Kopfkarte ≈ 100 pt [GEMESSEN]
+private const val SIDEBAR_TOP = 86f   // header card ≈ 100 pt [MEASURED]
 private const val HERO_TOP = 46f
-// Liquid-Glass-Vorschau [GEMESSEN] Nutzer-Screenshot 10-14 (920 px = 402 pt): Karte ≈ 370 × 370 pt, Ecken ≈ 26 pt, Bild ≈ 55 %,
-// Knopf/Suchfeld 46 pt hoch, Unterkante ≈ 44 pt über dem Kartenrand
+// Liquid Glass preview [MEASURED] user screenshot 10-14 (920 px = 402 pt): card ≈ 370 × 370 pt, corners ≈ 26 pt, image ≈ 55 %,
+// button/search field 46 pt tall, bottom edge ≈ 44 pt above the card edge
 private const val PREVIEW_MAX_W = 420f
 private const val PREVIEW_CORNER = 26f
 private const val PREVIEW_IMAGE_SHARE = 0.55f
@@ -970,16 +970,16 @@ private const val PREVIEW_GLASS_WHITE = 0.1f
 private val PREVIEW_DARK = Color(0xFF252321)
 private const val ROW_H = 52f
 private const val ICON = 29f
-private const val TILE_CORNER = 0.225f // Ecken der Kategorie-Kachel relativ zur Kante (iOS-Einstellungen)
-private const val TILE_GLYPH = 0.62f   // Glyphe relativ zur Kachel
-private const val TILE_SHADE = 0.94f   // Kachel unten ≈ 6 % dunkler [GEMESSEN] iOS-27-Einstellungen
-private const val TILE_RIM = 0.22f     // Lichtrand oben (unten 60 %) [GEMESSEN qualitativ]
-private const val TILE_RIM_W = 0.6f    // dp Breite des Lichtrands
-private const val GEAR_SIZE = 0.72f    // Zahnrad/Darstellung relativ zur Kachel [GEMESSEN]
+private const val TILE_CORNER = 0.225f // corners of the category tile relative to the edge (iOS settings)
+private const val TILE_GLYPH = 0.62f   // glyph relative to the tile
+private const val TILE_SHADE = 0.94f   // tile ≈ 6 % darker at the bottom [MEASURED] iOS 27 settings
+private const val TILE_RIM = 0.22f     // light rim at the top (bottom 60 %) [MEASURED qualitatively]
+private const val TILE_RIM_W = 0.6f    // dp width of the light rim
+private const val GEAR_SIZE = 0.72f    // gear/Appearance relative to the tile [MEASURED]
 private const val GEAR_TEETH = 26
-private const val MODULE_HERO = 60f    // pt Symbol oben auf der Modul-Seite (iOS-Untermenü-Kopf)
+private const val MODULE_HERO = 60f    // pt icon at the top of the module page (iOS submenu header)
 private const val GITHUB_URL = "https://github.com/janhurn9400/liquidy"
-private const val ADAPTIVE_SCALE = 1.5f // adaptives Icon: 108 dp Ebene, davon 72 sichtbar
+private const val ADAPTIVE_SCALE = 1.5f // adaptive icon: 108 dp layer, 72 of it visible
 private const val GROUP_CORNER = 24f
 private const val SECTION_GAP = 26f
 private val SIDEBAR_BG = Color.White
@@ -989,6 +989,6 @@ private val GREY = Color(0xFF8E8E93)
 private val SEPARATOR = Color(0xFFD1D1D6)
 private val CHEVRON = Color(0xFFC4C4C7)
 private const val PREVIEW_ICON = 54f
-/** T-ICON-R / Icon-Größe (16,33 / 60). */
+/** T-ICON-R / icon size (16.33 / 60). */
 private const val ICON_CORNER_SHARE = 16.33f / 60f
 private val LABEL = TextStyle(fontFamily = Inter, fontSize = 17.sp, color = Color.Black)

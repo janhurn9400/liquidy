@@ -91,7 +91,7 @@ private suspend fun queryPhotos(context: Context): List<Photo> = withContext(Dis
     val base = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
     val proj = arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME, MediaStore.MediaColumns.IS_FAVORITE)
     val out = mutableListOf<Photo>()
-    // älteste oben, neueste unten (iOS-Fotos-Picker startet unten)
+    // oldest at the top, newest at the bottom (the iOS photo picker starts at the bottom)
     context.contentResolver.query(base, proj, null, null, "${MediaStore.Images.Media.DATE_ADDED} ASC")?.use { c ->
         val id = c.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
         val b = c.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
@@ -102,9 +102,9 @@ private suspend fun queryPhotos(context: Context): List<Photo> = withContext(Dis
 }
 
 /**
- * Fotos-Picker im iOS-Stil (recording6 28–36 s): dunkles Blatt, oben Glas-Knöpfe (X, „Fotos | Sammlungen“, Filter-Chips),
- * die das Raster darunter brechen; 3 Spalten, Zellen im Bildschirmformat (= Wallpaper-Ausschnitt).
- * Android: eigene Galerie über MediaStore (READ_MEDIA_IMAGES); ohne Erlaubnis Fallback auf den System-Picker.
+ * Photo picker in iOS style (recording6 28–36 s): dark sheet, glass buttons at the top (X, "Photos | Collections", filter chips)
+ * that refract the grid below; 3 columns, cells in screen format (= wallpaper crop).
+ * Android: own gallery via MediaStore (READ_MEDIA_IMAGES); without permission fall back to the system picker.
  */
 @Composable
 internal fun PhotoPicker(onClose: () -> Unit, onPick: (String) -> Unit) {
@@ -129,7 +129,7 @@ internal fun PhotoPicker(onClose: () -> Unit, onPick: (String) -> Unit) {
         val density = LocalDensity.current.density
         val screenW = constraints.maxWidth.toFloat(); val screenH = constraints.maxHeight.toFloat()
         val photos by produceState(emptyList<Photo>(), granted) { if (granted) value = queryPhotos(context) }
-        var tab by remember { mutableStateOf(0) } // 0 = Fotos, 1 = Sammlungen
+        var tab by remember { mutableStateOf(0) } // 0 = Photos, 1 = Collections
         var filter by remember { mutableStateOf(Filter.All) }
         var bucket by remember { mutableStateOf<String?>(null) }
         val shown = photos.filter {
@@ -192,7 +192,7 @@ internal fun PhotoPicker(onClose: () -> Unit, onPick: (String) -> Unit) {
                     }
                 }
             }
-            // ── Glas-Kopfzeile über dem Raster ──
+            // ── Glass header above the grid ──
             CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
                 LiquidGlass(
                     shape = glassCapsule(),
@@ -261,14 +261,14 @@ private fun Thumb(uri: Uri, modifier: Modifier) {
             runCatching { context.contentResolver.loadThumbnail(uri, android.util.Size(THUMB_PX, THUMB_PX), null).asImageBitmap() }.getOrNull()
         }
     }
-    Box(modifier) { // ohne graue Platzhalter (blitzten beim Öffnen kurz als leeres Raster auf)
+    Box(modifier) { // without grey placeholders (they flashed briefly as an empty grid on open)
         bmp?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
     }
 }
 
 /**
- * Zuschnitt (recording6 37,1 s): Foto bildschirmfüllend, mit zwei Fingern zoomen/verschieben; oben Cancel/Done.
- * Ergebnis: Zoom (≥ 1) und die sichtbare Bildmitte (0…1), aus denen WallpaperRenderer den Ausschnitt rechnet.
+ * Crop (recording6 37.1 s): photo screen-filling, zoom/move with two fingers; Cancel/Done at the top.
+ * Result: zoom (≥ 1) and the visible image centre (0…1), from which WallpaperRenderer computes the crop.
  */
 @Composable
 internal fun PhotoCrop(uri: String, initial: WallpaperSettings, onReady: () -> Unit, onCancel: () -> Unit, onDone: (WallpaperSettings) -> Unit) {
@@ -288,7 +288,7 @@ internal fun PhotoCrop(uri: String, initial: WallpaperSettings, onReady: () -> U
         var zoom by remember { mutableStateOf(initial.photoZoom.coerceAtLeast(1f)) }
         var cx by remember { mutableStateOf(initial.photoX) }
         var cy by remember { mutableStateOf(initial.photoY) }
-        // erst sichtbar, wenn das Foto dekodiert ist — bis dahin bleibt der Picker darunter stehen
+        // visible only once the photo is decoded — until then the picker below stays
         LaunchedEffect(image) { if (image != null) onReady() }
         if (image != null) Box(Modifier.fillMaxSize().background(Color.Black))
         image?.let { img ->
@@ -322,10 +322,10 @@ internal fun PhotoCrop(uri: String, initial: WallpaperSettings, onReady: () -> U
     }
 }
 
-// Maße [GEMESSEN grob] recording6 29,4 s (Montage 0,804 pt/px)
+// Dimensions [MEASURED roughly] recording6 29.4 s (montage 0.804 pt/px)
 private const val PICKER_TOP = 62f
 private const val SHEET_CORNER = 38f
-private const val HEADER_Y = 38f     // Mitte der Kopfzeile, ab Blatt-Oberkante
+private const val HEADER_Y = 38f     // centre of the header row, from the sheet top
 private const val CLOSE_X = 16f
 private const val CLOSE_D = 44f
 private const val SEG_X = 107f
@@ -340,7 +340,7 @@ private const val GRID_TOP = 112f
 private const val GRID_GAP = 1.33f
 private const val THUMB_PX = 360
 private const val GLASS_TINT = 0.12f
-private const val CROP_DECODE = 2f   // für Zoom bis 2× scharf genug dekodieren
+private const val CROP_DECODE = 2f   // decode sharp enough for zoom up to 2×
 private const val MAX_ZOOM = 4f
 private val SEG_SELECTED = Color(0x40FFFFFF)
-private val CHIP_SELECTED = Color(0xFF1BA6FB) // „Featured“ gemessen
+private val CHIP_SELECTED = Color(0xFF1BA6FB) // "Featured" measured

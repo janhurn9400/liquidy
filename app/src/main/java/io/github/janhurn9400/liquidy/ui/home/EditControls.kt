@@ -52,14 +52,14 @@ import io.github.janhurn9400.liquidy.motion.Motion
 import io.github.janhurn9400.liquidy.ui.Inter
 import kotlin.math.roundToInt
 
-/** Zwei Glas-Kapseln oben (T-EDIT-BTN): links Pinsel („Anpassen“), rechts Häkchen („Fertig“). */
+/** Two glass capsules at the top (T-EDIT-BTN): left brush ("Customise"), right checkmark ("Done"). */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun EditButtons(geo: HomeGeometry, wallpaper: ImageBitmap, density: Float, showLeft: Boolean = true, leftPlus: Boolean = false,
-                /** Duo: Aufploppen 0…1 (ab ≈ 60 % Größe, mit Überschwingen) statt aus 0 wachsen. */
+                /** Duo: pop-up 0…1 (from ≈ 60 % size, with overshoot) instead of growing from 0. */
                 popIn: (() -> Float)? = null, scale: () -> Float) {
-    // Die Buttons sitzen dort, wo sonst die Statusleiste ist: erst einblenden, wenn sie wirklich weg ist
-    // (folgt der System-Animation; gelesen in der Zeichenphase → kein Neuaufbau je Frame)
+    // The buttons sit where the status bar otherwise is: fade in only once it's really gone
+    // (follows the system animation; read in the draw phase → no recomposition per frame)
     val statusBar = WindowInsets.statusBars
     val statusBarFull = WindowInsets.statusBarsIgnoringVisibility
     for (left in listOf(true, false)) {
@@ -68,8 +68,8 @@ fun EditButtons(geo: HomeGeometry, wallpaper: ImageBitmap, density: Float, showL
         LiquidGlass(
             shape = glassCapsule(),
             thickness = DesignTokens.editButtonHeight.value / DesignTokens.dockHeight.value,
-            // Milchglas wie IMG_3124: stark verwischt und hell, damit das dunkle Symbol lesbar bleibt
-            // Duo [Video 4, 1 s]: fast klares Glas (Wallpaper-Farbe scheint durch), heller Rand, weiße Symbole
+            // Frosted glass like IMG_3124: strongly blurred and light, so the dark glyph stays legible
+            // Duo [video 4, 1 s]: almost clear glass (the wallpaper colour shines through), light rim, white glyphs
             blur = if (geo.duo) DUO_BTN_BLUR.dp else FROST_BLUR.dp,
             whiteTint = if (geo.duo) DUO_BTN_WHITE else if (DesignTokens.wallpaperIsDark) FROST_WHITE_DARK else FROST_WHITE,
             blackTint = 0f,
@@ -100,7 +100,7 @@ fun EditButtons(geo: HomeGeometry, wallpaper: ImageBitmap, density: Float, showL
     }
 }
 
-/** Häkchen als Vektor (kein SF Symbol); Proportionen nach IMG_3124 [GESCHÄTZT]. */
+/** Checkmark as a vector (no SF Symbol); proportions after IMG_3124 [ESTIMATED]. */
 @Composable
 private fun CheckGlyph(size: Dp, color: Color = DesignTokens.glyphColor, stroke: Float = 0.14f) = Canvas(Modifier.size(size)) {
     val s = this.size.width
@@ -112,7 +112,7 @@ private fun CheckGlyph(size: Dp, color: Color = DesignTokens.glyphColor, stroke:
     drawPath(path, color, style = Stroke(width = stroke * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
-/** Plus (Stapel bearbeiten: Widget hinzufügen). */
+/** Plus (Edit Stack: add widget). */
 @Composable
 private fun PlusGlyph(size: Dp, color: Color = DesignTokens.glyphColor) = Canvas(Modifier.size(size)) {
     val s = this.size.width; val w = 0.12f * s
@@ -120,7 +120,7 @@ private fun PlusGlyph(size: Dp, color: Color = DesignTokens.glyphColor) = Canvas
     drawLine(color, Offset(0.08f * s, s / 2), Offset(0.92f * s, s / 2), w, StrokeCap.Round)
 }
 
-/** Pinsel als Vektor (kein SF Symbol) [GESCHÄTZT]. */
+/** Brush as a vector (no SF Symbol) [ESTIMATED]. */
 @Composable
 internal fun BrushGlyph(size: Dp, c: Color = DesignTokens.glyphColor, stroke: Float = 0.14f) = Canvas(Modifier.size(size)) {
     val s = this.size.width
@@ -135,8 +135,8 @@ internal fun BrushGlyph(size: Dp, c: Color = DesignTokens.glyphColor, stroke: Fl
 }
 
 /**
- * iOS-Dialog „„App“ entfernen?“ (T-ALERT, M-ALERT) mit gestapelten Kapsel-Buttons im iOS-26/27-Stil.
- * „App löschen“ öffnet den System-Deinstallationsdialog (Android verlangt die Bestätigung des Systems).
+ * iOS dialog "Remove "App"?" (T-ALERT, M-ALERT) with stacked capsule buttons in iOS 26/27 style.
+ * "Delete App" opens the system uninstall dialog (Android requires the system's confirmation).
  */
 @Composable
 fun RemoveAppAlert(
@@ -168,7 +168,7 @@ fun RemoveAppAlert(
             modifier = Modifier
                 .width(DesignTokens.alertWidth.dp)
                 .graphicsLayer {
-                    // iOS-Alerts zoomen leicht von größer herein [GESCHÄTZT]
+                    // iOS alerts zoom in slightly from larger [ESTIMATED]
                     val s = 1f + (1f - appear.value) * ALERT_START_SCALE_DELTA
                     scaleX = s; scaleY = s
                 }
@@ -198,9 +198,9 @@ fun RemoveAppAlert(
     }
 }
 
-private const val ALERT_START_SCALE_DELTA = 0.1f // [GESCHÄTZT]
+private const val ALERT_START_SCALE_DELTA = 0.1f // [ESTIMATED]
 
-/** iOS-Abfrage mit zwei Kapseln nebeneinander (Abbrechen | Entfernen, rot) — Aufnahme 10-08 10:21, Bild 2010. */
+/** iOS confirmation with two capsules side by side (Cancel | Remove, red) — recording 10-08 10:21, frame 2010. */
 @Composable
 fun TwoButtonAlert(title: String, message: String, confirm: String, cancel: String, onConfirm: () -> Unit, onCancel: () -> Unit) {
     val appear = remember { Animatable(0f) }
@@ -250,8 +250,8 @@ private fun AlertButton(text: String, color: Color, bold: Boolean, onClick: () -
     }
 }
 
-// Duo-Bearbeiten-Knöpfe [GEMESSEN Video 4, 1 s]: Häkchen ≈ 17 × 13 pt, Strich ≈ 1,5 pt, weiß
-private const val POP_FROM = 0.6f // [GEMESSEN] erstes sichtbares Bild ≈ 60 % Größe, blass
+// Duo edit buttons [MEASURED video 4, 1 s]: checkmark ≈ 17 × 13 pt, stroke ≈ 1.5 pt, white
+private const val POP_FROM = 0.6f // [MEASURED] first visible frame ≈ 60 % size, pale
 private const val POP_ALPHA_RATE = 2.5f
 internal const val DUO_GLYPH = 18f
 internal const val DUO_GLYPH_STROKE = 0.085f

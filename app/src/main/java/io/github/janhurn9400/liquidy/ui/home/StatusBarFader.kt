@@ -12,13 +12,13 @@ import kotlinx.coroutines.isActive
 import kotlin.coroutines.coroutineContext
 
 /**
- * Statusleiste an ihrem Platz ausblenden statt nach oben schieben (iOS: wird beim Ordner mitverwischt —
- * eine Systemleiste lässt sich nicht verwischen, aber ihre Deckkraft lässt sich App-gesteuert setzen:
- * WindowInsetsAnimationController.setInsetsAndAlpha, Alpha wirkt auf die Leisten-Surface, InsetsAnimationControlImpl).
+ * Fade the status bar out in place instead of sliding it up (iOS: it blurs along with the folder —
+ * a system bar can't be blurred, but its opacity can be set app-driven:
+ * WindowInsetsAnimationController.setInsetsAndAlpha, alpha acts on the bar surface, InsetsAnimationControlImpl).
  */
 class StatusBarFader(private val view: View) {
 
-    /** Übernimmt die Statusleiste; null, wenn das System die Kontrolle nicht gibt. */
+    /** Takes over the status bar; null if the system doesn't give control. */
     private suspend fun control(): Pair<WindowInsetsAnimationControllerCompat, CancellationSignal>? {
         val ready = CompletableDeferred<WindowInsetsAnimationControllerCompat?>()
         val signal = CancellationSignal()
@@ -33,8 +33,8 @@ class StatusBarFader(private val view: View) {
     }
 
     /**
-     * Folgt [alpha] (1 = sichtbar, 0 = weg) Frame für Frame, die Leiste bleibt dabei an ihrem Platz.
-     * Endet, sobald [done] true liefert; danach ist die Leiste versteckt ([showAtEnd] = false) bzw. sichtbar.
+     * Follows [alpha] (1 = visible, 0 = gone) frame by frame, the bar stays in its place meanwhile.
+     * Ends as soon as [done] returns true; afterwards the bar is hidden ([showAtEnd] = false) or visible.
      */
     suspend fun follow(alpha: () -> Float, done: () -> Boolean, showAtEnd: () -> Boolean) {
         val (c, signal) = control() ?: return

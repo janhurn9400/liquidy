@@ -20,7 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-/** Einstellung: Android-Statusleiste im Launcher ausblenden und eigene (iOS bzw. Duo) zeichnen. Abgefragt im Willkommen. */
+/** Setting: hide the Android status bar in the launcher and draw our own (iOS or Duo). Asked in the welcome. */
 object OwnStatusBar {
     private const val PREFS = "statusbar"
     var enabled by mutableStateOf(false)
@@ -33,7 +33,7 @@ object OwnStatusBar {
     }
 }
 
-/** Werte der Statusleiste aus echten Android-Quellen. [wifi]/[cell]: −1 = keins, sonst 0…3 bzw. 0…4. */
+/** Status bar values from real Android sources. [wifi]/[cell]: −1 = none, otherwise 0…3 or 0…4. */
 data class StatusInfo(
     val time: String = "",
     val battery: Float = 1f,
@@ -44,9 +44,9 @@ data class StatusInfo(
 )
 
 /**
- * Liest die Statuswerte alle paar Sekunden (Uhr minutengenau): Akku per Sticky-Broadcast, WLAN-Stärke über die
- * NetworkCapabilities des aktiven Netzes (RSSI), Mobilfunk über TelephonyManager.getSignalStrength (laut AOSP ohne
- * Berechtigung, nur Telefonie-Hardware), Flugmodus aus Settings.Global.
+ * Reads the status values every few seconds (clock to the minute): battery via sticky broadcast, Wi-Fi strength via the
+ * NetworkCapabilities of the active network (RSSI), cellular via TelephonyManager.getSignalStrength (according to AOSP without
+ * permission, only telephony hardware), airplane mode from Settings.Global.
  */
 @Composable
 fun rememberStatusInfo(): State<StatusInfo> {

@@ -6,8 +6,8 @@ import android.content.Context
 import android.os.Build
 
 /**
- * Diagnose für Bug-Reports (Launcher-Einstellungen › Erweitert): Gerät, Android, Displays, Wallpaper-Modell, Zustände.
- * Nur Technik — keine Apps, Kontakte oder sonstige Nutzerdaten. Wird nur in die Zwischenablage kopiert, nie verschickt.
+ * Diagnostics for bug reports (Launcher settings › Advanced): device, Android, displays, wallpaper model, states.
+ * Technical only — no apps, contacts or other user data. Only copied to the clipboard, never sent.
  */
 object Diagnostics {
     fun report(context: Context): String {
@@ -18,7 +18,7 @@ object Diagnostics {
         val blur = runCatching { wm.isCrossWindowBlurEnabled }.getOrNull()
         val module = context.checkSelfPermission("android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS") ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
-        val wpInfo = android.app.WallpaperManager.getInstance(context).wallpaperInfo // null = statisches Bild
+        val wpInfo = android.app.WallpaperManager.getInstance(context).wallpaperInfo // null = static image
         return buildString {
             appendLine("Liquidy ${info?.versionName} (${info?.longVersionCode})")
             appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE})")
@@ -33,8 +33,8 @@ object Diagnostics {
     }
 
     /**
-     * Neues GitHub-Issue mit Vorlage + Diagnose im Textfeld (GitHub füllt title/body aus der Adresse vor). Der Nutzer sieht
-     * alles vor dem Absenden und kann es ändern; gesendet wird erst, wenn er auf GitHub „Submit“ drückt.
+     * New GitHub issue with template + diagnostics in the text field (GitHub prefills title/body from the URL). The user sees
+     * everything before submitting and can change it; it's only sent when they press "Submit" on GitHub.
      */
     fun issueUrl(context: Context, intro: String): String {
         val body = "$intro\n\n```\n${report(context)}\n```"

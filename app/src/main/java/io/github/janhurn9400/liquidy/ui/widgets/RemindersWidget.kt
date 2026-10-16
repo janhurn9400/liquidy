@@ -55,14 +55,14 @@ import io.github.janhurn9400.liquidy.ui.Inter
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Eigene Erinnerungsliste des Launchers (Android hat keine gemeinsame Erinnerungen-App). Liegt in den App-Einstellungen. */
+/** The launcher's own reminders list (Android has no shared reminders app). Stored in the app's preferences. */
 object RemindersStore {
     data class Item(val id: Long, val text: String, val done: Boolean)
 
     var items by mutableStateOf<List<Item>>(emptyList())
         private set
     private var loaded = false
-    /** Liste offen? (Antippen des Widgets setzt es, der Homescreen zeigt dann [RemindersSheet]). */
+    /** List open? (tapping the widget sets it, the home screen then shows [RemindersSheet]). */
     var sheetOpen by mutableStateOf(false)
 
     fun load(c: Context) {
@@ -86,13 +86,13 @@ object RemindersStore {
 
     fun toggle(c: Context, id: Long) { items = items.map { if (it.id == id) it.copy(done = !it.done) else it }; save(c) }
 
-    /** Erledigte entfernen (wie „Erledigte löschen“). */
+    /** Remove completed ones (like "Delete Completed"). */
     fun clearDone(c: Context) { items = items.filter { !it.done }; save(c) }
 
     val open get() = items.filter { !it.done }
 }
 
-/** Widget: orange Zahl offener Erinnerungen + Titel, darunter die ersten offenen Einträge mit Kreis. */
+/** Widget: orange number of open reminders + title, below it the first open entries with a circle. */
 @Composable
 internal fun RemindersWidget(cols: Int, rows: Int, modifier: Modifier) {
     val context = LocalContext.current
@@ -125,7 +125,7 @@ internal fun RemindersWidget(cols: Int, rows: Int, modifier: Modifier) {
     }
 }
 
-/** Liste zum Anlegen/Abhaken (öffnet beim Antippen des Widgets). Dunkle Karte mittig, Eingabefeld unten. */
+/** List for adding/checking off (opens when tapping the widget). Dark card centred, input field at the bottom. */
 @Composable
 fun RemindersSheet(amount: () -> Float, onClose: () -> Unit) {
     val context = LocalContext.current

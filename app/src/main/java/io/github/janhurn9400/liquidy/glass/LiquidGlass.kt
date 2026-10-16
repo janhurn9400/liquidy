@@ -24,21 +24,21 @@ import com.kyant.shapes.RoundedRectangle
 import com.kyant.shapes.RoundedRectangularShape
 
 /**
- * Aufgenommener Homescreen (Wallpaper + Icons) als Quelle für alle Glasflächen (Kyant backdrop, docs/GLASS.md).
- * Gesetzt in HomeScreen über Modifier.layerBackdrop.
+ * Recorded home screen (wallpaper + icons) as the source for all glass surfaces (Kyant backdrop, docs/GLASS.md).
+ * Set in HomeScreen via Modifier.layerBackdrop.
  */
 val LocalGlassBackdrop = staticCompositionLocalOf<Backdrop?> { null }
 
-/** Kontinuierliche (G2-)Ecken wie iOS — Kyant Shapes, von der Linse unterstützt. */
+/** Continuous (G2) corners like iOS — Kyant Shapes, supported by the lens. */
 fun glassRect(cornerRadius: Dp): RoundedRectangularShape = RoundedRectangle(cornerRadius)
 fun glassCapsule(): RoundedRectangularShape = Capsule()
 
 /**
- * Liquid Glass (RESEARCH §2.8, docs/GLASS.md): Farbverstärkung → Blur → Linse (SDF-Refraktion am Rand, ohne Farbsäume),
- * Highlight-Licht (oben/unten hell, gemessen), dunkler Seitenrand (iOS 27), innerer + äußerer Schatten.
+ * Liquid Glass (RESEARCH §2.8, docs/GLASS.md): saturation boost → blur → lens (SDF refraction at the edge, without colour fringes),
+ * highlight light (top/bottom bright, measured), dark side rim (iOS 27), inner + outer shadow.
  *
- * @param thickness Apple: größere Elemente wirken wie dickeres Glas (stärkere Brechung, weichere Streuung).
- *                  Skaliert Brechungshöhe/-stärke; 1 = Dock.
+ * @param thickness Apple: larger elements look like thicker glass (stronger refraction, softer scattering).
+ *                  Scales refraction height/amount; 1 = dock.
  */
 @Composable
 fun LiquidGlass(
@@ -49,12 +49,12 @@ fun LiquidGlass(
     whiteTint: Float = DesignTokens.glassWhiteTint.value,
     blackTint: Float = DesignTokens.glassTint.value,
     rimAlpha: Float? = null,
-    /** false = Milchglas: nur Unschärfe + Tönung, keine Brechung und kein Lichtrand (z. B. Auswahlblätter). */
+    /** false = frosted glass: only blur + tint, no refraction and no light rim (e.g. selection sheets). */
     refraction: Boolean = true,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
     val backdrop = LocalGlassBackdrop.current
-    // Regler „Klar ↔ Getönt“ (Launcher-Einstellungen): mehr Unschärfe, dunkles Glas wird milchig statt dunkel
+    // "Clear ↔ Tinted" slider (launcher settings): more blur, dark glass becomes milky instead of dark
     val clarity = GlassClarity.amount
     val frost = GlassClarity.frostBlurDp(clarity)
     val tinted = GlassClarity.tintShare(clarity)
@@ -62,7 +62,7 @@ fun LiquidGlass(
     val veil = DesignTokens.glassTintedVeil.value * tinted
     val grey = DesignTokens.glassTintedGrey.value
     if (backdrop == null) {
-        // Fallback ohne aufgenommenen Hintergrund (z. B. Vorschau): einfache Fläche + Rand
+        // Fallback without a recorded background (e.g. preview): simple area + rim
         Box(modifier) { content(); GlassRim(shape, Modifier.matchParentSize()) }
         return
     }
@@ -74,14 +74,14 @@ fun LiquidGlass(
                 colorControls(saturation = DesignTokens.glassSaturation.value)
                 val b = maxOf(blur.value, frost).dp.toPx()
                 if (b > 0.5f) blur(b)
-                // Brechungszone: T-GLASS.refraction, höchstens Anteil des Eckenradius (Kyant: Höhe ≤ Radius).
-                // NICHT mit der Größe skalieren — sonst haben kleine Knöpfe (Pill 30 pt) praktisch keine Linse.
-                // Dicke (Apple: große Elemente = dickeres Glas) erhöht nur die Stärke.
+                // Refraction zone: T-GLASS.refraction, at most a share of the corner radius (Kyant: height ≤ radius).
+                // DON'T scale with size — otherwise small buttons (pill 30 pt) have practically no lens.
+                // Thickness (Apple: large elements = thicker glass) only increases the amount.
                 val corner = shape.corners(size, layoutDirection, this).let { minOf(it.topLeft, it.topRight, it.bottomLeft, it.bottomRight) }
                 val height = DesignTokens.glassRefraction.value.dp.toPx().coerceAtMost(corner * DesignTokens.glassRefractionCornerShare.value)
-                // getönt: keine sichtbare Brechung mehr (Nutzer-iPhone 10-14, Mediathek-Feld) → blendet ab der Mitte aus
+                // tinted: no visible refraction anymore (user iPhone 10-14, App Library field) → fades out from the middle
                 val amount = height * DesignTokens.glassRefractionAmount.value * thickness.coerceAtLeast(1f) * (1f - tinted)
-                // keine Farbsäume (Dispersion): Apples Liquid Glass hat keine [Nutzer 10-14, echtes iPhone]
+                // no colour fringes (dispersion): Apple's Liquid Glass has none [user 10-14, real iPhone]
                 if (refraction && height > 0.5f && amount > 0.5f) lens(
                     refractionHeight = height,
                     refractionAmount = amount.coerceAtMost(size.minDimension),
@@ -93,7 +93,7 @@ fun LiquidGlass(
                 Highlight(
                     width = DesignTokens.glassRimWidth.dp,
                     alpha = rimAlpha ?: DesignTokens.glassRimHighlight.value,
-                    // 90° = Licht von oben → Ober- und Unterkante hell [GEMESSEN] Pill/Dock IMG_3123
+                    // 90° = light from the top → top and bottom edges bright [MEASURED] pill/dock IMG_3123
                     style = HighlightStyle.Default(angle = DesignTokens.glassLightAngle.value, falloff = DesignTokens.glassLightFalloff.value),
                 )
             }),
@@ -118,7 +118,7 @@ fun LiquidGlass(
         )
     ) {
         content()
-        // Dunkler Seitenrand (iOS 27, gemessen) — nur der dunkle Anteil, das helle Licht macht das Highlight
+        // Dark side rim (iOS 27, measured) — only the dark part, the bright light is done by the highlight
         if (refraction) GlassRim(shape, Modifier.matchParentSize(), lightAlpha = 0f)
     }
 }

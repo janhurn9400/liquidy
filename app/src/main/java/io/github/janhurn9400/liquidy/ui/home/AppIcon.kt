@@ -44,9 +44,9 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Reine Darstellung eines Icons (Gesten laufen zentral in HomeScreen).
- * Zelle = T-LABEL-W breit, Icon oben mittig, Label-Grundlinie bei T-LABEL-BASELINE.
- * Der Aufrufer positioniert so, dass die Icon-Oberkante-links auf dem Raster liegt (siehe [cellOffsetX]).
+ * Pure rendering of an icon (gestures run centrally in HomeScreen).
+ * Cell = T-LABEL-W wide, icon top centre, label baseline at T-LABEL-BASELINE.
+ * The caller positions it so the icon top-left lies on the grid (see [cellOffsetX]).
  */
 @Composable
 fun AppIconView(
@@ -59,7 +59,7 @@ fun AppIconView(
     badgeScale: () -> Float,
     showBadge: Boolean,
     modifier: Modifier = Modifier,
-    /** Minus-Badge zeigt, was wirklich dahinter liegt (offener Ordner: Panel über dem Homescreen) statt des Wallpapers. */
+    /** The minus badge shows what really lies behind it (open folder: panel above the home screen) instead of the wallpaper. */
     badgeOnGlass: Boolean = false,
     labelAlpha: () -> Float = { 1f },
 ) {
@@ -82,10 +82,10 @@ fun AppIconView(
     }
 }
 
-/** Aktuelles Wallpaper für Glas-Icon-Stile (Klar/Getönt) an Stellen ohne eigenen Wallpaper-Parameter. */
+/** Current wallpaper for glass icon styles (Clear/Tinted) in places without their own wallpaper parameter. */
 val LocalWallpaper = androidx.compose.runtime.staticCompositionLocalOf<ImageBitmap?> { null }
 
-/** App-Icon im gewählten Stil überall dort, wo kein Wallpaper durchgereicht wird (Ordner, Mediathek, Suche). */
+/** App icon in the chosen style wherever no wallpaper is passed down (folders, App Library, search). */
 @Composable
 fun StyledAppIcon(app: AppEntry, modifier: Modifier) {
     val wp = LocalWallpaper.current
@@ -94,9 +94,9 @@ fun StyledAppIcon(app: AppEntry, modifier: Modifier) {
 }
 
 /**
- * Icon im gewählten iOS-Stil (IconAppearance, recording7):
- *  Default = Original · Dark = farbiges Motiv auf dunklem Verlauf · Clear = einfarbiges Motiv auf Glas ·
- *  Tinted = eingefärbtes Motiv auf getöntem Grund. Hell/Dunkel-Variante je nach Einstellung.
+ * Icon in the chosen iOS style (IconAppearance, recording7):
+ *  Default = original · Dark = colourful motif on a dark gradient · Clear = monochrome motif on glass ·
+ *  Tinted = tinted motif on a tinted ground. Light/dark variant depending on the setting.
  */
 @Composable
 fun StyledIcon(
@@ -118,7 +118,7 @@ fun StyledIcon(
         }
         io.github.janhurn9400.liquidy.design.IconStyle.Clear -> io.github.janhurn9400.liquidy.glass.GlassSurface(
             wallpaper = wallpaper,
-            shape = androidx.compose.ui.graphics.RectangleShape, // Zelle clippt bereits auf das Squircle
+            shape = androidx.compose.ui.graphics.RectangleShape, // the cell already clips to the squircle
             modifier = modifier,
             tint = if (dark) CLEAR_DARK_TINT else 0f,
             whiteTint = if (dark) 0f else CLEAR_LIGHT_TINT,
@@ -129,7 +129,7 @@ fun StyledIcon(
         else -> { // Tinted
             val bg = if (dark) ia.tint(TINT_DARK_BG_V, TINT_DARK_BG_S) else ia.tint(TINT_LIGHT_BG_V, TINT_LIGHT_BG_S)
             val fg = if (dark) ia.tint(1f, TINT_DARK_FG_S) else ia.tint(TINT_LIGHT_FG_V)
-            // getöntes Glas: Wallpaper scheint leicht durch (recording7 24,5 s)
+            // tinted glass: the wallpaper shines through slightly (recording7 24.5 s)
             io.github.janhurn9400.liquidy.glass.GlassSurface(
                 wallpaper = wallpaper,
                 shape = androidx.compose.ui.graphics.RectangleShape,
@@ -143,7 +143,7 @@ fun StyledIcon(
     }
 }
 
-// Farben/Tönungen [GEMESSEN grob] recording7 15,6 / 17,2 / 22,4 s
+// Colours/tints [MEASURED roughly] recording7 15.6 / 17.2 / 22.4 s
 private val DARK_TOP = Color(0xFF3A3A3C)
 private val DARK_BOTTOM = Color(0xFF1C1C1E)
 private const val CLEAR_LIGHT_TINT = 0.22f
@@ -156,12 +156,12 @@ private const val TINT_DARK_FG_S = 0.45f
 private const val TINT_LIGHT_BG_V = 0.96f
 private const val TINT_LIGHT_BG_S = 0.22f
 private const val TINT_LIGHT_FG_V = 0.62f
-private const val TINT_GLASS_TOP = 0.8f    // oben etwas durchsichtiger (Glanz)
+private const val TINT_GLASS_TOP = 0.8f    // a bit more transparent at the top (gloss)
 private const val TINT_GLASS_BOTTOM = 0.93f
 
 /**
- * Gemeinsame Zelle für App- und Ordner-Icons: Squircle-Clip, Abdunkeln, Label, Badge, Wackeln.
- * [iconContent] füllt das T-ICON-Quadrat.
+ * Shared cell for app and folder icons: squircle clip, dimming, label, badge, jiggle.
+ * [iconContent] fills the T-ICON square.
  */
 @Composable
 fun IconCell(
@@ -175,10 +175,10 @@ fun IconCell(
     showBadge: Boolean,
     modifier: Modifier = Modifier,
     clipIcon: Boolean = true,
-    /** Ungelesene Mitteilungen (rotes Badge oben rechts), 0 = keins. */
+    /** Unread notifications (red badge top right), 0 = none. */
     notifications: Int = 0,
     badgeOnGlass: Boolean = false,
-    /** Deckkraft der Beschriftung (Ordner blendet sie beim Ordner-Hinweis aus). */
+    /** Opacity of the label (the folder fades it out during the folder hint). */
     labelAlpha: () -> Float = { 1f },
     iconContent: @Composable () -> Unit,
 ) {
@@ -243,7 +243,7 @@ fun IconCell(
                 DesignTokens.badgeOffsetY.dp.roundToPx() - badge.height / 2,
                 zIndex = 1f,
             )
-            // rechte Kante ragt über das Icon hinaus, Mitte knapp unter der Oberkante; breitere Zahlen wachsen nach links
+            // the right edge reaches beyond the icon, centre just below the top; wider numbers grow to the left
             count?.place(
                 iconX + iconPx + NOTIF_OVERHANG.dp.roundToPx() - count.width,
                 NOTIF_CENTER_Y.dp.roundToPx() - count.height / 2,
@@ -254,8 +254,8 @@ fun IconCell(
 }
 
 /**
- * Rotes Mitteilungs-Badge wie iOS [GEMESSEN] Bildschirmaufnahme 10-08 02:34, Bild 391 (3×): 25 pt hoch, eine Ziffer = Kreis,
- * mehr Ziffern = Kapsel; Zahl weiß mit Tausendertrennung („17.882“).
+ * Red notification badge like iOS [MEASURED] screen recording 10-08 02:34, frame 391 (3×): 25 pt tall, one digit = circle,
+ * more digits = capsule; number white with thousands separator ("17.882").
  */
 @Composable
 internal fun NotificationBadge(count: Int, modifier: Modifier = Modifier) {
@@ -270,28 +270,28 @@ internal fun NotificationBadge(count: Int, modifier: Modifier = Modifier) {
     }
 }
 
-// Milchglas für Minus-Badge und Bearbeiten-Knöpfe [GESCHÄTZT] nach IMG_3124
+// Frosted glass for the minus badge and edit buttons [ESTIMATED] after IMG_3124
 internal const val FROST_BLUR = 18f
 internal const val FROST_WHITE = 0.18f
 internal const val FROST_WHITE_DARK = 0.28f
 
 private const val NOTIF_H = 25f          // pt
-private const val NOTIF_OVERHANG = 11.3f // rechte Kante über das Icon hinaus (pt)
-private const val NOTIF_CENTER_Y = 2.3f  // Mitte unter der Icon-Oberkante (pt)
+private const val NOTIF_OVERHANG = 11.3f // right edge beyond the icon (pt)
+private const val NOTIF_CENTER_Y = 2.3f  // centre below the icon top (pt)
 private const val NOTIF_PAD = 7f
 private const val NOTIF_FONT = 16.5f
 private val NOTIF_RED = Color(0xFFFF3B30)
 
-/** Zellen-x (px) aus Icon-x (px). */
+/** Cell x (px) from icon x (px). */
 fun cellOffsetX(iconX: Float, density: Float): Float =
     iconX - (DesignTokens.labelWidth.value - DesignTokens.iconSize.value) * density / 2
 
-/** Glas-Kreis mit schwarzem Minus (T-BADGE). Ohne Blur — der Wallpaper unter dem Badge ist glatt. */
+/** Glass circle with a black minus (T-BADGE). Without blur — the wallpaper below the badge is smooth. */
 @Composable
 internal fun MinusBadge(wallpaper: ImageBitmap, modifier: Modifier, onGlass: Boolean = false) {
     val frostWhite = if (DesignTokens.wallpaperIsDark) FROST_WHITE_DARK else FROST_WHITE
-    // Offener Ordner: dasselbe Milchglas, aber aus dem, was wirklich dahinter liegt (Homescreen unter dem Panel, gleich
-    // abgedunkelt wie dort) — der Wallpaper-Ausschnitt wirkte vor dem helleren Panel-Hintergrund zu dunkel (Nutzer 10-14)
+    // Open folder: the same frosted glass, but from what really lies behind it (home screen below the panel, dimmed
+    // the same as there) — the wallpaper crop looked too dark in front of the lighter panel background (user 10-14)
     if (onGlass && io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current != null) {
         io.github.janhurn9400.liquidy.glass.LiquidGlass(
             shape = io.github.janhurn9400.liquidy.glass.glassCapsule(),
@@ -302,7 +302,7 @@ internal fun MinusBadge(wallpaper: ImageBitmap, modifier: Modifier, onGlass: Boo
         ) { MinusGlyph() }
         return
     }
-    // Milchglas wie IMG_3124 (stark verwischt, hell, keine Brechung) — auch über dunklen Widgets bleibt es hell
+    // Frosted glass like IMG_3124 (strongly blurred, light, no refraction) — stays light even over dark widgets
     GlassSurface(
         wallpaper = wallpaper,
         shape = CircleShape,
@@ -313,7 +313,7 @@ internal fun MinusBadge(wallpaper: ImageBitmap, modifier: Modifier, onGlass: Boo
     ) { MinusGlyph() }
 }
 
-/** Schwarzer Minus-Strich des Badges (T-BADGE). */
+/** Black minus stroke of the badge (T-BADGE). */
 @Composable
 private fun MinusGlyph() = Canvas(Modifier.fillMaxSize()) {
     val w = DesignTokens.badgeMinusWidth.dp.toPx()
@@ -326,7 +326,7 @@ private fun MinusGlyph() = Canvas(Modifier.fillMaxSize()) {
     )
 }
 
-// ── Wackeln (M-JIGGLE) ───────────────────────────────────────────────────────
+// ── Jiggle (M-JIGGLE) ───────────────────────────────────────────────────────
 class JigglePhases(val rot: Float, val x: Float, val y: Float)
 
 internal fun jigglePhases(key: String): JigglePhases {
@@ -335,7 +335,7 @@ internal fun jigglePhases(key: String): JigglePhases {
     return JigglePhases(r.nextFloat() * tau, r.nextFloat() * tau, r.nextFloat() * tau)
 }
 
-/** Wackel-Werte (Drehung °, Versatz x/y px) — eine Quelle für das Icon UND fürs Gegensteuern im Glas. */
+/** Jiggle values (rotation °, offset x/y px) — one source for the icon AND for counter-steering in the glass. */
 internal fun jiggleValues(amount: Float, t: Float, p: JigglePhases, density: Float): Triple<Float, Float, Float> {
     if (amount <= 0f) return Triple(0f, 0f, 0f)
     val tau = (2 * PI).toFloat()
@@ -352,7 +352,7 @@ internal fun GraphicsLayerScope.applyJiggle(amount: Float, t: Float, p: JigglePh
         rotationZ = 0f; translationX = 0f; translationY = 0f
         return
     }
-    // Drehpunkt = Icon-Mitte (gemessen am Icon, nicht an der Zelle inkl. Label)
+    // Pivot = icon centre (measured on the icon, not on the cell incl. label)
     val iconPx = DesignTokens.iconSize.value * density
     if (size.height > 0f) transformOrigin = TransformOrigin(0.5f, (iconPx / 2f) / size.height)
     val (r, x, y) = jiggleValues(amount, t, p, density)

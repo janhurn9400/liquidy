@@ -32,21 +32,21 @@ import io.github.janhurn9400.liquidy.ui.widgets.IosWidget
 import kotlin.math.roundToInt
 
 /**
- * Heute-Ansicht (recording8 2–20 s, T-TODAY): Widgets ohne Beschriftung untereinander auf dem verwischten Wallpaper,
- * gleiche Größen wie auf dem Homescreen, 2 Spalten (klein) bzw. ganze Breite, Rand 26,33 pt, Abstand 21,33 pt, oben ≈ 91,67 pt.
+ * Today view (recording8 2–20 s, T-TODAY): widgets without labels one below the other on the blurred wallpaper,
+ * same sizes as on the home screen, 2 columns (small) or full width, margin 26.33 pt, gap 21.33 pt, top ≈ 91.67 pt.
  */
 object TodayLayout {
-    /** Rechtecke (Inhaltskoordinaten in px, vor Scroll) je Widget-Key, in Reihenfolge. */
+    /** Rects (content coordinates in px, before scroll) per widget key, in order. */
     fun place(keys: List<String>, size: (String) -> Pair<Int, Int>, geo: HomeGeometry, density: Float): List<Pair<String, Rect>> {
-        val used = HashMap<Int, BooleanArray>() // Reihe → 2 Spalten
+        val used = HashMap<Int, BooleanArray>() // row → 2 columns
         fun row(r: Int) = used.getOrPut(r) { BooleanArray(2) }
-        // Duo: Heute ist eine Seite (448 pt), Spalte 333 pt bei 57,5 pt, erste Reihe bei 54,5 pt; Reihenabstand inkl.
-        // Beschriftung 40 pt [GEMESSEN] Aufnahme 10-08 21:28, 31 s. Sonst iPhone-Werte (recording8).
+        // Duo: Today is one page (448 pt), column 333 pt at 57.5 pt, first row at 54.5 pt; row gap incl.
+        // label 40 pt [MEASURED] recording 10-08 21:28, 31 s. Otherwise iPhone values (recording8).
         val small = geo.widgetSize(2, 2).width / density
         val gap = if (geo.duo) DUO_TODAY_ROW_GAP else DesignTokens.todayGap.value
         val colGap = if (geo.duo) geo.widgetSize(4, 2).width / density - 2 * small else DesignTokens.todayGap.value
         val unit = (geo.widgetSize(2, 2).height / density + gap) * density
-        // zugeklappt: mittig im Platz links vom Dock (sonst ragt das breite Widget ins Dock) [GEMESSEN 19:07, ≈ 25 pt Rand]
+        // folded: centred in the space left of the dock (otherwise the wide widget reaches into the dock) [MEASURED 19:07, ≈ 25 pt margin]
         val avail = if (geo.unfolded) DUO_TODAY_PAGE else geo.duoDockLeftPt
         val side = (if (geo.duo) (avail - geo.widgetSize(4, 2).width / density) / 2 else DesignTokens.todaySide.value) * density
         val colX = floatArrayOf(side, side + (small + colGap) * density)
@@ -71,8 +71,8 @@ object TodayLayout {
         }
     }
 
-    /** Duo aufgeklappt: unten endet die Spalte an der Glasfläche (41 pt über dem Rand) — ganz unten gescrollt sollen die
-     *  letzte Beschriftung und darunter ≈ so viel Glas wie oben (14 pt) sichtbar bleiben. */
+    /** Duo unfolded: at the bottom the column ends at the glass surface (41 pt above the edge) — scrolled to the very bottom the
+     *  last label and below it ≈ as much glass as at the top (14 pt) should stay visible. */
     fun contentHeight(rects: List<Pair<String, Rect>>, density: Float, duoUnfolded: Boolean = false) =
         (rects.maxOfOrNull { it.second.bottom } ?: 0f) +
             (if (duoUnfolded) TODAY_PANEL_BOTTOM + DUO_TODAY_LABEL_ROOM + DUO_TODAY_TOP - TODAY_PANEL_TOP else DesignTokens.todayBottom.value) * density
@@ -84,13 +84,13 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
     val rects = TodayLayout.place(model.todayOrder(), model::sizeOf, geo, density)
     val drag = model.todayDrag
     val shape = glassRect(DesignTokens.widgetCorner.dp)
-    // Duo aufgeklappt: unter der Heute-Seite wird NICHTS verwischt — Wallpaper bleibt scharf [GEMESSEN 19:18, 2,6 s].
-    // Zugeklappt: wie iPhone — die bildschirmweite Unschärfe von HomeScreen (sideBlur) übernimmt.
+    // Duo unfolded: NOTHING is blurred below the Today page — the wallpaper stays sharp [MEASURED 19:18, 2.6 s].
+    // Folded: like iPhone — the screen-wide blur from HomeScreen (sideBlur) takes over.
     val panel = if (geo.duo && geo.unfolded) rememberTodayPanel(model) else null
     val panelClip = if (panel != null && rects.isNotEmpty()) todayPanelRect(rects, geo, density, 1f) else null
     if (panel != null) TodayScrollPanel(model, geo, density, rects, pageOffsetX, panel)
-    // Sonst schneidet jedes Widget selbst (s. u.). Im Bearbeiten-Modus laufen die Widgets bis zum Displayrand; nur solange
-    // die Glasfläche da ist, endet dann alles an ihrem Rand [GEMESSEN 14:57, 14,0 s]
+    // Otherwise every widget clips itself (see below). In edit mode the widgets run to the display edge; only while
+    // the glass surface is there does everything end at its edge [MEASURED 14:57, 14.0 s]
     Box(Modifier.fillMaxSize().then(if (panel == null) Modifier else Modifier
         .graphicsLayer {
             compositingStrategy = if (model.editing && panel.value > 0.001f) androidx.compose.ui.graphics.CompositingStrategy.Offscreen
@@ -100,7 +100,7 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
             drawContent()
             val k = panel.value.coerceIn(0f, 1f)
             if (!model.editing || k <= 0.001f || rects.isEmpty()) return@drawWithContent
-            // Schnittkante immer an der fertigen Fläche — wächst sie mit, läuft beim Schließen ein Band über die Widgets
+            // Clip edge always at the finished surface — if it grew along, a band would run over the widgets when closing
             val r = todayPanelRect(rects, geo, density, 1f).translate(pageOffsetX(), 0f)
             val outside = androidx.compose.ui.graphics.Path().apply {
                 fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
@@ -117,44 +117,44 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
                 translationY = -model.todayScroll.value
             }
     ) {
-        // key(): Zustand (Position-Animatable) hängt am Widget, nicht am Listenplatz — sonst springen nach dem
-        // Löschen alle folgenden Widgets hart statt einzufedern
+        // key(): state (position Animatable) is tied to the widget, not the list slot — otherwise after
+        // deleting all following widgets jump hard instead of springing in
         rects.forEach { (key, r) -> androidx.compose.runtime.key(key) {
             val spec = model.widgets[key] ?: return@forEach
-            if (io.github.janhurn9400.liquidy.data.AppLaunchTransition.launchingKey.value == key) return@forEach // App wächst gerade daraus
-            if (model.contextMenu?.key == key) return@forEach // schwebt im Kontextmenü
-            if (model.flyingKey == key || model.widgetConfigKey == key) return@forEach // App fliegt hinein, das Bild des Widgets steht an seiner Stelle
+            if (io.github.janhurn9400.liquidy.data.AppLaunchTransition.launchingKey.value == key) return@forEach // the app is growing out of it right now
+            if (model.contextMenu?.key == key) return@forEach // floats in the context menu
+            if (model.flyingKey == key || model.widgetConfigKey == key) return@forEach // the app flies in, the widget's image stands in its place
             val phases = androidx.compose.runtime.remember(key) { jigglePhases(key) }
             val dragged = drag?.key == key
-            // Neuer Platz (anderes Widget wird größer/verschoben) → federnd hinwandern statt springen
+            // New slot (another widget grows/moves) → glide there springily instead of jumping
             val pos = androidx.compose.runtime.remember(key) { androidx.compose.animation.core.Animatable(r.topLeft, androidx.compose.ui.geometry.Offset.VectorConverter) }
-            // beim Ziehen die sichtbare Position merken → nach dem Loslassen von dort aus einfedern (kein Sprung)
+            // remember the visible position while dragging → spring in from there after release (no jump)
             val dropFrom = androidx.compose.runtime.remember(key) { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
             if (dragged) {
                 val from = (TodayLayout.place(model.today, model::sizeOf, geo, density).firstOrNull { it.first == key }?.second ?: r)
                 dropFrom.value = from.topLeft + drag!!.offset
             }
             androidx.compose.runtime.LaunchedEffect(r.topLeft, dragged) {
-                if (dragged) return@LaunchedEffect // folgt dem Finger, eigene Verschiebung unten
+                if (dragged) return@LaunchedEffect // follows the finger, own offset below
                 dropFrom.value?.let { pos.snapTo(it); dropFrom.value = null }
                 pos.animateTo(r.topLeft, io.github.janhurn9400.liquidy.motion.Motion.todayReflow.spec())
             }
             Box(
                 Modifier
-                    // angefasstes Widget (Größe ändern / ziehen) liegt über den ausweichenden
+                    // touched widget (resize / drag) lies above the ones making way
                     .zIndex(if (dragged || model.resize?.key == key) 1f else 0f)
                     .offset { val p = if (dragged) r.topLeft else pos.value; IntOffset(p.x.roundToInt(), p.y.roundToInt()) }
                     .graphicsLayer {
                         if (dragged) {
-                            // gezogenes Widget folgt dem Finger (vom ursprünglichen Platz aus), leicht angehoben
+                            // dragged widget follows the finger (from its original slot), slightly lifted
                             val from = (TodayLayout.place(model.today, model::sizeOf, geo, density).firstOrNull { it.first == key }?.second ?: r)
                             translationX = from.left - r.left + drag!!.offset.x
                             translationY = from.top - r.top + drag.offset.y
                             scaleX = DRAG_LIFT; scaleY = DRAG_LIFT
                         } else applyJiggle(model.jiggleAmount.value * WIDGET_JIGGLE_TODAY, clockSeconds(), phases)
                     }
-                    // Duo aufgeklappt: oben und unten an der Glasfläche abgeschnitten (auch wenn sie ausgeblendet ist) — die
-                    // Schnittkante bekommt wieder die Widget-Ecken, nicht die Form der Fläche [Duo, 14:57: 30,6 / 36,2 s]
+                    // Duo unfolded: clipped at the top and bottom at the glass surface (even if it's hidden) — the
+                    // clip edge gets the widget corners again, not the shape of the surface [Duo, 14:57: 30.6 / 36.2 s]
                     .drawWithContent {
                         val clip = panelClip
                         if (clip == null || dragged || model.editing) { drawContent(); return@drawWithContent }
@@ -162,7 +162,7 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
                         val ct = clip.top - y0; val cb = clip.bottom - y0
                         val w = size.width; val h = size.height
                         if (ct <= 0f && cb >= h) {
-                            // Widget ganz drin — nur die Beschriftung darunter kann über die Kante ragen
+                            // widget fully inside — only the label below can reach over the edge
                             clipRect(-w, -100_000f, 2 * w, cb) { this@drawWithContent.drawContent() }
                             return@drawWithContent
                         }
@@ -171,12 +171,12 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
                             val t = maxOf(0f, ct); val b = minOf(h, cb)
                             if (b > t) addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, t, w, b, androidx.compose.ui.geometry.CornerRadius(rad)))
                             val lt = maxOf(h, ct)
-                            if (cb > lt) addRect(Rect(-w, lt, 2 * w, cb)) // Beschriftung darunter
+                            if (cb > lt) addRect(Rect(-w, lt, 2 * w, cb)) // label below
                         }
                         clipPath(keep) { this@drawWithContent.drawContent() }
                     }
             ) {
-                // Live-Rahmen beim Größe ändern (folgt dem Finger, rastet ein), sonst Platz aus dem Layout
+                // Live rect while resizing (follows the finger, snaps), otherwise the slot from the layout
                 val resize = model.resize?.takeIf { it.key == key }
                 Box(
                     Modifier
@@ -196,7 +196,7 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
                         else WithWallpaperGlass(wallpaper) { IosWidget(spec.type, spec.cols, spec.rows, Modifier.fillMaxSize(), spec.config) }
                     }
                 }
-                // Duo: Name unter dem Widget (wie auf dem Homescreen; iPhone-Heute-Seite hat keinen) [GEMESSEN] 31 s
+                // Duo: name below the widget (like on the home screen; the iPhone Today page has none) [MEASURED] 31 s
                 if (geo.duo) androidx.compose.foundation.text.BasicText(
                     io.github.janhurn9400.liquidy.ui.widgets.widgetLabel(model.shownWidget(key) ?: spec),
                     style = androidx.compose.ui.text.TextStyle(fontFamily = io.github.janhurn9400.liquidy.ui.Inter,
@@ -206,7 +206,7 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
                     modifier = Modifier.offset { IntOffset(0, (r.height + DUO_TODAY_LABEL_GAP * density).roundToInt()) }
                         .size(Dp(r.width / density), Dp(20f)),
                 )
-                // Größengriff unten rechts am (Live-)Rahmen
+                // Resize handle bottom right on the (live) rect
                 if (model.editing || model.badgeScale.value > 0f) ResizeHandle(
                     Modifier
                         .offset {
@@ -216,7 +216,7 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
                         .systemGestureExclusion()
                         .graphicsLayer { alpha = model.badgeScale.value.coerceIn(0f, 1f) }
                 )
-                // Minus-Badge oben links (Bearbeitungsmodus)
+                // Minus badge top left (edit mode)
                 if (model.editing || model.badgeScale.value > 0f) MinusBadge(wallpaper, Modifier
                     .offset { IntOffset((DesignTokens.badgeOffsetX.value * density).roundToInt() - (DesignTokens.badgeSize.value * density / 2).roundToInt(),
                         (DesignTokens.badgeOffsetY.value * density).roundToInt() - (DesignTokens.badgeSize.value * density / 2).roundToInt()) }
@@ -227,13 +227,13 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
     }
 }
 
-/** 0 = keine Glasfläche, 1 = ganz da. Kommt mit dem Finger, geht, sobald die Spalte steht. */
+/** 0 = no glass surface, 1 = fully there. Comes with the finger, goes as soon as the column stands still. */
 @Composable
 private fun rememberTodayPanel(model: HomeModel): androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D> {
     val shown = remember { androidx.compose.animation.core.Animatable(0f) }
     val active = model.todayTouching || model.todayScroll.isRunning
     androidx.compose.runtime.LaunchedEffect(active) {
-        // [GEMESSEN 14:57, 27,48–27,70 s / 35,58–35,67 s, 60 fps]: auf ≈ 0,22 s (schnell, dann sanft), zu ≈ 0,1 s
+        // [MEASURED 14:57, 27.48–27.70 s / 35.58–35.67 s, 60 fps]: open ≈ 0.22 s (fast, then gentle), close ≈ 0.1 s
         if (active) shown.animateTo(1f, androidx.compose.animation.core.tween(TODAY_PANEL_IN_MS, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
         else shown.animateTo(0f, androidx.compose.animation.core.tween(TODAY_PANEL_OUT_MS, easing = androidx.compose.animation.core.FastOutLinearInEasing))
     }
@@ -241,10 +241,10 @@ private fun rememberTodayPanel(model: HomeModel): androidx.compose.animation.cor
 }
 
 /**
- * Glasfläche (Bildschirmkoordinaten ohne Seitenversatz) bei Fortschritt [k]: fest am Bildschirm, 13 pt breiter als die
- * Spalte je Seite, oben 40 pt, unten 41 pt Abstand (an den geraden Kanten gemessen, 30,6/36,2 s) —
- * ganz oben gescrollt bleibt so ≈ 14 pt Glas über dem obersten Widget. Wächst aus der Mitte heraus — waagrecht kaum (je ≈ 3,6 pt),
- * senkrecht deutlich (je ≈ 17 pt) [GEMESSEN 27,50 → 27,70 s: links 256 → 251 px, oben 278 → 256, unten 970 → 994].
+ * Glass surface (screen coordinates without page offset) at progress [k]: fixed to the screen, 13 pt wider than the
+ * column on each side, 40 pt gap at the top, 41 pt at the bottom (measured at the straight edges, 30.6/36.2 s) —
+ * scrolled to the very top ≈ 14 pt of glass stays above the topmost widget. Grows from the centre — barely horizontally (≈ 3.6 pt each),
+ * clearly vertically (≈ 17 pt each) [MEASURED 27.50 → 27.70 s: left 256 → 251 px, top 278 → 256, bottom 970 → 994].
  */
 private fun todayPanelRect(rects: List<Pair<String, Rect>>, geo: HomeGeometry, density: Float, k: Float): Rect {
     val colLeft = rects.minOf { it.second.left }; val colRight = rects.maxOf { it.second.right }
@@ -256,9 +256,9 @@ private fun todayPanelRect(rects: List<Pair<String, Rect>>, geo: HomeGeometry, d
 }
 
 /**
- * Duo aufgeklappt, beim Scrollen der Heute-Spalte [GEMESSEN Aufnahme 10-11 14:57]: klare Glasfläche hinter den Widgets
- * (Ecken ≈ 40 pt, Wallpaper darin ≈ +28 heller, scharf), wächst und blendet zugleich ein. Rechts daneben (8,75 pt) ein
- * weißer Scrollbalken (2,9 pt) in einer blassen, ≈ 98,5 pt langen Bahn, mittig zur Fläche — nur, wenn die Spalte länger als der Bildschirm ist.
+ * Duo unfolded, while scrolling the Today column [MEASURED recording 10-11 14:57]: clear glass surface behind the widgets
+ * (corners ≈ 40 pt, wallpaper inside ≈ +28 brighter, sharp), grows and fades in at the same time. To the right (8.75 pt) a
+ * white scroll bar (2.9 pt) in a pale track ≈ 98.5 pt long, centred to the surface — only if the column is longer than the screen.
  */
 @Composable
 private fun TodayScrollPanel(model: HomeModel, geo: HomeGeometry, density: Float, rects: List<Pair<String, Rect>>, pageOffsetX: () -> Float,
@@ -280,14 +280,14 @@ private fun TodayScrollPanel(model: HomeModel, geo: HomeGeometry, density: Float
             val track = (TODAY_BAR_TRACK * density).coerceAtMost(full.height)
             val maxScroll = content - hPx
             val scroll = model.todayScroll.value
-            // über die Enden hinaus (Gummiband) wird der Balken kürzer [GEMESSEN 33,6 s: 117 → 88 px]
+            // beyond the ends (rubber band) the bar gets shorter [MEASURED 33.6 s: 117 → 88 px]
             val over = when { scroll < 0f -> -scroll; scroll > maxScroll -> scroll - maxScroll; else -> 0f }
             val thumb = (track * hPx / content - over * TODAY_BAR_SQUASH).coerceIn(TODAY_BAR_MIN * density, track)
             val frac = (scroll / maxScroll).coerceIn(0f, 1f)
             val top = full.center.y - track / 2
             val y = top + (track - thumb) * frac
             val x = full.right + TODAY_BAR_GAP * density
-            // blasse Bahn, darin der weiße Balken; Enden gerade [GEMESSEN 30,6 s, Zoom]
+            // pale track, the white bar inside; straight ends [MEASURED 30.6 s, zoom]
             drawLine(Color.White.copy(alpha = TODAY_BAR_TRACK_ALPHA), Offset(x, top), Offset(x, top + track), TODAY_BAR_W * density)
             drawLine(Color.White, Offset(x, y), Offset(x, y + thumb), TODAY_BAR_W * density)
         }
@@ -314,17 +314,17 @@ private const val DUO_TODAY_PAGE = 448f
 private const val DUO_TODAY_TOP = 54.5f
 private const val DUO_TODAY_ROW_GAP = 40f
 private const val DUO_TODAY_LABEL_GAP = 7f
-private const val DUO_TODAY_LABEL_ROOM = 24f // Abstand + Beschriftung unter dem Widget
+private const val DUO_TODAY_LABEL_ROOM = 24f // gap + label below the widget
 private const val DUO_TODAY_BLUR = 12f
-private const val DUO_TODAY_FADE = 60f // pt weicher Übergang an der rechten Seitenkante
+private const val DUO_TODAY_FADE = 60f // pt soft transition at the right page edge
 private const val DRAG_LIFT = 1.04f
 
-/** Index in der Heute-Liste, an den ein gezogenes Widget mit Mitte [center] (Inhaltskoordinaten) gehört. */
+/** Index in the Today list where a dragged widget with centre [center] (content coordinates) belongs. */
 fun todayTargetIndex(model: HomeModel, key: String, center: androidx.compose.ui.geometry.Offset, geo: HomeGeometry, density: Float): Int {
     val rest = model.today - key
     if (rest.isEmpty()) return 0
     val rects = TodayLayout.place(rest, model::sizeOf, geo, density)
-    // vor das erste Widget, dessen Mitte „nach“ dem Finger liegt (zeilenweise)
+    // before the first widget whose centre lies "after" the finger (row by row)
     val i = rects.indexOfFirst { (_, r) -> center.y < r.top + r.height / 2 && (center.y < r.top || center.x < r.right) }
     return if (i < 0) rest.size else i
 }

@@ -11,9 +11,9 @@ import androidx.compose.ui.unit.Density
 import com.kyant.backdrop.Backdrop
 
 /**
- * Glas-Quelle nur aus dem Wallpaper (ohne Icons) — für Glas, das selbst in der aufgenommenen Icon-Ebene liegt
- * (Ordner-Icons): dort kann es die Ebene nicht brechen, in der es steckt. Gezeichnet mit der aktuellen Umrechnung
- * Bildschirm → Glasfläche (inkl. Wackeln/Seitenwischen), damit der Hintergrund still steht.
+ * Glass source from the wallpaper only (without icons) — for glass that itself lies in the recorded icon layer
+ * (folder icons): there it can't refract the layer it sits in. Drawn with the current mapping
+ * screen → glass surface (incl. jiggle/page swipe), so the background stands still.
  */
 class WallpaperBackdrop(
     private val wallpaper: ImageBitmap,
@@ -33,7 +33,7 @@ class WallpaperBackdrop(
     }
 }
 
-/** Unscharfes Wallpaper + aktueller Anteil (Heute-Ansicht/Mediathek), für alle Glas-Quellen. */
+/** Blurred wallpaper + current share (Today view/App Library), for all glass sources. */
 class WallpaperBlur(val blurred: ImageBitmap?, val amount: () -> Float)
 
 val LocalWallpaperBlur = androidx.compose.runtime.staticCompositionLocalOf { WallpaperBlur(null) { 0f } }

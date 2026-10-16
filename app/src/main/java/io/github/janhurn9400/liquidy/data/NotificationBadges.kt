@@ -10,11 +10,11 @@ import android.service.notification.StatusBarNotification
 import androidx.compose.runtime.mutableStateMapOf
 
 /**
- * Zähler für die roten iOS-Badges aus den echten Android-Mitteilungen (wie Launcher3s „Notification dots“, nur mit Zahl).
- * Braucht Mitteilungszugriff (Einstellungen → Apps mit Zugriff auf Benachrichtigungen); ohne Zugriff gibt es keine Badges.
+ * Counters for the red iOS badges from the real Android notifications (like Launcher3's "Notification dots", just with a number).
+ * Needs notification access (Settings → apps with notification access); without access there are no badges.
  *
- * Zählung je App + Nutzer: Summe aus Notification.number (falls die App eine Zahl setzt) bzw. 1 je Mitteilung;
- * laufende (Musik, Navigation, Vordergrunddienste) und Gruppen-Zusammenfassungen zählen nicht.
+ * Count per app + user: sum of Notification.number (if the app sets a number) or 1 per notification;
+ * ongoing ones (music, navigation, foreground services) and group summaries don't count.
  */
 class NotificationBadges : NotificationListenerService() {
 
@@ -33,13 +33,13 @@ class NotificationBadges : NotificationListenerService() {
             val k = key(sbn.packageName, sbn.user)
             next[k] = (next[k] ?: 0) + if (n.number > 0) n.number else 1
         }
-        // nur Änderungen schreiben (Compose liest die Map)
+        // only write changes (Compose reads the map)
         counts.keys.filter { it !in next }.forEach { counts.remove(it) }
         next.forEach { (k, v) -> if (counts[k] != v) counts[k] = v }
     }
 
     companion object {
-        /** Paket + Nutzer → Anzahl. */
+        /** Package + user → count. */
         val counts = mutableStateMapOf<String, Int>()
 
         fun key(pkg: String, user: UserHandle) = "$pkg/${user.hashCode()}"
@@ -51,7 +51,7 @@ class NotificationBadges : NotificationListenerService() {
             return flat.split(':').any { ComponentName.unflattenFromString(it) == me }
         }
 
-        /** Öffnet die Systemseite, auf der der Zugriff für genau diesen Dienst erteilt wird. */
+        /** Opens the system page where access is granted for exactly this service. */
         fun requestAccess(c: Context) {
             val detail = android.content.Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
                 .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, ComponentName(c, NotificationBadges::class.java).flattenToString())

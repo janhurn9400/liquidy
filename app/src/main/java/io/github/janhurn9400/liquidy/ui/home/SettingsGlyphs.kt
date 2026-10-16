@@ -7,9 +7,9 @@ import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 
 /*
- * Symbole der Einstellungs-Kategorien — Pfade aus Material Symbols „Rounded“ (androidx.compose.material:material-icons,
+ * Glyphs of the settings categories — paths from Material Symbols "Rounded" (androidx.compose.material:material-icons,
  * 1.7.8), Copyright The Android Open Source Project, Apache License 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
- * Nur diese neun übernommen statt der ganzen Icon-Bibliothek. Keine Apple-Symbole (SF Symbols) — CLAUDE.md Regel 3.
+ * Only these nine taken over instead of the whole icon library. No Apple glyphs (SF Symbols) — CLAUDE.md rule 3.
  */
 internal object SettingsGlyphs {
     val Settings: ImageVector by lazy {

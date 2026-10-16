@@ -47,38 +47,38 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * „Stapel bearbeiten“ wie iOS 26/27 (Bildschirmaufnahme 10-08 10:21, ausgewertet): Homescreen unscharf, in der Mitte ein
- * großes Liquid-Glass-Panel mit der senkrechten Liste der Stapel-Widgets (Name darunter, Minus oben links, Nachbarn lugen
- * oben/unten hervor), Punkte rechts, unten zwei blaue Rundknöpfe „Intelligentes Drehen“ / „Widget-Vorschläge“, oben „+“ und
- * „✓“. Wischen blättert, lange drücken + ziehen sortiert um bzw. legt das Widget außerhalb des Panels auf den Homescreen.
+ * "Edit Stack" like iOS 26/27 (screen recording 10-08 10:21, analysed): home screen blurred, in the middle a
+ * large Liquid Glass panel with the vertical list of the stack widgets (name below, minus top left, neighbours peek
+ * out at the top/bottom), dots on the right, at the bottom two blue round buttons "Smart Rotate" / "Widget Suggestions", at the top "+" and
+ * "✓". Swiping pages, long press + drag reorders or puts the widget onto the home screen outside the panel.
  */
 @Composable
 fun StackEditor(model: HomeModel, key: String, geo: HomeGeometry, density: Float, wallpaper: ImageBitmap, w: Float, h: Float) {
     val spec = model.widgets[key] ?: return
     val items = spec.stack
     if (items.isEmpty()) return
-    val unit = w / REF_W                                     // px pro Referenz-px (603 breite Aufnahme)
+    val unit = w / REF_W                                     // px per reference px (603 px wide recording)
     val ws = geo.widgetSize(spec.cols, spec.rows)
     val margin = minOf(PANEL_MARGIN * unit, (w - ws.width) / 2 - 12f * density).coerceAtLeast(10f * density)
     val panel = Rect(Offset((w - ws.width) / 2 - margin, h * PANEL_CENTER_Y - ws.height / 2 - PANEL_MARGIN * unit),
         Size(ws.width + 2 * margin, ws.height + 2 * PANEL_MARGIN * unit))
     val pitch = ITEM_PITCH * unit
     val pos = model.stackPosition(key)
-    // Morph (Bild 288–302): t = 0 → Panel deckt genau den Stapel auf dem Homescreen, t = 1 → großes Panel in der Mitte.
-    // Feder darf leicht überschwingen (Panel wird kurz etwas größer) — darum t nicht begrenzen.
+    // Morph (frame 288–302): t = 0 → the panel covers exactly the stack on the home screen, t = 1 → large panel in the middle.
+    // The spring may overshoot slightly (the panel gets a bit larger briefly) — so don't clamp t.
     val t = { model.stackEdit.value }
     val from = model.stackEditFrom ?: Rect(Offset((w - ws.width) / 2, h * PANEL_CENTER_Y - ws.height / 2), ws)
     val target = panel
     fun panelNow(): Rect = lerpR(from, target, t())
     fun itemRect(i: Int): Rect = Rect(Offset(panel.center.x - ws.width / 2, panel.center.y - ws.height / 2 + (i - pos.value) * pitch), ws)
-    /** Listenplatz → aktueller Platz: das aktuelle Widget fliegt vom Stapelplatz in die Liste, die anderen hängen daran. */
+    /** List slot → current slot: the current widget flies from the stack slot into the list, the others hang on it. */
     fun morph(r: Rect): Rect {
         val cur = itemRect(pos.value.roundToInt())
         val home = Rect(from.center - Offset(ws.width / 2, ws.height / 2), ws)
         return r.translate(lerpR(home, cur, t()).topLeft - cur.topLeft)
     }
-    val appear = { ((t() - CHROME_FROM) / (1f - CHROME_FROM)).coerceIn(0f, 1f) }   // Knöpfe, Punkte, Namen: zuletzt
-    var drag by remember { mutableStateOf<Pair<Int, Offset>?>(null) } // gezogenes Widget + Fingerweg
+    val appear = { ((t() - CHROME_FROM) / (1f - CHROME_FROM)).coerceIn(0f, 1f) }   // buttons, dots, names: last
+    var drag by remember { mutableStateOf<Pair<Int, Offset>?>(null) } // dragged widget + finger travel
     val tracker = remember { VelocityTracker() }
 
 
@@ -117,7 +117,7 @@ fun StackEditor(model: HomeModel, key: String, geo: HomeGeometry, density: Float
                     onDragEnd = {
                         drag?.let { (i, o) ->
                             val center = itemRect(i).center + o
-                            if (!panel.contains(center)) model.stackDetach(key, i) // aus dem Panel → auf den Homescreen
+                            if (!panel.contains(center)) model.stackDetach(key, i) // out of the panel → onto the home screen
                             else model.stackMove(key, i, (i + (o.y / pitch).roundToInt()).coerceIn(0, items.lastIndex))
                         }
                         drag = null
@@ -126,7 +126,7 @@ fun StackEditor(model: HomeModel, key: String, geo: HomeGeometry, density: Float
                 )
             }
     ) {
-        // Panel aus Liquid Glass (bricht den unscharfen Homescreen)
+        // Panel of Liquid Glass (refracts the blurred home screen)
         val cornerFrom = DesignTokens.widgetCorner.value * density
         fun corner() = cornerFrom + (PANEL_CORNER * unit - cornerFrom) * t().coerceIn(0f, 1f)
         LiquidGlass(glassRect((corner() / density).dp),
@@ -134,8 +134,8 @@ fun StackEditor(model: HomeModel, key: String, geo: HomeGeometry, density: Float
                 val r = panelNow(); val pl = m.measure(Constraints.fixed(r.width.roundToInt().coerceAtLeast(1), r.height.roundToInt().coerceAtLeast(1)))
                 layout(c.maxWidth, c.maxHeight) { pl.place(r.left.roundToInt(), r.top.roundToInt()) }
             }.graphicsLayer { clip = false },
-            thickness = 2f, blur = PANEL_BLUR.dp, whiteTint = 0.06f, blackTint = 0f) // stark gestreut: dahinter liegt der (scharfe) Homescreen
-        // Liste, auf das Panel beschnitten
+            thickness = 2f, blur = PANEL_BLUR.dp, whiteTint = 0.06f, blackTint = 0f) // strongly scattered: the (sharp) home screen lies behind it
+        // List, clipped to the panel
         Box(
             Modifier.layout { m, c ->
                 val r = panelNow(); val pl = m.measure(Constraints.fixed(r.width.roundToInt().coerceAtLeast(1), r.height.roundToInt().coerceAtLeast(1)))
@@ -145,18 +145,18 @@ fun StackEditor(model: HomeModel, key: String, geo: HomeGeometry, density: Float
             items.forEachIndexed { i, child ->
                 if (drag?.first == i) return@forEachIndexed
                 val current = i == pos.value.roundToInt()
-                // Nachbarn erscheinen erst mit dem Panel (beim Start sieht man nur den Stapel selbst)
+                // Neighbours only appear with the panel (at the start you only see the stack itself)
                 StackItem(child, wallpaper, density, { morph(itemRect(i)).topLeft - panelNow().topLeft }, ws,
                     alpha = { if (current) 1f else appear() }, chrome = appear)
             }
         }
-        // Gezogenes Widget über allem (nicht beschnitten)
+        // Dragged widget above everything (not clipped)
         drag?.let { (i, o) ->
             Box(Modifier.zIndex(3f)) {
                 StackItem(items[i], wallpaper, density, { itemRect(i).topLeft + o }, ws, lifted = true)
             }
         }
-        // Punkte rechts neben dem Panel
+        // Dots to the right of the panel
         Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = appear() }) {
             val r = DOT_D * unit / 2; val pitchD = DOT_PITCH * unit
             val x = panel.right + DOTS_GAP * unit
@@ -166,13 +166,13 @@ fun StackEditor(model: HomeModel, key: String, geo: HomeGeometry, density: Float
                 drawCircle(Color.White.copy(alpha = 0.45f + 0.55f * on), r, Offset(x, top + k * pitchD))
             }
         }
-        // Zwei blaue Rundknöpfe unten
+        // Two blue round buttons at the bottom
         Box(Modifier.fillMaxSize().graphicsLayer { val a = appear(); alpha = a; val sc = 0.85f + 0.15f * a; scaleX = sc; scaleY = sc
             transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, BTN_Y) }) {
             OptionButton(stringResource(R.string.stack_smart_rotate), spec.smartRotate, BTN_LEFT_X * w, BTN_Y * h, unit, density, rotateGlyph = true)
             OptionButton(stringResource(R.string.stack_suggestions), spec.suggestions, BTN_RIGHT_X * w, BTN_Y * h, unit, density, rotateGlyph = false)
         }
-        // Oben: + und ✓
+        // Top: + and ✓
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = appear() }) { EditButtons(geo, wallpaper, density, leftPlus = true) { 1f } }
     }
     model.stackRemoveAsk?.let { i ->
@@ -185,7 +185,7 @@ fun StackEditor(model: HomeModel, key: String, geo: HomeGeometry, density: Float
     }
 }
 
-/** Ein Widget in der Editor-Liste: Inhalt in Originalgröße, Name darunter, Minus oben links. */
+/** A widget in the editor list: content at original size, name below, minus top left. */
 @Composable
 private fun StackItem(child: io.github.janhurn9400.liquidy.data.WidgetSpec, wallpaper: ImageBitmap, density: Float, topLeft: () -> Offset, ws: Size,
                       lifted: Boolean = false, alpha: () -> Float = { 1f }, chrome: () -> Float = { 1f }) {
@@ -206,7 +206,7 @@ private fun StackItem(child: io.github.janhurn9400.liquidy.data.WidgetSpec, wall
     }
 }
 
-/** Blauer Rundknopf mit Symbol, darunter Name + „Ein/Aus“ (Bild 330). */
+/** Blue round button with a glyph, below it name + "On/Off" (frame 330). */
 @Composable
 private fun OptionButton(label: String, on: Boolean, cx: Float, cy: Float, unit: Float, density: Float, rotateGlyph: Boolean) {
     val d = BTN_D * unit
@@ -214,11 +214,11 @@ private fun OptionButton(label: String, on: Boolean, cx: Float, cy: Float, unit:
         Canvas(Modifier.fillMaxSize()) {
             drawCircle(if (on) BLUE else Color.White.copy(alpha = 0.25f))
             val s = size.width; val wc = Color.White
-            if (rotateGlyph) { // drei Balken (steigend)
+            if (rotateGlyph) { // three bars (rising)
                 drawRoundRect(wc.copy(alpha = 0.55f), Offset(s * 0.27f, s * 0.5f), Size(s * 0.12f, s * 0.12f), CornerRadius(s * 0.02f))
                 drawRoundRect(wc.copy(alpha = 0.75f), Offset(s * 0.43f, s * 0.43f), Size(s * 0.12f, s * 0.19f), CornerRadius(s * 0.02f))
                 drawRoundRect(wc, Offset(s * 0.59f, s * 0.33f), Size(s * 0.13f, s * 0.29f), CornerRadius(s * 0.02f))
-            } else { // Kachel mit Plus
+            } else { // tile with plus
                 drawRoundRect(wc.copy(alpha = 0.85f), Offset(s * 0.3f, s * 0.36f), Size(s * 0.34f, s * 0.34f), CornerRadius(s * 0.07f))
                 drawCircle(wc, s * 0.11f, Offset(s * 0.64f, s * 0.36f))
                 drawLine(BLUE, Offset(s * 0.64f, s * 0.31f), Offset(s * 0.64f, s * 0.41f), s * 0.03f)
@@ -237,13 +237,13 @@ private fun OptionButton(label: String, on: Boolean, cx: Float, cy: Float, unit:
     }
 }
 
-// Maße [GEMESSEN] Aufnahme 10-08 10:21, Bild 330/1360 (603 px breite Verkleinerung)
+// Dimensions [MEASURED] recording 10-08 10:21, frame 330/1360 (603 px wide downscale)
 private const val REF_W = 603f
-private const val PANEL_MARGIN = 101f   // Panel ragt so weit über das (kleine) Widget hinaus
+private const val PANEL_MARGIN = 101f   // the panel reaches this far beyond the (small) widget
 private const val PANEL_CORNER = 66f
 private const val PANEL_CENTER_Y = 0.5f
 private const val ITEM_PITCH = 301f
-private const val LABEL_GAP = 13f       // dp unter dem Widget bis Textoberkante
+private const val LABEL_GAP = 13f       // dp below the widget to the text top
 private const val DOT_D = 11f
 private const val DOT_PITCH = 26.5f
 private const val DOTS_GAP = 25f
@@ -253,7 +253,7 @@ private const val BTN_RIGHT_X = 0.688f
 private const val BTN_Y = 0.815f
 private val BLUE = Color(0xFF1E8BFF)
 private const val PANEL_BLUR = 28f
-private const val CHROME_FROM = 0.55f // Namen, Minus, Punkte, Knöpfe erscheinen in der zweiten Hälfte (Bild 294–302)
+private const val CHROME_FROM = 0.55f // names, minus, dots, buttons appear in the second half (frame 294–302)
 
 private fun lerpR(a: Rect, b: Rect, t: Float) = Rect(a.left + (b.left - a.left) * t, a.top + (b.top - a.top) * t,
     a.right + (b.right - a.right) * t, a.bottom + (b.bottom - a.bottom) * t)

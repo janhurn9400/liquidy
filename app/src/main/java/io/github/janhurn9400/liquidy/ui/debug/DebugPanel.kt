@@ -52,9 +52,9 @@ object DebugState {
     fun toggle() { visible = !visible }
 }
 
-private const val THREE_FINGER_HOLD_MS = 600L // Debug-Werkzeug, kein iOS-Verhalten
+private const val THREE_FINGER_HOLD_MS = 600L // debug tool, not iOS behaviour
 
-/** Langes Tippen mit 3 Fingern öffnet/schließt das Panel (im Emulator: Taste D oder adb, siehe CLAUDE.md). */
+/** A long press with 3 fingers opens/closes the panel (in the emulator: key D or adb, see CLAUDE.md). */
 fun Modifier.threeFingerLongPress(onTrigger: () -> Unit): Modifier = pointerInput(Unit) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
@@ -107,7 +107,7 @@ fun DebugPanel() {
                         Log.i("Tuning", "\n$text")
                         context.getSystemService(ClipboardManager::class.java)
                             .setPrimaryClip(ClipData.newPlainText("Tuning", text))
-                        Toast.makeText(context, "Export in Zwischenablage + Logcat (Tag „Tuning“)", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Exported to clipboard + logcat (tag \"Tuning\")", Toast.LENGTH_SHORT).show()
                     }) { Text("Export") }
                     TextButton(onClick = { Tunables.resetAll(context); revision++ }) { Text("Reset") }
                     TextButton(onClick = { collapsed = !collapsed }) { Text(if (collapsed) "▲" else "▼") }

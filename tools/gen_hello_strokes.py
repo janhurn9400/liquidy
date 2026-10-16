@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Erzeugt die Schreiblinien (Stiftzüge) für den „Hallo“-Bildschirm aus freien Android-Schriften:
-Wort rendern → Skelett (Mittellinie) → Graph → Stiftzüge in Schreibreihenfolge → glätten → Kotlin-Datei.
+Generates the writing lines (pen strokes) for the "Hello" screen from free Android fonts:
+render word → skeleton (centre line) → graph → pen strokes in writing order → smooth → Kotlin file.
 
-Schriften (aus /system/fonts des Emulators, nicht im Repo):
-  Latein: DancingScript-Regular.ttf (OFL) · Kyrillisch: Roboto-Regular.ttf (Apache 2.0)
-  Chinesisch/Japanisch/Koreanisch: NotoSansCJK-Regular.ttc (OFL)
+Fonts (from the emulator's /system/fonts, not in the repo):
+  Latin: DancingScript-Regular.ttf (OFL) · Cyrillic: Roboto-Regular.ttf (Apache 2.0)
+  Chinese/Japanese/Korean: NotoSansCJK-Regular.ttc (OFL)
 
-Aufruf: gen_hello_strokes.py <font-ordner> <ausgabe.kt>
+Usage: gen_hello_strokes.py <font-dir> <output.kt>
 """
 import math
 import sys
@@ -17,9 +17,9 @@ from PIL import Image, ImageDraw, ImageFont
 from skimage.morphology import skeletonize
 
 FONT_DIR, OUT = sys.argv[1], sys.argv[2]
-SIZE = 900  # Render-Größe in px (hoch → kaum Pixeltreppen in der Mittellinie)
+SIZE = 900  # render size in px (high → hardly any pixel steps in the centre line)
 
-# Wort → (Schrift, ttc-Index oder None, Schreibschrift?)
+# word → (font, ttc index or None, script font?)
 WORDS = [
     ("你好", "NotoSansCJK-Regular.ttc", 2),       # SC
     ("hola", "DancingScript-Regular.ttf", None),
@@ -44,7 +44,7 @@ def render(word, font_file, index):
     img = Image.new("L", (r - l + 2 * pad, b - t + 2 * pad), 0)
     ImageDraw.Draw(img).text((pad - l, pad - t), word, font=font, fill=255)
     a = np.array(img) > 127
-    # Grundlinie (für vertikale Ausrichtung): Höhe der Oberkante bis Grundlinie
+    # baseline (for vertical alignment): height from the top to the baseline
     asc, _ = font.getmetrics()
     baseline = pad - t + asc
     return a, baseline
@@ -59,7 +59,7 @@ def neighbours(sk, y, x):
 
 
 def prune(sk, min_len):
-    """Kurze Sporne (Endpunkt → Abzweig, kürzer als min_len) entfernen."""
+    """Remove short spurs (end point → branch, shorter than min_len)."""
     sk = sk.copy()
     for _ in range(3):
         ends = [(y, x) for y, x in zip(*np.nonzero(sk)) if len(list(neighbours(sk, y, x))) == 1]
@@ -80,7 +80,7 @@ def prune(sk, min_len):
 
 
 def edges_of(sk):
-    """Skelett → Kanten (Pixelketten zwischen Knoten = Grad ≠ 2), inkl. reiner Schleifen."""
+    """Skeleton → edges (pixel chains between nodes = degree ≠ 2), incl. pure loops."""
     deg = {}
     for y, x in zip(*np.nonzero(sk)):
         deg[(y, x)] = len(list(neighbours(sk, y, x)))
@@ -96,7 +96,7 @@ def edges_of(sk):
             nb = [p for p in nb if p != chain[-2]]
             if not nb:
                 break
-            # bevorzugt nicht diagonal (vermeidet Abkürzungen über Eckpixel)
+            # prefer non-diagonal (avoids shortcuts across corner pixels)
             nb.sort(key=lambda p: abs(p[0] - cur[0]) + abs(p[1] - cur[1]))
             nxt = nb[0]
             used.add((min(cur, nxt), max(cur, nxt)))
@@ -113,7 +113,7 @@ def edges_of(sk):
                 continue
             used.add(key)
             edges.append(walk(n, nb))
-    # Schleifen ohne Knoten (z. B. „o“)
+    # loops without nodes (e.g. "o")
     seen = {p for e in edges for p in e}
     for p in deg:
         if p not in seen and deg[p] == 2:
@@ -128,11 +128,11 @@ def edges_of(sk):
 def direction(chain, at_end, k=8):
     a = chain[-1] if at_end else chain[0]
     b = chain[-min(k, len(chain))] if at_end else chain[min(k, len(chain) - 1)]
-    return (a[1] - b[1], a[0] - b[0])  # (dx, dy) in Fahrtrichtung
+    return (a[1] - b[1], a[0] - b[0])  # (dx, dy) in travel direction
 
 
 def order_strokes(edges, cjk):
-    """Kanten zu Stiftzügen verbinden: am Knoten die geradeste Fortsetzung, sonst neuer Zug (links → rechts)."""
+    """Join edges into pen strokes: at a node the straightest continuation, otherwise a new stroke (left → right)."""
     remaining = list(range(len(edges)))
     strokes = []
 
@@ -140,7 +140,7 @@ def order_strokes(edges, cjk):
         e = edges[i]
         x = min(e[0][1], e[-1][1])
         y = min(e[0][0], e[-1][0])
-        if cjk:  # pro Zeichen grob: Spaltenblock, darin oben → unten
+        if cjk:  # roughly per character: column block, inside it top → bottom
             return (x // (SIZE * 0.8), y, x)
         return (x, y)
 
@@ -148,7 +148,7 @@ def order_strokes(edges, cjk):
         remaining.sort(key=start_key)
         i = remaining.pop(0)
         e = edges[i]
-        # in Schreibrichtung: links beginnen (CJK: oben/links)
+        # in writing direction: start on the left (CJK: top/left)
         if (e[-1][1], e[-1][0]) < (e[0][1], e[0][0]) if not cjk else (e[-1][0] + e[-1][1] * 0.3) < (e[0][0] + e[0][1] * 0.3):
             e = e[::-1]
         stroke = list(e)
@@ -178,10 +178,10 @@ def order_strokes(edges, cjk):
 
 
 def smooth(points, step):
-    """Pixelkette → gleichmäßig abgetastete, geglättete Linie (gleitender Mittelwert + Abtastung nach Bogenlänge)."""
+    """Pixel chain → evenly sampled, smoothed line (moving average + sampling by arc length)."""
     p = np.array([(x, y) for y, x in points], dtype=float)
     if len(p) > 5:
-        k = max(5, int(SIZE * 0.025))  # Glättung ≈ 2,5 % der Schrifthöhe: weich und rund wie ein Stiftzug
+        k = max(5, int(SIZE * 0.025))  # smoothing ≈ 2.5 % of the font height: soft and round like a pen stroke
         pad = np.vstack([np.repeat(p[:1], k, 0), p, np.repeat(p[-1:], k, 0)])
         ker = np.ones(2 * k + 1) / (2 * k + 1)
         p = np.stack([np.convolve(pad[:, 0], ker, "valid"), np.convolve(pad[:, 1], ker, "valid")], 1)
@@ -192,7 +192,7 @@ def smooth(points, step):
     n = max(2, int(s[-1] / step) + 1)
     t = np.linspace(0, s[-1], n)
     q = np.stack([np.interp(t, s, p[:, 0]), np.interp(t, s, p[:, 1])], 1)
-    # zweiter, kleiner Glättungsdurchgang auf den gleichmäßig verteilten Punkten (Endpunkte bleiben fest)
+    # second, small smoothing pass on the evenly spaced points (end points stay fixed)
     if len(q) > 6:
         r = q.copy()
         for _ in range(6):
@@ -213,16 +213,16 @@ def main():
         strokes = order_strokes(edges_of(sk), cjk)
         step = SIZE * 0.012
         lines = [smooth(s, step) for s in strokes]
-        # Kleinstteile (Skelett-Reste) verwerfen: Bogenlänge < 4 % der Wortbreite
+        # discard tiny parts (skeleton leftovers): arc length < 4 % of the word width
         width = max(max(l[:, 0]) for l in lines) - min(min(l[:, 0]) for l in lines)
         lines = [l for l in lines if np.hypot(*np.diff(l, axis=0).T).sum() > width * 0.04]
         xs = np.concatenate([l[:, 0] for l in lines]); ys = np.concatenate([l[:, 1] for l in lines])
         x0, x1 = xs.min(), xs.max(); cy = (ys.min() + ys.max()) / 2
-        # normiert: Breite 1, Mitte (0,0)
+        # normalised: width 1, centre (0,0)
         norm = [((l[:, 0] - x0) / (x1 - x0) - 0.5, (l[:, 1] - cy) / (x1 - x0)) for l in lines]
         total = sum(len(l) for l in lines)
-        print(f"{word}: {len(lines)} Züge, {total} Punkte, Seitenverhältnis {(ys.max() - ys.min()) / (x1 - x0):.2f}")
-        if len(sys.argv) > 3:  # Vorschau: Züge farbig nummeriert
+        print(f"{word}: {len(lines)} strokes, {total} points, aspect ratio {(ys.max() - ys.min()) / (x1 - x0):.2f}")
+        if len(sys.argv) > 3:  # preview: strokes numbered in colour
             pv = Image.new("RGB", (420, 180), "white"); d = ImageDraw.Draw(pv)
             for k, (nx, ny) in enumerate(norm):
                 pts = [(210 + x * 380, 90 + y * 380) for x, y in zip(nx, ny)]
@@ -230,16 +230,16 @@ def main():
                 d.line(pts, fill=col, width=3); d.ellipse([pts[0][0] - 4, pts[0][1] - 4, pts[0][0] + 4, pts[0][1] + 4], fill=(255, 0, 0))
                 d.text(pts[0], str(k), fill=(0, 0, 0))
             previews.append(pv)
-        # kompakt als Text (Züge mit „|“ getrennt) — große floatArrayOf-Listen sprengen die 64-KB-Grenze einer JVM-Methode
+        # compact as text (strokes separated by "|") — large floatArrayOf lists exceed the 64 KB limit of a JVM method
         enc = "|".join(",".join(f"{x:.4f},{y:.4f}" for x, y in zip(nx, ny)) for nx, ny in norm)
         out.append(f'    "{word}" to "{enc}",')
     kt = (
         "package io.github.janhurn9400.liquidy.ui.welcome\n\n"
-        "// GENERIERT von tools/gen_hello_strokes.py — nicht von Hand ändern.\n"
-        "// Stiftzüge je Gruß: Mittellinien freier Schriften (Dancing Script OFL, Roboto Apache 2.0, Noto Sans CJK OFL),\n"
-        "// je Zug x0, y0, x1, y1, …; Wortbreite = 1, Mittelpunkt (0, 0).\n\n"
+        "// GENERATED by tools/gen_hello_strokes.py — do not edit by hand.\n"
+        "// Pen strokes per greeting: centre lines of free fonts (Dancing Script OFL, Roboto Apache 2.0, Noto Sans CJK OFL),\n"
+        "// per stroke x0, y0, x1, y1, …; word width = 1, centre (0, 0).\n\n"
         "private val ENCODED: Map<String, String> = mapOf(\n" + "\n".join(out) + "\n)\n\n"
-        "/** Züge je Gruß, erst beim ersten Zugriff aus dem Text gelesen. */\n"
+        "/** Strokes per greeting, parsed from the text only on first access. */\n"
         "internal object HELLO_STROKES {\n"
         "    private val cache = HashMap<String, Array<FloatArray>>()\n"
         "    fun getValue(word: String): Array<FloatArray> = cache.getOrPut(word) {\n"

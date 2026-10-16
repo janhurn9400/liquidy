@@ -2,23 +2,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- „App löschen“ im Bearbeitungsmodus (System-Deinstallationsdialog) -->
+    <!-- "Delete App" in edit mode (system uninstall dialog) -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
-    <!-- App-Liste über LauncherApps; Paket-Sichtbarkeit für alle Launcher-Activities -->
+    <!-- App list via LauncherApps; package visibility for all launcher activities -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
-        <!-- Magisk-App erkennen (Willkommen: Root-Schritt) -->
+        <!-- Detect the Magisk app (welcome: root step) -->
         <package android:name="com.topjohnwu.magisk" />
-        <!-- System-Launcher (Gesten-Navigation/QuickStep) sichtbar machen: GestureNavContract-Antwort -->
+        <!-- Make the system launcher (gesture navigation/QuickStep) visible: GestureNavContract reply -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
         </intent>
-        <!-- Icon-Pakete (ADW/Nova-Format) finden -->
+        <!-- Find icon packs (ADW/Nova format) -->
         <intent><action android:name="org.adw.launcher.THEMES" /></intent>
         <intent><action android:name="com.novalauncher.THEME" /></intent>
         <intent><action android:name="com.gau.go.launcherex.theme" /></intent>
@@ -35,19 +35,19 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
 
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
-    <!-- eigene Statusleiste: WLAN-Signal des aktiven Netzes -->
+    <!-- own status bar: Wi-Fi signal of the active network -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Wetter-Widget: Open-Meteo + grober Standort -->
+    <!-- Weather widget: Open-Meteo + coarse location -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Suche: Kontakte finden -->
+    <!-- Search: find contacts -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- App-Vorschläge: Nutzungsstatistik (Sonderzugriff, Nutzer erlaubt ihn in den Einstellungen) -->
+    <!-- App suggestions: usage statistics (special access, the user allows it in the settings) -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
 
     <uses-permission android:name="android.permission.SET_WALLPAPER_HINTS" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-    <!-- Nur mit dem Magisk-Modul (System-App) vergeben: eigene Öffnen-Animation. Ohne Modul wirkungslos. -->
+    <!-- Granted only with the Animation Module (system app): own open animation. Without the module it has no effect. -->
     <uses-permission android:name="android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS"
         tools:ignore="ProtectedPermissions" />
 
@@ -58,7 +58,7 @@
         android:theme="@style/Theme.IosHome"
         android:supportsRtl="false">
 
-        <!-- Launcher3-Vorbild: singleTask + stateNotNeeded + HOME/DEFAULT -->
+        <!-- Modelled on Launcher3: singleTask + stateNotNeeded + HOME/DEFAULT -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -77,7 +77,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- Mitteilungszähler für die roten Badges (Zugriff erteilt der Nutzer in den Einstellungen) -->
+        <!-- Notification counter for the red badges (the user grants access in the settings) -->
         <service
             android:name=".data.NotificationBadges"
             android:exported="true"

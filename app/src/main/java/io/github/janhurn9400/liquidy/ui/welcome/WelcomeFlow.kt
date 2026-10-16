@@ -95,16 +95,16 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** Ob das Setup schon durchlaufen wurde. */
+/** Whether setup has been completed. */
 object WelcomeStore {
-    /** Willkommen gerade sichtbar (helle Seiten → dunkle Statusleisten-Symbole). */
+    /** Welcome currently visible (light pages → dark status bar icons). */
     var active by mutableStateOf(false)
     private const val PREFS = "welcome"
     fun done(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("done", false)
     fun markDone(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("done", true).apply()
 }
 
-/** Root vorhanden? (Magisk-App installiert oder su-Binary im Pfad) */
+/** Root available? (Magisk app installed or su binary in the path) */
 fun hasRoot(c: Context): Boolean =
     runCatching { c.packageManager.getPackageInfo("com.topjohnwu.magisk", 0); true }.getOrDefault(false) ||
         listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/debug_ramdisk/su").any { java.io.File(it).exists() }
@@ -112,9 +112,9 @@ fun hasRoot(c: Context): Boolean =
 private enum class Step { Hello, DefaultHome, Permissions, Appearance, Foldable, StatusBar, Root, Done }
 
 /**
- * Willkommen im Stil des iOS-26-Setups (YouTube-Aufnahme iPhone 17 ausgewertet): „Hallo“, dann helle Seiten mit
- * Symbol oben mittig, linksbündigem fettem Titel + grauem Text, Liquid-Glass-Knopf „Weiter“ unten und rundem
- * Glas-Zurück-Knopf oben links. Seitenwechsel wie ein iOS-Push (neue Seite von rechts, alte ⅓ nach links).
+ * Welcome in the style of the iOS 26 setup (YouTube recording of an iPhone 17 analysed): "Hello", then light pages with
+ * an icon at the top centre, left-aligned bold title + grey text, Liquid Glass button "Continue" at the bottom and a round
+ * glass back button top left. Page change like an iOS push (new page from the right, old one ⅓ to the left).
  */
 @Composable
 fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sample: AppEntry?, wallpaper: ImageBitmap, onFinish: () -> Unit) {
@@ -127,7 +127,7 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
             add(Step.Permissions); add(Step.Appearance)
             if (io.github.janhurn9400.liquidy.data.FoldableStyle.supportsDuo(context)) add(Step.Foldable) // Foldables + Tablets
             add(Step.StatusBar)
-            if (root) add(Step.Root) // mit Modul: „bereits aktiv“, sonst Anleitung
+            if (root) add(Step.Root) // with module: "already active", otherwise instructions
             add(Step.Done)
         }
     }
@@ -138,20 +138,20 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
     fun back() { if (i > 1) { forward = false; i-- } }
     androidx.activity.compose.BackHandler(enabled = i > 1) { back() }
 
-    // Statusleiste dunkel auf den hellen Seiten (MainActivity liest WelcomeStore.active)
+    // Status bar dark on the light pages (MainActivity reads WelcomeStore.active)
     androidx.compose.runtime.DisposableEffect(Unit) { WelcomeStore.active = true; onDispose { WelcomeStore.active = false } }
 
     val homeRole = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { next() }
     val backdrop = rememberLayerBackdrop()
 
     Box(Modifier.fillMaxSize()) {
-        // Seitenhintergrund (Quelle für das Glas der Knöpfe)
+        // Page background (source for the buttons' glass)
         Box(Modifier.fillMaxSize().layerBackdrop(backdrop).drawBehind { drawPageBackground() })
         CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
             AnimatedContent(
                 targetState = i,
                 transitionSpec = {
-                    if (initialState == 0) // vom Hallo wie Homescreen nach der Mitteilungszentrale: zoomt von 2,6× ein, blendet in 0,1 s auf
+                    if (initialState == 0) // from Hello like the home screen after the notification centre: zooms in from 2.6×, fades in over 0.1 s
                         (scaleIn(spring(1f, ZOOM_STIFFNESS), initialScale = ZOOM_FROM) + fadeIn(tween(ZOOM_FADE_MS))) togetherWith fadeOut(tween(ZOOM_FADE_MS))
                     else if (forward)
                         slideInHorizontally(PUSH_SPRING) { it } togetherWith
@@ -163,7 +163,7 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
                 label = "welcome",
             ) { idx ->
                 val showBack = idx > 1
-                // erste Seite nach dem Hallo: beim Hereinzoomen erst unscharf, dann scharf (iOS ≈ 0,35 s)
+                // first page after Hello: blurred at first when zooming in, then sharp (iOS ≈ 0.35 s)
                 val unsharp by transition.animateFloat(transitionSpec = { tween(ZOOM_SHARPEN_MS) }, label = "sharpen") {
                     if (it == androidx.compose.animation.EnterExitState.Visible) 0f else 1f
                 }
@@ -249,20 +249,20 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
 }
 
 /**
- * Download des Magisk-Moduls (GitHub-Release, lädt direkt die ZIP). Repo ist privat: funktioniert erst,
- * sobald es öffentlich ist. Der Link in Schritt 1 und der Knopf „Modul herunterladen“ nutzen sie.
+ * Download of the Magisk module (GitHub release, downloads the ZIP directly). Requires the repository to be public
+ * (it is). The link in step 1 and the "Download Module" button use it.
  */
-/** Fester Download-Link zum Animationsmodul: zeigt immer auf das neueste Release (Dateiname bleibt gleich). */
+/** Fixed download link to the Animation Module: always points to the latest release (the file name stays the same). */
 internal const val MODULE_URL = "https://github.com/janhurn9400/liquidy/releases/latest/download/liquidy-magisk.zip"
 
 private enum class Glyph { Home, Lock, Appearance, Fold, Sparkle, Check }
 
-/** Setup-Hintergrund: reines Weiß wie iOS (systemBackground hell). */
+/** Setup background: pure white like iOS (systemBackground light). */
 private fun DrawScope.drawPageBackground() = drawRect(Color.White)
 
 /**
- * Eine Setup-Seite wie iOS 26: Zurück-Glasknopf, Symbol mittig, Titel + Text linksbündig, optionaler Inhalt,
- * Glas-Kapsel „Weiter“ unten + Textknopf darunter.
+ * A setup page like iOS 26: back glass button, icon centred, title + text left-aligned, optional content,
+ * glass capsule "Continue" at the bottom + text button below.
  */
 @Composable
 private fun StepPage(
@@ -300,7 +300,7 @@ private fun TextButton(label: String, onClick: () -> Unit, modifier: Modifier = 
         modifier = modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick).padding(vertical = 4.dp, horizontal = 12.dp))
 }
 
-/** Gruppierte Karte (iOS 26: große Rundung, weiß). */
+/** Grouped card (iOS 26: large rounding, white). */
 @Composable
 private fun Card(content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(CARD_R.dp)).background(CELL), content = content)
@@ -317,8 +317,8 @@ private fun CardRow(label: String, icon: Color, iconGlyph: DrawScope.() -> Unit,
 }
 
 /**
- * Fotos + Kalender als Schalter: Einschalten fragt die Berechtigung an, Ausschalten öffnet die App-Einstellungen
- * (eine erteilte Berechtigung kann nur dort entzogen werden). Zustand = tatsächlich erteilt, neu gelesen beim Zurückkehren.
+ * Photos + Calendar as switches: turning on requests the permission, turning off opens the app settings
+ * (a granted permission can only be revoked there). State = actually granted, re-read on return.
  */
 @Composable
 private fun PermissionCard() {
@@ -346,7 +346,7 @@ private fun PermissionCard() {
     }
     Card {
         CardRow(stringResource(R.string.welcome_perm_photos), Color(0xFFFF9F0A), {
-            // Blüte aus Kreisen
+            // Blossom made of circles
             val c = Offset(size.width / 2, size.height / 2)
             for (k in 0 until 6) { val a = k * PI / 3; drawCircle(Color.White.copy(alpha = 0.85f), size.width * 0.14f,
                 Offset(c.x + (cos(a) * size.width * 0.17).toFloat(), c.y + (sin(a) * size.width * 0.17).toFloat())) }
@@ -362,7 +362,7 @@ private fun PermissionCard() {
         }
         Box(Modifier.padding(start = 60.dp).fillMaxWidth().height(0.5.dp).background(Color(0x1F000000)))
         CardRow(stringResource(R.string.welcome_perm_badges), Color(0xFFFF3B30), {
-            // App-Kachel mit rotem Zähler
+            // App tile with a red counter
             drawRoundRect(Color.White, Offset(size.width * 0.2f, size.height * 0.28f), Size(size.width * 0.48f, size.height * 0.48f), CornerRadius(size.width * 0.12f))
             drawCircle(Color.White, size.width * 0.15f, Offset(size.width * 0.7f, size.height * 0.3f))
             drawCircle(Color(0xFFFF3B30), size.width * 0.1f, Offset(size.width * 0.7f, size.height * 0.3f))
@@ -372,7 +372,7 @@ private fun PermissionCard() {
     }
 }
 
-/** Duo-Stil oder klassisch: zwei Vorschauen des aufgeklappten Homescreens, Auswahl mit Kreis (wie Erscheinungsbild). */
+/** Duo style or classic: two previews of the unfolded home screen, selection with a circle (like Appearance). */
 @Composable
 private fun FoldStyleChooser() {
     val context = LocalContext.current
@@ -396,7 +396,7 @@ private fun FoldStyleChooser() {
     }
 }
 
-/** Auswahlkreis: leer grau, gewählt blau gefüllt mit Haken (federt auf). */
+/** Selection circle: empty grey, selected filled blue with a checkmark (springs up). */
 @Composable
 private fun RadioCircle(on: Float) {
     Canvas(Modifier.size(22.dp)) {
@@ -411,7 +411,7 @@ private fun RadioCircle(on: Float) {
     }
 }
 
-/** Mini-Homescreen aufgeklappt (quer): Duo = zwei Seiten nebeneinander + Dock rechts senkrecht; klassisch = ein Raster + Dock unten. */
+/** Mini home screen unfolded (landscape): Duo = two pages side by side + dock vertical on the right; classic = one grid + dock at the bottom. */
 @Composable
 private fun FoldPreview(duo: Boolean, modifier: Modifier) {
     Canvas(modifier.size(132.dp, 93.dp).shadow(6.dp, RoundedCornerShape(14.dp), ambientColor = Color(0x22000000), spotColor = Color(0x33000000))
@@ -437,7 +437,7 @@ private fun FoldPreview(duo: Boolean, modifier: Modifier) {
     }
 }
 
-/** Anleitung fürs Magisk-Modul als nummerierte Liste (iOS-Zellen); ist das Modul aktiv, nur ein Haken. */
+/** Instructions for the Magisk module as a numbered list (iOS cells); if the module is active, just a checkmark. */
 @Composable
 internal fun RootSteps(active: Boolean, cardColor: Color = CELL, cardCorner: Float = CARD_R.toFloat()) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(cardCorner.dp)).background(cardColor)) {
@@ -463,7 +463,7 @@ internal fun RootSteps(active: Boolean, cardColor: Color = CELL, cardCorner: Flo
                 Spacer(Modifier.width(14.dp))
                 val style = TextStyle(fontFamily = Inter, fontSize = 16.sp, lineHeight = 21.sp, letterSpacing = (-0.3).sp, color = LABEL)
                 if (res == R.string.welcome_root_step1) {
-                    // „… von unserer GitHub-Seite.“ — der Teil ist ein antippbarer Link zum Modul-Download
+                    // "… from our GitHub page." — that part is a tappable link to the module download
                     val link = stringResource(R.string.welcome_root_github)
                     val full = stringResource(res, link)
                     val start = full.indexOf(link)
@@ -481,13 +481,13 @@ internal fun RootSteps(active: Boolean, cardColor: Color = CELL, cardCorner: Flo
 }
 
 /**
- * Icon-Stil wie im „Customise“-Blatt (Homescreen bearbeiten): echte App-Icons in den vier Stilen,
- * direkt auf der Seite, Auswahl als Kapsel, darunter Hell/Dunkel; Getönt → Farbton + Sättigung.
+ * Icon style like in the "Customise" sheet (Edit Home Screen): real app icons in the four styles,
+ * directly on the page, selection as a capsule, below it Light/Dark; Tinted → hue + saturation.
  */
 @Composable
 private fun AppearanceChooser(sample: AppEntry?, @Suppress("UNUSED_PARAMETER") userWallpaper: ImageBitmap) {
     val context = LocalContext.current
-    // Auf der weißen Seite: neutraler, mittelgrauer Grund für die Glas-Stile (Klar/Getönt) statt des eigenen Wallpapers
+    // On the white page: neutral mid-grey ground for the glass styles (Clear/Tinted) instead of our own wallpaper
     val wallpaper = remember { context.resources.displayMetrics.let { neutralGlassGround(it.widthPixels, it.heightPixels) } }
     fun save() = IconAppearance.save(context)
     Box(Modifier.fillMaxWidth().animateContentSize(spring(1f, 300f))) {
@@ -504,7 +504,7 @@ private fun AppearanceChooser(sample: AppEntry?, @Suppress("UNUSED_PARAMETER") u
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             val iconShape = ContinuousRoundedShape(DesignTokens.iconCorner.dp * (PREVIEW / DesignTokens.iconSize.value))
                             Box(Modifier.size(PREVIEW.dp)
-                                // auf Weiß: weicher Schatten + Haarlinie, sonst verschwinden helle Icons
+                                // on white: soft shadow + hairline, otherwise light icons disappear
                                 .shadow(6.dp, iconShape, ambientColor = Color(0x22000000), spotColor = Color(0x33000000))
                                 .border(0.5.dp, Color(0x1A000000), iconShape)
                                 .clip(iconShape)
@@ -533,7 +533,7 @@ private fun AppearanceChooser(sample: AppEntry?, @Suppress("UNUSED_PARAMETER") u
                     options.forEach { (v, res) -> SelCapsule(stringResource(res), IconAppearance.variant == v) { IconAppearance.variant = v; save() } }
                 }
             }
-            // Haptik (nur wenige, iOS-typische Stellen; abschaltbar, weil viele Android-Motoren „matschig“ sind)
+            // Haptics (only a few, iOS-typical places; can be turned off because many Android motors are "mushy")
             Spacer(Modifier.height(24.dp))
             Card {
                 CardRow(stringResource(R.string.welcome_haptics), Color(0xFF8E8E93), {
@@ -548,9 +548,9 @@ private fun AppearanceChooser(sample: AppEntry?, @Suppress("UNUSED_PARAMETER") u
     }
 }
 
-/** Mittelgrauer, leicht kühler Verlauf als „Wallpaper“ für Glas-Icons auf hellen Seiten (weißes Motiv bleibt lesbar). */
+/** Mid-grey, slightly cool gradient as a "wallpaper" for glass icons on light pages (white motif stays legible). */
 private fun neutralGlassGround(w: Int, h: Int): ImageBitmap {
-    // Glasflächen zeichnen das Wallpaper 1:1 in Bildschirmkoordinaten → Bild in Bildschirmgröße (RGB_565, einmalig)
+    // Glass surfaces draw the wallpaper 1:1 in screen coordinates → image at screen size (RGB_565, once)
     val b = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.RGB_565)
     android.graphics.Canvas(b).drawPaint(android.graphics.Paint().apply {
         shader = android.graphics.LinearGradient(0f, 0f, 0f, h.toFloat(), 0xFF8E97A6.toInt(), 0xFFB9C0CB.toInt(), android.graphics.Shader.TileMode.CLAMP)
@@ -558,7 +558,7 @@ private fun neutralGlassGround(w: Int, h: Int): ImageBitmap {
     return b.asImageBitmap()
 }
 
-/** Beschriftung, ausgewählt mit grauer Kapsel dahinter (Customise-Prinzip, auf hellem Grund). */
+/** Caption, when selected with a grey capsule behind it (Customise principle, on a light ground). */
 @Composable
 private fun SelCapsule(text: String, selected: Boolean, onClick: () -> Unit) {
     Box(
@@ -572,7 +572,7 @@ private fun SelCapsule(text: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Dicker Farb-Slider wie im Customise-Blatt: 30 pt Spur, Knauf = Ring in der Tönung. */
+/** Thick colour slider like in the Customise sheet: 30 pt track, knob = ring in the tint. */
 @Composable
 private fun SheetSlider(track: Brush, value: Float, onChange: (Float) -> Unit) {
     val change by androidx.compose.runtime.rememberUpdatedState(onChange)
@@ -590,14 +590,14 @@ private fun SheetSlider(track: Brush, value: Float, onChange: (Float) -> Unit) {
     }
 }
 
-/** Eigene, gefüllte Symbole (keine SF Symbols): Primärform blau, Sekundärteile blau 30 % — hierarchisch wie im iOS-Setup. */
+/** Own filled glyphs (no SF Symbols): primary shape blue, secondary parts blue 30 % — hierarchical like in the iOS setup. */
 @Composable
 private fun StepGlyph(g: Glyph, modifier: Modifier = Modifier) {
     Canvas(modifier.size(GLYPH.dp)) {
         val s = size.width
         val soft = ACCENT.copy(alpha = 0.3f)
         when (g) {
-            Glyph.Home -> { // Telefon: weiche Fläche, Rahmen, App-Raster
+            Glyph.Home -> { // phone: soft area, frame, app grid
                 drawRoundRect(soft, Offset(s * 0.24f, s * 0.04f), Size(s * 0.52f, s * 0.92f), CornerRadius(s * 0.12f))
                 drawRoundRect(ACCENT, Offset(s * 0.24f, s * 0.04f), Size(s * 0.52f, s * 0.92f), CornerRadius(s * 0.12f), style = Stroke(s * 0.045f))
                 for (r in 0 until 3) for (c in 0 until 3) drawRoundRect(ACCENT, Offset(s * (0.32f + c * 0.13f), s * (0.17f + r * 0.14f)),
@@ -611,16 +611,16 @@ private fun StepGlyph(g: Glyph, modifier: Modifier = Modifier) {
                 drawCircle(Color.White, s * 0.055f, Offset(s / 2, s * 0.62f))
                 drawLine(Color.White, Offset(s / 2, s * 0.64f), Offset(s / 2, s * 0.76f), s * 0.05f, StrokeCap.Round)
             }
-            Glyph.Appearance -> { // halb hell, halb dunkel
+            Glyph.Appearance -> { // half light, half dark
                 drawCircle(soft, s * 0.44f)
                 drawArc(ACCENT, 90f, 180f, true, Offset(s * 0.06f, s * 0.06f), Size(s * 0.88f, s * 0.88f))
             }
-            Glyph.Fold -> { // aufgeklapptes Buch: zwei Hälften, Scharnier in der Mitte
+            Glyph.Fold -> { // opened book: two halves, hinge in the middle
                 drawRoundRect(soft, Offset(s * 0.06f, s * 0.18f), Size(s * 0.42f, s * 0.64f), CornerRadius(s * 0.08f))
                 drawRoundRect(ACCENT, Offset(s * 0.52f, s * 0.18f), Size(s * 0.42f, s * 0.64f), CornerRadius(s * 0.08f))
                 drawLine(ACCENT, Offset(s / 2, s * 0.12f), Offset(s / 2, s * 0.88f), s * 0.035f, StrokeCap.Round)
             }
-            Glyph.Sparkle -> { // geschwungener Vierstern + kleiner Stern
+            Glyph.Sparkle -> { // curved four-pointed star + small star
                 fun star(cx: Float, cy: Float, r: Float, color: Color) {
                     val k = r * 0.16f
                     val path = androidx.compose.ui.graphics.Path().apply {
@@ -657,7 +657,7 @@ private const val PANEL_BLUR = 14
 private const val PREVIEW = 61f
 private val SHEET_HUES = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)
 private const val PUSH_MS = 460
-// Hallo → erste Seite, gemessen an der Mitteilungszentrale (Bildschirmaufnahme 10-08 02:34, 60 fps, Bild 334–371)
+// Hello → first page, measured against the notification centre (screen recording 10-08 02:34, 60 fps, frame 334–371)
 private const val ZOOM_FROM = 2.6f
 private val ZOOM_STIFFNESS = (2 * kotlin.math.PI.toFloat() / 0.3f).let { it * it }
 private const val ZOOM_FADE_MS = 110

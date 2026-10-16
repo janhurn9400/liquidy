@@ -39,13 +39,13 @@ import io.github.janhurn9400.liquidy.ui.home.LibraryCategory
 import kotlin.math.roundToInt
 
 /**
- * Geometrie der App-Mediathek (Inhaltskoordinaten = vor Scroll, Seiten-lokal), px. [GEMESSEN] recording2.
- * Kachel = 2×2 Quadranten à 64 pt: 3 große Icons + Mini-Cluster (2×2) unten rechts; ≤ 4 Apps → 4 große Icons.
+ * Geometry of the App Library (content coordinates = before scroll, page-local), px. [MEASURED] recording2.
+ * Tile = 2×2 quadrants of 64 pt: 3 large icons + mini cluster (2×2) bottom right; ≤ 4 apps → 4 large icons.
  */
 /**
- * [duo] = iPhone-Duo-Stil: die Mediathek ist eine Seitenbreite (448 pt) — aufgeklappt steht sie in der rechten Hälfte neben
- * der letzten Homescreen-Seite, zugeklappt füllt sie die Seite links der Dock-Spalte. Maße [GEMESSEN] Aufnahme 10-08 21:28,
- * 35,5 s: Kacheln 158,5 pt, Abstand 19, Rand 65,5 pt; Suchfeld 336 × 47,5 pt bei 54 pt; erste Kachelreihe bei 133 pt.
+ * [duo] = iPhone Duo style: the App Library is one page wide (448 pt) — unfolded it stands in the right half next to
+ * the last home page, folded it fills the page left of the dock column. Dimensions [MEASURED] recording 10-08 21:28,
+ * 35.5 s: tiles 158.5 pt, gap 19, margin 65.5 pt; search field 336 × 47.5 pt at 54 pt; first tile row at 133 pt.
  */
 class LibraryGeometry(private val density: Float, val width: Float, val height: Float, val duo: Boolean = false) {
     private fun px(v: Float) = v * density
@@ -53,9 +53,9 @@ class LibraryGeometry(private val density: Float, val width: Float, val height: 
     private val wPt get() = width / density
     private val unfolded get() = duo && width > height
     /**
-     * Breite der Mediathek-Spalte in px, aus der Displaygröße (Duo-Werte als Anker, gilt für jedes Foldable):
-     * aufgeklappt von der Mediathek-Kante (47,1 % der Breite) bis 8 pt vor die Dock-Spaltenmitte (Duo 448 pt);
-     * zugeklappt Bildschirmbreite − 18 pt (Duo 448 pt).
+     * Width of the App Library column in px, from the display size (Duo values as anchors, applies to every foldable):
+     * unfolded from the App Library edge (47.1 % of the width) to 8 pt before the dock column centre (Duo 448 pt);
+     * folded screen width − 18 pt (Duo 448 pt).
      */
     val columnWidth get() = when {
         !duo -> width
@@ -63,9 +63,9 @@ class LibraryGeometry(private val density: Float, val width: Float, val height: 
         else -> px(wPt - DUO_LIB_FOLDED_INSET)
     }
     private val colPt get() = columnWidth / density
-    /** Seitenrand der Kacheln: 65,5 pt bei 448 pt Spalte, auf schmaleren Spalten anteilig (mind. 20 pt). */
+    /** Side margin of the tiles: 65.5 pt for a 448 pt column, proportionally on narrower columns (min. 20 pt). */
     val side get() = if (duo) px((DUO_LIB_SIDE * colPt / DUO_LIB_WIDTH).coerceIn(20f, DUO_LIB_SIDE)) else px(DesignTokens.libSide.value)
-    /** Duo-Liste/Suchfeld: Spalten-x-Werte relativ zur rechten Spaltenkante (gemessen bei 448 pt). */
+    /** Duo list/search field: column x values relative to the right column edge (measured at 448 pt). */
     val duoFieldRight get() = colPt - (DUO_LIB_WIDTH - 338f)
     val duoCloseX get() = colPt - (DUO_LIB_WIDTH - 375f)
     val duoSepRight get() = colPt - (DUO_LIB_WIDTH - 400f)
@@ -78,7 +78,7 @@ class LibraryGeometry(private val density: Float, val width: Float, val height: 
     val miniGap get() = px(DesignTokens.libMiniGap.value)
     private val miniInset get() = (quadrant - 2 * mini - miniGap) / 2
 
-    /** Suchfeld in Ruhe (volle Breite). */
+    /** Search field at rest (full width). */
     val search: Rect
         get() {
             if (duo) return Rect(Offset(side, px(DUO_LIB_SEARCH_TOP)), Size(columnWidth - 2 * side, px(DUO_LIB_SEARCH_H)))
@@ -97,7 +97,7 @@ class LibraryGeometry(private val density: Float, val width: Float, val height: 
 
     fun miniTopLeft(m: Int) = quadrantTopLeft(3) + Offset(miniInset + (m % 2) * (mini + miniGap), miniInset + (m / 2) * (mini + miniGap))
 
-    /** Rechteck der k-ten App einer Kategorie mit [count] Apps in Kachel [i] (Inhaltskoordinaten). Ab der 8. App: letzter Mini-Platz. */
+    /** Rect of the k-th app of a category with [count] apps in tile [i] (content coordinates). From the 8th app: last mini slot. */
     fun appRect(i: Int, k: Int, count: Int): Rect {
         val tl = tileTopLeft(i)
         return when {
@@ -114,7 +114,7 @@ class LibraryGeometry(private val density: Float, val width: Float, val height: 
     fun maxScroll(tiles: Int) = (contentHeight(tiles) - height).coerceAtLeast(0f)
 }
 
-private const val DUO_LIB_WIDTH = 448f       // Referenz-Spaltenbreite (Duo)
+private const val DUO_LIB_WIDTH = 448f       // reference column width (Duo)
 private const val DUO_LIB_LEFT_SHARE = 0.4711f // = HomeGeometry DUO_SIDE_SHARE
 private const val DUO_LIB_DOCK_FROM_RIGHT = 47f
 private const val DUO_LIB_DOCK_GAP = 8f
@@ -134,8 +134,8 @@ sealed interface LibraryHit {
 
 fun libraryHitTest(model: HomeModel, geo: LibraryGeometry, p: Offset, pageOffsetX: Float): LibraryHit {
     val scroll = model.libraryScroll.value
-    if (geo.search.contains(p - Offset(pageOffsetX, 0f))) return LibraryHit.Search // Feld scrollt nicht mit
-    val c = p - Offset(pageOffsetX, -scroll) // Inhaltskoordinate
+    if (geo.search.contains(p - Offset(pageOffsetX, 0f))) return LibraryHit.Search // the field doesn't scroll along
+    val c = p - Offset(pageOffsetX, -scroll) // content coordinate
     model.library.forEachIndexed { i, cat ->
         val tl = geo.tileTopLeft(i)
         if (!Rect(tl, Size(geo.tile, geo.tile)).contains(c)) return@forEachIndexed
@@ -154,8 +154,8 @@ fun libraryHitTest(model: HomeModel, geo: LibraryGeometry, p: Offset, pageOffset
 }
 
 /**
- * Kacheln der Mediathek — liegen in der Glas-Quelle (das Suchfeld bricht sie, recording2 6,0 s).
- * Hinter der A–Z-Liste: unscharf + abgedunkelt (bleiben als Farbflecken sichtbar). Kategorie offen: blendet aus.
+ * Tiles of the App Library — they lie in the glass source (the search field refracts them, recording2 6.0 s).
+ * Behind the A–Z list: blurred + dimmed (stay visible as colour patches). Category open: fades out.
  */
 @Composable
 fun LibraryPage(model: HomeModel, geo: LibraryGeometry, wallpaper: ImageBitmap, density: Float, pageOffsetX: () -> Float) {
@@ -164,7 +164,7 @@ fun LibraryPage(model: HomeModel, geo: LibraryGeometry, wallpaper: ImageBitmap, 
             .fillMaxSize()
             .graphicsLayer {
                 translationX = pageOffsetX()
-                // Duo: hinter der Liste sind die Kacheln ganz weg (nur verwischtes Wallpaper) [Video 2, 18 s]
+                // Duo: behind the list the tiles are completely gone (only blurred wallpaper) [video 2, 18 s]
                 alpha = model.libCategoryAlpha() * (if (geo.duo) model.libTiles.value.coerceIn(0f, 1f) else 1f)
                 val s = model.libCategoryScale()
                 scaleX = s; scaleY = s
@@ -180,9 +180,9 @@ fun LibraryPage(model: HomeModel, geo: LibraryGeometry, wallpaper: ImageBitmap, 
             }
         }
     }
-    // Abdunkeln hinter der Liste (in der Glas-Quelle → das Suchfeld bricht den abgedunkelten Hintergrund)
+    // Dimming behind the list (in the glass source → the search field refracts the dimmed background)
     if (model.libListOpen) {
-        // Duo: ganzer Bildschirm abgedunkelt (sonst harte Kante an der Mediathek) [Video 2, 18 s]
+        // Duo: whole screen dimmed (otherwise a hard edge at the App Library) [video 2, 18 s]
         Canvas(Modifier.fillMaxSize().graphicsLayer { translationX = if (geo.duo) 0f else pageOffsetX() }) {
             drawRect(Color.Black.copy(alpha = model.libListDim.value * DesignTokens.libListDim.value))
         }
@@ -197,7 +197,7 @@ private fun LibraryTile(cat: LibraryCategory, geo: LibraryGeometry, wallpaper: I
     Layout(
         modifier = modifier,
         content = {
-            // Dasselbe Liquid Glass wie Dock/Ordner — Quelle nur das Wallpaper (Kacheln liegen selbst in der Glas-Quelle)
+            // The same Liquid Glass as dock/folder — source is only the wallpaper (the tiles themselves lie in the glass source)
             io.github.janhurn9400.liquidy.ui.home.WithWallpaperGlass(wallpaper) {
             io.github.janhurn9400.liquidy.glass.LiquidGlass(
                 shape = io.github.janhurn9400.liquidy.glass.glassRect(DesignTokens.libTileCorner.dp),
@@ -206,7 +206,7 @@ private fun LibraryTile(cat: LibraryCategory, geo: LibraryGeometry, wallpaper: I
                 whiteTint = DesignTokens.libTileTint.value,
             ) {
                 if (cat.isHidden) {
-                    // „Hidden“: leere Platzhalter statt Icons (recording2 6,0 s)
+                    // "Hidden": empty placeholders instead of icons (recording2 6.0 s)
                     Canvas(Modifier.fillMaxSize()) {
                         val fill = Color.White.copy(alpha = HIDDEN_PLACEHOLDER_ALPHA)
                         val r = DesignTokens.iconCorner.value * density * geo.quadrant / (DesignTokens.iconSize.value * density)
@@ -223,7 +223,7 @@ private fun LibraryTile(cat: LibraryCategory, geo: LibraryGeometry, wallpaper: I
                             .size(Dp(geo.quadrant / density))
                             .clip(iconShape))
                     }
-                    // Offene Kategorie: Cluster ist leer — seine Icons sind ins Raster geflogen
+                    // Open category: the cluster is empty — its icons have flown into the grid
                     if (cat.apps.size > 4 && !hideCluster) {
                         cat.apps.drop(3).take(4).forEachIndexed { m, app ->
                             val o = geo.miniTopLeft(m)
@@ -253,4 +253,4 @@ private fun LibraryTile(cat: LibraryCategory, geo: LibraryGeometry, wallpaper: I
     }
 }
 
-private const val HIDDEN_PLACEHOLDER_ALPHA = 0.18f // [GESCHÄTZT] recording2 6,0 s
+private const val HIDDEN_PLACEHOLDER_ALPHA = 0.18f // [ESTIMATED] recording2 6.0 s

@@ -47,8 +47,8 @@ import io.github.janhurn9400.liquidy.ui.Inter
 import kotlin.math.roundToInt
 
 /**
- * „Choose Colour“-Blatt (recording6 16,8–24,5 s, T-WPE-SHEET): 6×3 Farbkreise, darunter ein Regler (hell ↔ satt).
- * Der Farbkreis-Knopf links oben schaltet den Regler auf ein freies Farbspektrum um.
+ * "Choose Colour" sheet (recording6 16.8–24.5 s, T-WPE-SHEET): 6×3 colour circles, below them a slider (light ↔ rich).
+ * The colour wheel button at the top left switches the slider to a free colour spectrum.
  */
 @Composable
 internal fun ColourSheet(backdrop: com.kyant.backdrop.Backdrop, draft: WallpaperSettings, progress: () -> Float, onChange: (WallpaperSettings) -> Unit) {
@@ -58,7 +58,7 @@ internal fun ColourSheet(backdrop: com.kyant.backdrop.Backdrop, draft: Wallpaper
         val density = androidx.compose.ui.platform.LocalDensity.current.density
         val screenH = constraints.maxHeight / density
         val side = DesignTokens.wpeSheetSide.value
-        // Duo: Blatt in iPhone-Breite mittig, Höhe wie beim iPhone vom unteren Rand aus (sonst unter dem Display)
+        // Duo: sheet at iPhone width centred, height like on the iPhone from the bottom edge (otherwise below the display)
         val duo = io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle
         val screenW = constraints.maxWidth / density
         val top = if (duo) screenH - (874f - DesignTokens.wpeSheetTop.value) else DesignTokens.wpeSheetTop.value
@@ -68,10 +68,10 @@ internal fun ColourSheet(backdrop: com.kyant.backdrop.Backdrop, draft: Wallpaper
             Modifier
                 .offset { IntOffset((left * density).roundToInt(), ((top + (1f - progress()) * (screenH - top)) * density).roundToInt()) }
                 .size(Dp(width), Dp(screenH - top + SHEET_OVERHANG))
-                // Tippen ins Blatt nicht an die Vorschau durchreichen
+                // don't pass taps in the sheet through to the preview
                 .pointerInput(Unit) { detectTapGestures { } }
         ) {
-            // Liquid Glass: verwischte, abgedunkelte Vorschau scheint durch (recording6 17,5 s)
+            // Liquid Glass: the blurred, dimmed preview shines through (recording6 17.5 s)
             androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop provides backdrop) {
                 io.github.janhurn9400.liquidy.glass.LiquidGlass(
                     shape = io.github.janhurn9400.liquidy.glass.glassRect(DesignTokens.wpeSheetCorner.dp),
@@ -81,7 +81,7 @@ internal fun ColourSheet(backdrop: com.kyant.backdrop.Backdrop, draft: Wallpaper
                     whiteTint = 0f,
                 )
             }
-            // Titel
+            // title
             Layout(content = {
                 BasicText(stringResource(R.string.choose_colour), style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold,
                     fontSize = TITLE_SIZE.sp, color = Color.White))
@@ -89,7 +89,7 @@ internal fun ColourSheet(backdrop: com.kyant.backdrop.Backdrop, draft: Wallpaper
                 val t = ms[0].measure(Constraints())
                 layout(c.maxWidth, c.maxHeight) { t.place((c.maxWidth - t.width) / 2, DesignTokens.wpeSheetTitleY.dp.roundToPx() - t.height / 2) }
             }
-            // Farbkreis-Knopf (Spektrum)
+            // Colour wheel button (spectrum)
             Canvas(
                 Modifier
                     .offset { IntOffset(((WHEEL_X - side - WHEEL_D / 2) * density).roundToInt(), ((DesignTokens.wpeSheetTitleY.value - WHEEL_D / 2) * density).roundToInt()) }
@@ -100,7 +100,7 @@ internal fun ColourSheet(backdrop: com.kyant.backdrop.Backdrop, draft: Wallpaper
                 drawCircle(Brush.sweepGradient(HUES), r - 1.5.dp.toPx(), style = Stroke(3.dp.toPx()))
                 drawCircle(if (hueMode) Color.White else Color(0xFF5A5A5E), r * 0.62f)
             }
-            // 6×3 Farben
+            // 6×3 colours
             DesignTokens.wallpaperSwatches.forEachIndexed { i, c ->
                 val cx = DesignTokens.wpeSwatchX.value + DesignTokens.wpeSwatchPitch.value * (i % 6) - side
                 val cy = DesignTokens.wpeSwatchTop.value + DesignTokens.wpeSwatchPitch.value * (i / 6)
@@ -117,11 +117,11 @@ internal fun ColourSheet(backdrop: com.kyant.backdrop.Backdrop, draft: Wallpaper
                 ) {
                     val r = size.minDimension / 2
                     drawCircle(Color(c), r)
-                    // Auswahl: weißer Ring innen (recording6 20,3 s)
+                    // Selection: white ring inside (recording6 20.3 s)
                     if (selected) drawCircle(if (c == WHITE) Color.Black else Color.White, r * 0.78f, style = Stroke(2.dp.toPx()))
                 }
             }
-            // Regler: hell ↔ satt bzw. Spektrum
+            // slider: light ↔ rich or spectrum
             val tx = DesignTokens.wpeSliderX.value - side
             val tw = width - 2 * tx
             val sy = DesignTokens.wpeSliderY.value
@@ -135,7 +135,7 @@ internal fun ColourSheet(backdrop: com.kyant.backdrop.Backdrop, draft: Wallpaper
                     else current.copy(tone = f)
                 )
             }
-            // nur ein Band um den Regler (sonst schluckt er die Farbkreise)
+            // only a band around the slider (otherwise it swallows the colour circles)
             Canvas(
                 Modifier
                     .offset { IntOffset(0, ((sy - thumb) * density).roundToInt()) }
@@ -167,12 +167,12 @@ internal fun ColourSheet(backdrop: com.kyant.backdrop.Backdrop, draft: Wallpaper
 
 private fun hueOf(c: Int) = FloatArray(3).also { android.graphics.Color.colorToHSV(c, it) }[0]
 
-private const val SHEET_BLUR = 24f  // Vorschau hinter dem Blatt nur noch als Farbflecken [GEMESSEN grob]
-private const val SHEET_DARK = 0.62f // Blatt ≈ #2A2A2D über Schwarz/Vorschau
+private const val SHEET_BLUR = 24f  // preview behind the sheet only as colour patches [MEASURED roughly]
+private const val SHEET_DARK = 0.62f // sheet ≈ #2A2A2D over black/preview
 private val HUES = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)
 private const val WHITE = 0xFFFFFFFF.toInt()
 private const val TITLE_SIZE = 17f
-private const val WHEEL_X = 42.67f   // pt, Mitte des Farbkreis-Knopfs (Bildschirm)
+private const val WHEEL_X = 42.67f   // pt, centre of the colour wheel button (screen)
 private const val WHEEL_D = 32f
 private const val SPECTRUM_SAT = 0.65f
-private const val SHEET_OVERHANG = 40f // Blatt reicht unter den Bildschirmrand (Ecken unten unsichtbar)
+private const val SHEET_OVERHANG = 40f // the sheet reaches below the screen edge (bottom corners invisible)

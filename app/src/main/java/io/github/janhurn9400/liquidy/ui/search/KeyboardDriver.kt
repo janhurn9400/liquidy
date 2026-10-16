@@ -14,16 +14,16 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * Steuert die Tastatur Frame für Frame selbst (WindowInsetsControllerCompat.controlWindowInsetsAnimation),
- * damit sie wie bei iOS schon beim Morph der Pill herauslugt und beim Loslassen ohne Startverzögerung
- * (gemessen 230–410 ms bei keyboard.show()) mit der iOS-Feder ganz hochfährt.
+ * Drives the keyboard frame by frame itself (WindowInsetsControllerCompat.controlWindowInsetsAnimation),
+ * so that like on iOS it already peeks out during the pill morph and on release comes all the way up without a start delay
+ * (measured 230–410 ms with keyboard.show()) with the iOS spring.
  */
 class KeyboardDriver(private val view: View, private val scope: CoroutineScope) {
     private var controller: WindowInsetsAnimationControllerCompat? = null
     private var cancellation: CancellationSignal? = null
     private val bottom = Animatable(0f)
     private var job: Job? = null
-    /** Ziel, solange der Controller noch nicht bereit ist: (Pixel oder null = ganz), Feder, danach abschließen? */
+    /** Target while the controller isn't ready yet: (pixels or null = fully), spring, finish afterwards? */
     private var pending: Triple<Float?, IosSpring, Boolean?>? = null
 
     val active: Boolean get() = cancellation != null
@@ -43,7 +43,7 @@ class KeyboardDriver(private val view: View, private val scope: CoroutineScope) 
         job?.cancel(); controller = null; cancellation = null; pending = null
     }
 
-    /** Übernimmt die Tastatur (zeigt sie unter App-Kontrolle). Setzt voraus, dass ein Textfeld fokussiert ist. */
+    /** Takes over the keyboard (shows it under app control). Requires a focused text field. */
     fun start() {
         if (active) return
         val signal = CancellationSignal()
@@ -53,7 +53,7 @@ class KeyboardDriver(private val view: View, private val scope: CoroutineScope) 
             ?: run { cancellation = null }
     }
 
-    /** Fährt auf [px] Tastaturhöhe (null = ganz offen); [finish]: true = danach offen lassen, false = schließen. */
+    /** Moves to [px] keyboard height (null = fully open); [finish]: true = leave open afterwards, false = close. */
     fun animateTo(px: Float?, spring: IosSpring, finish: Boolean? = null): Job? {
         if (controller == null) { pending = Triple(px, spring, finish); return null }
         return run(px, spring, finish)

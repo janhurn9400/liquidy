@@ -48,16 +48,16 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Wetter (klein 2×2, mittel 4×2, groß 4×4) nach den iPhone-Screenshots 10-11 16:35 (docs/reference/widgets/01–03):
- * Himmelsverlauf, Ort + Pfeil, große Temperatur, Zustand + H/T; mittel mit 6 Stunden, groß zusätzlich 5 Tage mit
- * Temperaturbalken. Alle Maße in pt des iPhone-Widgets (klein 162,5 pt hoch) und mit der echten Höhe skaliert.
+ * Weather (small 2×2, medium 4×2, large 4×4) after the iPhone screenshots 10-11 16:35 (docs/reference/widgets/01–03):
+ * sky gradient, location + arrow, large temperature, condition + H/L; medium with 6 hours, large additionally 5 days with
+ * temperature bars. All dimensions in pt of the iPhone widget (small 162.5 pt tall) and scaled with the real height.
  */
 @Composable
 internal fun WeatherWidget(cols: Int, rows: Int, modifier: Modifier, place: WeatherRepository.Place? = null) {
     val context = LocalContext.current
     val here by WeatherRepository.state.collectAsState()
     val places by WeatherRepository.places.collectAsState()
-    // fester Ort (Widget-Einstellung) oder aktueller Standort
+    // fixed location (widget setting) or the current location
     val state = if (place != null) places[place.key] ?: WeatherRepository.State.Loading else here
     LaunchedEffect(place) {
         while (true) {
@@ -65,7 +65,7 @@ internal fun WeatherWidget(cols: Int, rows: Int, modifier: Modifier, place: Weat
                 WeatherRepository.refreshPlace(place)
                 delay(if (WeatherRepository.places.value[place.key] is WeatherRepository.State.Ready) 10 * 60_000L else 10_000L)
             } else {
-                // ohne Standort alle 5 s neu versuchen (Berechtigung kann gerade erteilt worden sein), sonst alle 10 min prüfen
+                // without a location retry every 5 s (the permission may just have been granted), otherwise check every 10 min
                 WeatherRepository.refresh(context)
                 delay(if (WeatherRepository.state.value is WeatherRepository.State.Ready) 10 * 60_000L else 5_000L)
             }
@@ -117,8 +117,8 @@ private fun TopRow(w: WeatherRepository.Weather, s: Float) {
 
 @Composable
 private fun WeatherMedium(w: WeatherRepository.Weather, s: Float) {
-    // Kopf oben, Stundenreihe unten. Reicht die Höhe nicht (Duo-Widgets sind im Verhältnis flacher), wird der Inhalt
-    // gleichmäßig verkleinert statt dass die Temperaturen unten abgeschnitten werden (Nutzer 10-15)
+    // Header at the top, hour row at the bottom. If the height isn't enough (Duo widgets are relatively flatter), the content
+    // is shrunk uniformly instead of the temperatures being cut off at the bottom (user 10-15)
     androidx.compose.ui.layout.Layout(
         content = { TopRow(w, s); HourRow(w, s) },
         modifier = Modifier.fillMaxSize().padding(horizontal = (PAD * s).dp, vertical = (PAD_V * s).dp),
@@ -162,7 +162,7 @@ private fun Place(w: WeatherRepository.Weather, s: Float) {
             style = text(PLACE_TEXT * s, FontWeight.SemiBold))
         if (w.current) {
             Spacer(Modifier.width((4f * s).dp))
-            // Standortpfeil (eigene Form)
+            // location arrow (own shape)
             Canvas(Modifier.size((10f * s).dp)) {
                 val p = Path().apply {
                     moveTo(size.width, 0f); lineTo(0f, size.height * 0.45f); lineTo(size.width * 0.45f, size.height * 0.55f)
@@ -184,7 +184,7 @@ private fun HourRow(w: WeatherRepository.Weather, s: Float) {
     val fmt = DateTimeFormatter.ofPattern(if (android.text.format.DateFormat.is24HourFormat(LocalContext.current)) "H" else "h a")
     val timeFmt = DateTimeFormatter.ofPattern(if (android.text.format.DateFormat.is24HourFormat(LocalContext.current)) "H:mm" else "h:mm")
     BoxWithConstraints(Modifier.fillMaxWidth().height((HOUR_ROW_H * s).dp)) {
-        // Spalten-Mitten: 28,8 pt vom Widgetrand, gleichmäßig (Rand zum Innenbereich = PAD) [GEMESSEN 02]
+        // Column centres: 28.8 pt from the widget edge, evenly spaced (margin to the inner area = PAD) [MEASURED 02]
         val first = (HOUR_EDGE - PAD) * s
         val pitch = (maxWidth.value - 2 * first) / 5f
         w.hours.take(6).forEachIndexed { i, h ->
@@ -214,7 +214,7 @@ private fun DayRows(w: WeatherRepository.Weather, s: Float) {
                     WeatherIcon(d.code, true, null, (ROW_ICON * s).dp)
                     BasicText("${d.min}°", maxLines = 1, modifier = Modifier.width(((DAY_LOW_RIGHT - DAY_ICON_X) * s - ROW_ICON * s / 2).dp),
                         style = text(SMALL_TEXT * s, FontWeight.SemiBold, TextAlign.End, Color.White.copy(alpha = LOW_ALPHA)))
-                    // Balken: Bahn über die Woche, gefüllt von Tiefst- bis Höchstwert, Farbe nach Temperatur
+                    // Bar: track over the week, filled from the low to the high, colour by temperature
                     Canvas(Modifier.weight(1f).height((DAY_PITCH * s).dp).padding(horizontal = (8f * s).dp)) {
                         val y = size.height / 2; val th = BAR_H * s * density
                         drawLine(Color.Black.copy(alpha = TRACK_ALPHA), Offset(0f, y), Offset(size.width, y), th, StrokeCap.Round)
@@ -232,7 +232,7 @@ private fun DayRows(w: WeatherRepository.Weather, s: Float) {
 private fun text(size: Float, weight: FontWeight, align: TextAlign = TextAlign.Start, color: Color = Color.White) =
     TextStyle(fontFamily = Inter, fontWeight = weight, fontSize = size.sp, lineHeight = (size * 1.2f).sp, color = color, textAlign = align)
 
-/** Balkenfarbe: kalt türkis → mild grün → warm gelb → heiß orange [GEMESSEN 03: 2° (100,208,215), 16° (155,211,174), 19° (227,207,93)]. */
+/** Bar colour: cold turquoise → mild green → warm yellow → hot orange [MEASURED 03: 2° (100,208,215), 16° (155,211,174), 19° (227,207,93)]. */
 private fun tempColor(t: Int): Color {
     val stops = listOf(-10f to Color(0xFF5E9CFF), 5f to Color(0xFF64D0D7), 15f to Color(0xFF9BD3AE), 19f to Color(0xFFE3CF5D), 28f to Color(0xFFFF9A3C), 35f to Color(0xFFFF5A3C))
     val x = t.toFloat()
@@ -258,7 +258,7 @@ private fun conditionText(code: Int, day: Boolean): String = stringResource(when
     else -> R.string.wx_cloudy
 })
 
-/** Eigene Wetter-Symbole (keine Apple-Glyphen): Sonne gelb, Wolke weiß, Regen hellblau. */
+/** Own weather glyphs (no Apple glyphs): sun yellow, cloud white, rain light blue. */
 @Composable
 internal fun WeatherIcon(code: Int, day: Boolean, event: WeatherRepository.Event?, size: Dp) {
     Canvas(Modifier.size(size)) { drawWeather(code, day, event) }
@@ -269,7 +269,7 @@ private val DROP = Color(0xFF64D2FF)
 
 private fun DrawScope.drawWeather(code: Int, day: Boolean, event: WeatherRepository.Event?) {
     val s = size.minDimension
-    if (event != null) { // Sonnenauf-/-untergang: halbe Sonne über dem Horizont, Pfeil
+    if (event != null) { // sunrise/sunset: half a sun above the horizon, arrow
         val c = Offset(s / 2, s * 0.72f)
         drawArc(SUN, 180f, 180f, true, Offset(c.x - s * 0.22f, c.y - s * 0.22f), Size(s * 0.44f, s * 0.44f))
         for (k in 0..4) {
@@ -332,11 +332,11 @@ private fun DrawScope.drawWeather(code: Int, day: Boolean, event: WeatherReposit
     }
 }
 
-// Himmelsverlauf nach Höhe [GEMESSEN 01/03: 7 % (41,94,146), 25 % (59,108,159), 50 % (79,128,177), 76 % (102,146,188), 100 % (150,182,218)]
+// Sky gradient by height [MEASURED 01/03: 7 % (41,94,146), 25 % (59,108,159), 50 % (79,128,177), 76 % (102,146,188), 100 % (150,182,218)]
 private val SKY_STOPS = arrayOf(
     0f to Color(0xFF285C91), 0.25f to Color(0xFF3B6C9F), 0.5f to Color(0xFF4F80B1), 0.76f to Color(0xFF6692BC), 1f to Color(0xFF96B6DA),
 )
-// Maße in pt des iPhone-Widgets (920 px = 402 pt) [GEMESSEN 01–03]
+// Dimensions in pt of the iPhone widget (920 px = 402 pt) [MEASURED 01–03]
 private const val REF_SMALL_H = 163f
 private const val REF_LARGE_H = 363f
 private const val PAD = 17.5f
@@ -348,7 +348,7 @@ private const val TOP_ICON = 20f
 private const val ROW_ICON = 22f
 private const val HOUR_LABEL = 13f
 private const val HOUR_LABEL_ALPHA = 0.8f
-private const val HOUR_ROW_H = 72f // Stunde bis Temperatur ≈ 70 pt [GEMESSEN 03: 898–1058 px]
+private const val HOUR_ROW_H = 72f // hour to temperature ≈ 70 pt [MEASURED 03: 898–1058 px]
 private const val HOUR_EDGE = 28.8f
 private const val HOUR_COL_W = 48f
 private const val DAY_PITCH = 31f

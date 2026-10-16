@@ -57,10 +57,10 @@ import com.kyant.backdrop.effects.blur
 import kotlin.math.roundToInt
 
 /**
- * Feste Teile der Mediathek über den Kacheln (außerhalb der Glas-Quelle):
- *  - Scroll-Kante oben: Kacheln über dem Suchfeld werden unscharf (recording2 6,0 s).
- *  - Liquid-Glass-Suchfeld „App Library“, bleibt beim Scrollen oben stehen. In der A–Z-Liste morpht es schmal,
- *    rechts erscheint „Cancel“, die Tastatur fährt hoch (M-LIB-LIST).
+ * Fixed parts of the App Library above the tiles (outside the glass source):
+ *  - Scroll edge at the top: tiles above the search field become blurred (recording2 6.0 s).
+ *  - Liquid Glass search field "App Library", stays at the top while scrolling. In the A–Z list it morphs narrow,
+ *    "Cancel" appears on the right, the keyboard comes up (M-LIB-LIST).
  */
 @Composable
 fun LibraryChrome(model: HomeModel, geo: LibraryGeometry, density: Float, pageOffsetX: () -> Float) {
@@ -80,19 +80,19 @@ fun LibraryChrome(model: HomeModel, geo: LibraryGeometry, density: Float, pageOf
     }
 }
 
-/** Progressiver Blur am oberen Rand: verwischte Kopie der Glas-Quelle, nach unten ausgeblendet (DstIn-Verlauf). */
+/** Progressive blur at the top edge: blurred copy of the glass source, faded out downwards (DstIn gradient). */
 @Composable
 private fun ScrollEdge(model: HomeModel, geo: LibraryGeometry) {
     val backdrop = LocalGlassBackdrop.current ?: return
     val endDp = DesignTokens.libEdgeEnd.dp
     Box(
         Modifier
-            // Duo: nur über der Mediathek-Spalte, links weich auslaufend (sonst harte senkrechte Kante zur Seite daneben)
+            // Duo: only above the App Library column, fading out softly on the left (otherwise a hard vertical edge to the page next to it)
             .then(if (geo.duo) Modifier.width(Dp(geo.columnWidth / geo.densityValue)) else Modifier.fillMaxWidth())
             .height(endDp)
             .graphicsLayer {
                 compositingStrategy = CompositingStrategy.Offscreen
-                // erst sichtbar, wenn Kacheln unter das Feld scrollen (in Ruhe liegt dort nur Wallpaper)
+                // only visible once tiles scroll under the field (at rest only wallpaper lies there)
                 alpha = (model.libraryScroll.value / EDGE_FADE_IN.dp.toPx()).coerceIn(0f, 1f)
             }
             .drawWithContent {
@@ -112,7 +112,7 @@ private fun ScrollEdge(model: HomeModel, geo: LibraryGeometry) {
 
 @Composable
 private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: Float) {
-    // ── Tastatur (wie die Homescreen-Suche: App-gesteuert, ohne Startverzögerung) ───────────
+    // ── Keyboard (like the home search: app-driven, without a start delay) ───────────
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -129,12 +129,12 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
                 driver.animateTo(null, Motion.searchKeyboard, finish = true) ?: keyboard?.show()
             }
             model.libListOpen && !wasActive[0] -> {
-                // Beim Herunterziehen schon binden → beim Loslassen fährt die Tastatur ohne Verzögerung hoch
+                // Bind already while pulling down → on release the keyboard comes up without delay
                 focus.requestFocus()
                 driver.start()
             }
             else -> {
-                // „Cancel“ / Zurück: Tastatur runter, Fokus weg
+                // "Cancel" / Back: keyboard down, focus gone
                 wasActive[0] = false
                 if (driver.active) driver.animateTo(0f, Motion.searchClose, finish = false)?.join()
                 focusManager.clearFocus(); keyboard?.hide()
@@ -142,7 +142,7 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
         }
     }
 
-    // ── Geometrie: volle Breite ↔ Listen-Layout ─────────────────────────────────────
+    // ── Geometry: full width ↔ list layout ─────────────────────────────────────
     val s = geo.search
     val m = model.libFieldMorph.value
     val fullW = s.width / density
@@ -155,12 +155,12 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
         LiquidGlass(
             shape = glassCapsule(),
             thickness = DesignTokens.libSearchHeight.value / DesignTokens.dockHeight.value,
-            // Duo: fast klares Glas, nur ein Hauch heller als die Umgebung [Video 2, 3,5 s]; iPhone: milchiger (recording2)
+            // Duo: almost clear glass, just a touch lighter than the surroundings [video 2, 3.5 s]; iPhone: milkier (recording2)
             whiteTint = if (geo.duo) DUO_SEARCH_TINT + (DUO_LIST_FIELD_TINT - DUO_SEARCH_TINT) * model.libListDim.value
                 else DesignTokens.libSearchTint.value + (DesignTokens.libListFieldTint.value - DesignTokens.libSearchTint.value) * model.libListDim.value,
             modifier = Modifier.size(Dp(wDp), Dp(s.height / density)),
         ) {
-            // Lupe + Text: in Ruhe mittig, in der Liste links (Einzug T-LIB-LIST.fieldInset)
+            // Magnifier + text: centred at rest, on the left in the list (inset T-LIB-LIST.fieldInset)
             Layout(
                 modifier = Modifier.fillMaxSize(),
                 content = {
@@ -199,8 +199,8 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
         }
     }
 
-    // Duo: runder Glas-×-Knopf rechts neben dem Feld statt „Cancel“ [Video 2, 17,24–17,30 s]: gleitet ≈ 30 pt von
-    // rechts herein, erst die ×-Glyphe, die Glasfläche füllt sich kurz danach
+    // Duo: round glass × button to the right of the field instead of "Cancel" [video 2, 17.24–17.30 s]: slides in ≈ 30 pt from
+    // the right, first the × glyph, the glass area fills shortly after
     if (geo.duo && m > 0.01f) {
         val d = LIB_DUO_CLOSE_D
         Box(
@@ -221,7 +221,7 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
             }
         }
     }
-    // „Cancel“ rechts neben dem Feld — blendet mit dem Morph ein und rückt von rechts nach (recording2 11,4–11,7 s)
+    // "Cancel" to the right of the field — fades in with the morph and follows from the right (recording2 11.4–11.7 s)
     if (!geo.duo && m > 0.01f) {
         Box(
             Modifier
@@ -238,19 +238,19 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
     }
 }
 
-/** Breite von Lupe + „App Library“ (für das Zentrieren in Ruhe), unabhängig vom breiten Eingabefeld. */
+/** Width of magnifier + "App Library" (for centring at rest), independent of the wide input field. */
 private fun androidx.compose.ui.unit.Density.groupWidth(rowWidth: Int, model: HomeModel): Float {
-    // Mit Eingabefeld ist die Zeile so breit wie das Feld; zentriert wird nur Lupe + Platzhalter.
+    // With the input field the row is as wide as the field; only magnifier + placeholder are centred.
     if (!model.libListOpen) return rowWidth.toFloat()
     return (DesignTokens.libSearchIcon.dp + DesignTokens.libSearchIconGap.dp).toPx() + PLACEHOLDER_W.dp.toPx()
 }
 
 private const val DUO_SEARCH_TINT = 0.06f
 private const val DUO_LIST_FIELD_TINT = 0.10f
-private const val DUO_EDGE_FADE_X = 48f   // pt weicher Auslauf links
-private const val EDGE_SOLID = 0.6f       // Verlauf: bis 60 % der Kantenhöhe voll verwischt [GESCHÄTZT] recording2 6,0 s
-private const val EDGE_FADE_IN = 24f      // pt Scrollweg, bis die Kante voll da ist [GESCHÄTZT]
+private const val DUO_EDGE_FADE_X = 48f   // pt soft fade-out on the left
+private const val EDGE_SOLID = 0.6f       // gradient: fully blurred up to 60 % of the edge height [ESTIMATED] recording2 6.0 s
+private const val EDGE_FADE_IN = 24f      // pt of scroll travel until the edge is fully there [ESTIMATED]
 private const val CANCEL_SLIDE = 24f
-private const val DUO_CLOSE_SLIDE = 30f   // pt [GEMESSEN Video 2, 17,24 → 17,30 s]      // pt, „Cancel“ rückt von rechts nach [GESCHÄTZT]
-private const val CANCEL_LINE = 22f       // Zeilenhöhe für vertikales Zentrieren
-private const val PLACEHOLDER_W = 100f    // „App Library“ bei 17 pt [GEMESSEN] ≈ 100 pt
+private const val DUO_CLOSE_SLIDE = 30f   // pt [MEASURED video 2, 17.24 → 17.30 s]      // pt, "Cancel" follows from the right [ESTIMATED]
+private const val CANCEL_LINE = 22f       // line height for vertical centring
+private const val PLACEHOLDER_W = 100f    // "App Library" at 17 pt [MEASURED] ≈ 100 pt

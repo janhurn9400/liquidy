@@ -14,9 +14,9 @@ import io.github.janhurn9400.liquidy.data.GestureNavContract
 import io.github.janhurn9400.liquidy.design.DesignTokens
 
 /**
- * Icon-Fläche für die Wisch-nach-Hause-Geste (wie Launcher3 FloatingSurfaceView): eine SurfaceView genau über dem Icon,
- * in die das Icon gezeichnet wird. Ihre SurfaceControl geht mit der Position an das System, das das App-Fenster am Ende
- * hinein überblendet. Danach (Fertig-Meldung oder Zeitlimit) wird sie entfernt und das echte Icon wieder gezeigt.
+ * Icon surface for the swipe-home gesture (like Launcher3 FloatingSurfaceView): a SurfaceView exactly above the icon,
+ * into which the icon is drawn. Its SurfaceControl goes with the position to the system, which crossfades the app window
+ * into it at the end. Afterwards (finish callback or timeout) it's removed and the real icon is shown again.
  */
 object FlyingIconSurface {
     private var current: SurfaceView? = null
@@ -42,7 +42,7 @@ object FlyingIconSurface {
                 val c = h.lockHardwareCanvas()
                 c.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR)
                 val w = rect.width(); val hh = rect.height()
-                // Squircle-Annäherung (abgerundetes Quadrat mit Icon-Eckenradius)
+                // Squircle approximation (rounded square with the icon corner radius)
                 val r = cornerPx ?: (DesignTokens.iconCorner.value / DesignTokens.iconSize.value * w)
                 c.clipPath(Path().apply { addRoundRect(RectF(0f, 0f, w, hh), r, r, Path.Direction.CW) })
                 c.drawBitmap(icon, null, RectF(0f, 0f, w, hh), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
@@ -54,7 +54,7 @@ object FlyingIconSurface {
         })
         root.addView(view)
         current = view
-        // Sicherheitsnetz: falls keine Fertig-Meldung kommt (Systemfehler, siehe Android Issue 194427611)
+        // Safety net: in case no finish callback comes (system bug, see Android issue 194427611)
         view.postDelayed({ if (current === view) finish() }, SAFETY_MS)
     }
 

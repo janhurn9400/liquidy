@@ -33,64 +33,64 @@ sealed interface Container {
     data object Dock : Container
 }
 
-/** Einfügeziel beim Ziehen. */
+/** Insertion target while dragging. */
 sealed interface DropTarget {
     data class Page(val page: Int, val index: Int) : DropTarget
     data class Dock(val index: Int) : DropTarget
 }
 
-/** Animierte Position eines Icons; [pos] ist seitenlokal (Page) bzw. Bildschirmkoordinate (Dock). */
+/** Animated position of an icon; [pos] is page-local (Page) or a screen coordinate (Dock). */
 class IconAnim(var container: Container, initial: Offset) {
     val pos: Animatable<Offset, AnimationVector2D> = Animatable(initial, Offset.VectorConverter)
-    /** Feder für die nächste Bewegung (z. B. M-DROP statt M-REFLOW). */
+    /** Spring for the next motion (e.g. M-DROP instead of M-REFLOW). */
     var nextSpring: IosSpring? = null
 }
 
 @Stable
 class DragState(
     val key: String,
-    /** Finger minus Icon-Oberkante-links, Bildschirm-px. */
+    /** Finger minus icon top-left, screen px. */
     val grabOffset: Offset,
     pointer: Offset,
     initialHover: DropTarget?,
 ) {
     var pointer by mutableStateOf(pointer)
     var hover by mutableStateOf<DropTarget?>(initialHover)
-    /** Item, über dessen Mitte gehalten wird → Ablegen erzeugt/füllt einen Ordner (M-MERGE). */
+    /** Item whose centre is being held over → dropping creates/fills a folder (M-MERGE). */
     var mergeTarget by mutableStateOf<String?>(null)
     val lift = Animatable(1f)
 }
 
-/** App im offenen Ordner angehoben (noch nicht herausgezogen); [grab] = Finger minus Icon-Oberkante-links. */
+/** App lifted in the open folder (not pulled out yet); [grab] = finger minus icon top-left. */
 class FolderDrag(val key: String, val grab: Offset, pointer: Offset) {
     var pointer by mutableStateOf(pointer)
-    /** Einfügeplatz im Ordner (Index ohne das gezogene Icon); -1 = noch an der Ausgangsstelle. Die anderen weichen aus. */
+    /** Insertion slot in the folder (index without the dragged icon); -1 = still at the origin. The others make way. */
     var hoverIndex by mutableStateOf(-1)
-    /** Losgelassen: Bildschirm-Oberkante-links des Platzes, in den die Kopie jetzt fliegt (M-DROP); null = wird gezogen. */
+    /** Released: screen top-left of the slot the copy now flies into (M-DROP); null = being dragged. */
     var landingAt by mutableStateOf<Offset?>(null)
 }
 
-/** Icon fliegt nach dem Loslassen in den Mini-Platz eines Ordners (M-MERGE-DROP); Rechtecke in Bildschirm-px (Icon-Fläche). */
+/** Icon flies into a folder's mini slot after release (M-MERGE-DROP); rects in screen px (icon area). */
 class FolderFly(val key: String, val folder: String, val from: androidx.compose.ui.geometry.Rect, val to: androidx.compose.ui.geometry.Rect) {
     val t = Animatable(0f)
 }
 
-/** Geöffneter Ordner; [iconTopLeft] = Bildschirmposition des Ordner-Icons (Start/Ende der Animation). */
+/** Opened folder; [iconTopLeft] = screen position of the folder icon (start/end of the animation). */
 @Stable
-/** [iconScale] = sichtbare Größe des Ordner-Icons relativ zum Raster-Icon (Duo-Dock < 1, HomeGeometry.dockIconScale). */
+/** [iconScale] = visible size of the folder icon relative to the grid icon (Duo dock < 1, HomeGeometry.dockIconScale). */
 class OpenFolder(val id: String, val iconTopLeft: Offset, val iconScale: Float = 1f) {
     val progress = Animatable(0f)
-    /** Wird geschlossen (morpht ohne Überblendung ins Icon). */
+    /** Being closed (morphs into the icon without a crossfade). */
     var closing by androidx.compose.runtime.mutableStateOf(false)
 }
 
 fun isFolder(id: String) = id.startsWith(FOLDER_PREFIX)
 
 /**
- * Mehrere Icons derselben App (iOS: eine App kann auf mehreren Seiten liegen): weitere Icons heißen
- * „<App-Key>~i<id>“ und zeigen auf dieselbe App. [AppMap] löst solche Keys auf, [values]/[keys] bleiben je App einmal.
+ * Several icons of the same app (iOS: an app can be on several pages): further icons are called
+ * "<app key>~i<id>" and point to the same app. [AppMap] resolves such keys, [values]/[keys] stay once per app.
  */
-/** App, die gerade in ihr Mediathek-Icon zurückfliegt: das echte Icon dort ausblenden (wie flyingKey auf dem Homescreen). */
+/** App flying back into its App Library icon right now: hide the real icon there (like flyingKey on the home screen). */
 object LibraryFlying { var key by androidx.compose.runtime.mutableStateOf<String?>(null) }
 
 const val INSTANCE_SEP = "~i"
@@ -107,7 +107,7 @@ const val LIBRARY_PREFIX = "library"
 
 data class LibraryCategory(val id: String, val name: String, val apps: List<AppEntry>, val isHidden: Boolean = false)
 
-/** Glyphe eines Menüeintrags: eigene Vektor-Glyphen (keine SF Symbols) oder das einfarbige Shortcut-Symbol. */
+/** Glyph of a menu entry: own vector glyphs (no SF Symbols) or the monochrome shortcut icon. */
 sealed interface MenuGlyph {
     data object Remove : MenuGlyph
     data object EditHome : MenuGlyph
@@ -124,16 +124,16 @@ sealed interface MenuGlyph {
 
 class MenuItem(val label: String, val glyph: MenuGlyph, val destructive: Boolean = false, val action: () -> Unit)
 
-/** Offenes Kontextmenü; [iconTopLeft] = Ruheposition des Icons (Bildschirm). */
+/** Open context menu; [iconTopLeft] = rest position of the icon (screen). */
 @Stable
 class ContextMenuState(
     val key: String,
     val iconTopLeft: Offset,
     val items: List<MenuItem>,
-    /** Widget: Rahmen auf dem Bildschirm + wählbare Größen (Größenleiste oben im Menü, recording8 15 s). */
+    /** Widget: rect on screen + selectable sizes (size bar at the top of the menu, recording8 15 s). */
     val widgetRect: androidx.compose.ui.geometry.Rect? = null,
     val sizes: List<Pair<Int, Int>> = emptyList(),
-    /** Grundgröße des Icons relativ zum Raster-Icon (Duo-Dock: 48/60) — das angehobene Icon bleibt so groß wie sein Platz. */
+    /** Base size of the icon relative to the grid icon (Duo dock: 48/60) — the lifted icon stays as big as its slot. */
     val iconScale: Float = 1f,
 ) {
     val menu = Animatable(0f)
@@ -149,7 +149,7 @@ class TodayDrag(val key: String, startIndex: Int) {
     var index by mutableStateOf(startIndex)
 }
 
-/** Laufende Größenänderung eines Widgets: Live-Rahmen (px) + Unschärfe des Inhalts 0…1. */
+/** Ongoing widget resize: live rect (px) + content blur 0…1. */
 @Stable
 class WidgetResize(val key: String, val start: androidx.compose.ui.geometry.Size) {
     val w = Animatable(start.width)
@@ -157,34 +157,34 @@ class WidgetResize(val key: String, val start: androidx.compose.ui.geometry.Size
     val blur = Animatable(0f)
 }
 
-/** iOS-Größen: klein, mittel, groß (extragroß gibt es auf dem iPhone nicht — im Menü ausgegraut). */
+/** iOS sizes: small, medium, large (extra large doesn't exist on the iPhone — greyed out in the menu). */
 val WIDGET_SIZES = listOf(2 to 2, 4 to 2, 4 to 4)
 const val STACK = "stack"
 const val SHOCK_DURATION_S = 0.6f
-// Flug aus dem Picker [GEMESSEN] Aufnahme 10:40 (grüner Ring verfolgt): Flug 47,56 → 47,94 s, Landung 1,16× →
-// 0,87× (48,25 s) → 1,0 (48,50 s) ⇒ 0,94 s gesamt. t läuft linear, die Phasen rechnet HomeScreen (WidgetFlight).
+// Flight from the picker [MEASURED] recording 10:40 (green ring tracked): flight 47.56 → 47.94 s, landing 1.16× →
+// 0.87× (48.25 s) → 1.0 (48.50 s) ⇒ 0.94 s total. t runs linearly, HomeScreen computes the phases (WidgetFlight).
 const val LANDING_MS = 1000
 private val LANDING_EASE = androidx.compose.animation.core.LinearEasing
-const val LANDING_ARRIVE = 0.42f   // 47,94 s: Ankunft/Aufprall
+const val LANDING_ARRIVE = 0.42f   // 47.94 s: arrival/impact
 private const val LANDING_SHOCK_AT = LANDING_ARRIVE
 private const val DUO_LUPE_FLASH_MS = 70
 private const val BRUSH_FLASH_IN_MS = 70
-// [GEMESSEN Video 4] Tropfen → Menü ≈ 0,22 s bis zur Endgröße (Größe 14 % nach 41 ms, 57 % nach 66 ms, 80 % nach 125 ms),
-// kaum Überschwinger (≈ 5 %) → ζ 0,7, ω ≈ 15/s
+// [MEASURED video 4] droplet → menu ≈ 0.22 s to final size (size 14 % after 41 ms, 57 % after 66 ms, 80 % after 125 ms),
+// barely any overshoot (≈ 5 %) → ζ 0.7, ω ≈ 15/s
 private const val DROP_DAMPING = 0.7f
 private const val DROP_STIFFNESS = 230f
 private const val DROP_CLOSE_MS = 340
 private val DROP_CLOSE_EASE = androidx.compose.animation.core.CubicBezierEasing(0.25f, 0.55f, 0.25f, 1f)
-private const val BRUSH_FLASH_HOLD_MS = 60L // Tropfen löst sich ≈ 75 ms nach dem Aufleuchten (Video 4: 3,837 → 3,912 s)
-private const val BRUSH_FLASH_OUT_MS = 140 // weiß auf in ≈ 4 Bildern (41,11 → 41,15 s)
-private const val STACK_MERGE_SHARE = 0.35f // Mitten näher als 35 % der Widgetgröße → Stapel
+private const val BRUSH_FLASH_HOLD_MS = 60L // droplet detaches ≈ 75 ms after lighting up (video 4: 3.837 → 3.912 s)
+private const val BRUSH_FLASH_OUT_MS = 140 // white in ≈ 4 frames (41.11 → 41.15 s)
+private const val STACK_MERGE_SHARE = 0.35f // centres closer than 35 % of the widget size → stack
 private const val STACK_RUBBER = 0.3f
-private const val STACK_FLING = 2.5f        // Widgethöhen pro Sekunde
-private const val STACK_RIM_HOLD_MS = 900L // Rand steht nach dem Loslassen noch (Bild 866–892+)
-private const val WIDGET_LIFT = 1.08f // recording8 15,3 s: wächst erst beim Öffnen des Menüs auf ≈ 1,08× (Breite 350 → 379 pt), nicht beim Halten
-private const val RESIZE_RUBBER = 0.25f // über klein/groß hinaus nur noch ¼ des Fingerwegs [GESCHÄTZT]
+private const val STACK_FLING = 2.5f        // widget heights per second
+private const val STACK_RIM_HOLD_MS = 900L // rim still stays after release (frame 866–892+)
+private const val WIDGET_LIFT = 1.08f // recording8 15.3 s: grows to ≈ 1.08× only when the menu opens (width 350 → 379 pt), not while holding
+private const val RESIZE_RUBBER = 0.25f // beyond small/large only ¼ of the finger travel [ESTIMATED]
 
-/** Aufgeklappte Mediathek-Kategorie (ohne Panel, recording2 18,2 s); [tileIndex] = Kachel, aus der die Icons fliegen. */
+/** Expanded App Library category (without panel, recording2 18.2 s); [tileIndex] = tile the icons fly out of. */
 @Stable
 class OpenCategory(val category: LibraryCategory, val tileIndex: Int, val scrollAtOpen: Float) {
     val progress = Animatable(0f)
@@ -192,15 +192,15 @@ class OpenCategory(val category: LibraryCategory, val tileIndex: Int, val scroll
 const val FOLDER_PREFIX = "folder:"
 
 /**
- * Angezeigtes Layout. [pages] = nur echte Items (für Anzeige/Treffer), [gapped] = mit Platzhaltern für Lücken
- * (freie Platzierung, GridPlacement.GAP_PREFIX) — daraus werden die Zellen berechnet.
+ * Displayed layout. [pages] = only real items (for display/hits), [gapped] = with placeholders for gaps
+ * (free placement, GridPlacement.GAP_PREFIX) — the cells are computed from it.
  */
 data class DisplayLayout(val pages: List<List<String>>, val dock: List<String>, val gapped: List<List<String>> = pages)
 
 /**
- * Zustand des Homescreens: gespeichertes Layout, Bearbeitungsmodus, Ziehen, Antipp-Feedback.
- * Während des Ziehens wird das angezeigte Layout live berechnet ([display]): Layout ohne das gezogene Icon
- * + Einfügen am Hover-Ziel, Überlauf rutscht auf die nächste Seite (wie iOS). Erst beim Ablegen wird es übernommen.
+ * Home screen state: saved layout, edit mode, dragging, tap feedback.
+ * While dragging the displayed layout is computed live ([display]): layout without the dragged icon
+ * + insertion at the hover target, overflow moves to the next page (like iOS). It's only committed on drop.
  */
 @Stable
 class HomeModel(
@@ -221,14 +221,14 @@ class HomeModel(
     var widgets by mutableStateOf<Map<String, WidgetSpec>>(emptyMap())
         private set
 
-    // ── Heute-Ansicht (links von Seite 0, recording8 2–20 s) ─────────────────────
+    // ── Today view (left of page 0, recording8 2–20 s) ─────────────────────
     var today by mutableStateOf<List<String>>(emptyList())
         private set
     val todayScroll = Animatable(0f)
-    /** Finger scrollt gerade die Heute-Spalte (Duo: Glasfläche hinter der Spalte + Scrollbalken). */
+    /** Finger is scrolling the Today column right now (Duo: glass surface behind the column + scroll bar). */
     var todayTouching by mutableStateOf(false)
 
-    /** Widget oben in die Heute-Ansicht einfügen (iOS: neue Widgets landen oben). */
+    /** Insert a widget at the top of the Today view (iOS: new widgets land at the top). */
     fun addTodayWidget(spec: WidgetSpec) {
         val id = WIDGET_PREFIX + java.util.UUID.randomUUID().toString()
         widgets = widgets + (id to spec)
@@ -236,7 +236,7 @@ class HomeModel(
         save()
     }
 
-    /** Ziehen in der Heute-Ansicht: gezogenes Widget + Fingerversatz (px) + aktuelle Zielposition in der Liste. */
+    /** Dragging in the Today view: dragged widget + finger offset (px) + current target position in the list. */
     var todayDrag by mutableStateOf<TodayDrag?>(null)
         private set
 
@@ -251,7 +251,7 @@ class HomeModel(
         d.index = targetIndex.coerceIn(0, today.lastIndex)
     }
 
-    /** Widget von der Heute-Seite auf den Homescreen ziehen: aus „Heute“ lösen, vorn auf Seite 1 einsortieren, weiterziehen. */
+    /** Drag a widget from the Today page to the home screen: detach from "Today", insert at the front of page 1, keep dragging. */
     fun moveTodayToHome(key: String, pointer: Offset, cellTopLeftScreen: Offset) {
         if (key !in today) return
         todayDrag = null
@@ -269,14 +269,14 @@ class HomeModel(
         save()
     }
 
-    /** Angezeigte Reihenfolge (während des Ziehens schon mit dem Widget am Zielplatz → die anderen rücken nach). */
+    /** Displayed order (while dragging already with the widget at its target → the others move along). */
     fun todayOrder(): List<String> {
         val d = todayDrag ?: return today
         val rest = today - d.key
         return rest.toMutableList().apply { add(d.index.coerceIn(0, rest.size), d.key) }
     }
 
-    /** Standard-Widgets beim ersten Start (wie iOS: Batterien, Kalender, Uhr). */
+    /** Default widgets on first start (like iOS: batteries, calendar, clock). */
     private fun defaultToday(): List<String> {
         val specs = listOf(
             WidgetSpec(io.github.janhurn9400.liquidy.ui.widgets.IosWidgetTypes.BATTERY, 2, 2),
@@ -290,8 +290,8 @@ class HomeModel(
     }
 
     /**
-     * Nur Test (Debug-Build, adb-Intent „testdemo“): aufgeräumtes Beispiel-Layout — Widgets oben, Apps nach Zweck sortiert,
-     * Ordner für Kleinkram, Dock wie iOS. Apps über den Paketnamen gesucht; was fehlt, wird übersprungen.
+     * Test only (debug build, adb intent "testdemo"): tidy example layout — widgets at the top, apps sorted by purpose,
+     * folders for odds and ends, dock like iOS. Apps are looked up by package name; whatever is missing is skipped.
      */
     fun debugDemoLayout() {
         if (apps.isEmpty()) return
@@ -300,7 +300,7 @@ class HomeModel(
             val id = WIDGET_PREFIX + java.util.UUID.randomUUID().toString()
             widgets = widgets + (id to WidgetSpec(type, c, r)); return id
         }
-        // alte Homescreen-Widgets (nicht Heute) entfernen, Android-Widgets dabei freigeben
+        // remove old home widgets (not Today), releasing Android widgets
         val keepToday = today.toSet()
         widgets.filterKeys { it !in keepToday }.forEach { (_, w) ->
             (if (w.type == STACK) w.stack else listOf(w)).filter { it.type == "android" }.forEach { onAndroidWidgetRemoved(it.appWidgetId) }
@@ -309,7 +309,7 @@ class HomeModel(
         val T = io.github.janhurn9400.liquidy.ui.widgets.IosWidgetTypes
         val cols = DesignTokens.GRID_COLUMNS
         fun page(vararg items: Pair<String?, Int>) = GridPlacement.canonical(items.mapNotNull { (k, c) -> k?.let { it to c } }, ::sizeOf)
-        // Seite 1: Wetter breit, darunter Kalender + Uhr, unten die Alltags-Apps
+        // Page 1: weather wide, below it calendar + clock, at the bottom the everyday apps
         val p1 = page(
             widget(T.WEATHER, 4, 2) to 0,
             widget(T.CALENDAR, 2, 2) to 2 * cols, widget(T.CLOCK, 2, 2) to 2 * cols + 2,
@@ -318,7 +318,7 @@ class HomeModel(
             app("com.google.android.apps.maps") to 5 * cols, app("com.google.android.youtube") to 5 * cols + 1,
             app("com.google.android.gm") to 5 * cols + 2, app("com.android.settings") to 5 * cols + 3,
         )
-        // Seite 2: Fotos + Erinnerungen, Werkzeuge, Ordner, Batterien unten links (freie Platzierung)
+        // Page 2: photos + reminders, tools, folders, batteries bottom left (free placement)
         val extras = listOfNotNull(app("com.google.android.apps.safetyhub"), app("com.android.stk"), app("com.sysadmindoc.iosicons"))
         val folderId = FOLDER_PREFIX + java.util.UUID.randomUUID().toString()
         folders = if (extras.size >= 2) mapOf(folderId to SavedFolder("Extras", extras)) else emptyMap()
@@ -333,34 +333,34 @@ class HomeModel(
             app("com.android.chrome"), app("com.google.android.apps.youtube.music")).take(DOCK_MAX)
         pages = listOf(p1, p2)
         hiddenPages = emptyList()
-        // übrige Apps bleiben in der Mediathek (wie iOS „Nur in App-Mediathek“)
+        // remaining apps stay in the App Library (like iOS "App Library Only")
         val placed = (p1 + p2 + dock + extras).toSet()
         hidden = apps.keys.filter { it !in placed }.toSet()
         save()
     }
 
-    /** Größe eines Items in Rasterzellen (Icon/Ordner 1×1). */
+    /** Size of an item in grid cells (icon/folder 1×1). */
     fun sizeOf(key: String): Pair<Int, Int> = widgets[key]?.let { it.cols to it.rows } ?: (1 to 1)
 
-    /** Zellen je Seite für das angezeigte Layout (GridPlacement). */
+    /** Cells per page for the displayed layout (GridPlacement). */
     val displayCells: List<IntArray> by derivedStateOf { display.gapped.map { GridPlacement.placeReal(it, ::sizeOf) } }
 
-    /** Wird von MainActivity gesetzt: Android-Widget entfernen (AppWidgetHost.deleteAppWidgetId). */
+    /** Set by MainActivity: remove an Android widget (AppWidgetHost.deleteAppWidgetId). */
     var onAndroidWidgetRemoved: (Int) -> Unit = {}
 
-    /** Widget oben auf der aktuellen Seite einfügen (iOS), Rest fließt weiter. */
+    /** Insert a widget at the top of the current page (iOS), the rest flows on. */
     /**
-     * Neues Widget fliegt aus dem Picker in seinen Platz und löst eine Schockwelle aus (Aufnahme 10-09 10:40, 47,6–48,3 s):
-     * gläserne Kopie hebt sich aus der Vorschau, landet leicht vergrößert (≈ 1,12×), schwingt auf 1,0 ein, Inhalt wird
-     * dabei scharf; die Nachbar-Icons werden ≈ 6 pt radial weggedrückt und federn zurück (Welle läuft nach außen).
+     * New widget flies from the picker into its slot and triggers a shock wave (recording 10-09 10:40, 47.6–48.3 s):
+     * glass copy rises from the preview, lands slightly enlarged (≈ 1.12×), settles to 1.0, content becomes
+     * sharp meanwhile; the neighbour icons are pushed ≈ 6 pt radially away and spring back (wave travels outwards).
      */
     class WidgetLanding(val key: String, val fromCenter: Offset) {
-        /** EIN durchgehender Fortschritt 0 → 1: Abheben, Flug, Überschwingen, Einschwingen (kein Stückeln). */
+        /** ONE continuous progress 0 → 1: lift-off, flight, overshoot, settle (no stitching). */
         val t = Animatable(0f)
     }
     var widgetLanding by mutableStateOf<WidgetLanding?>(null)
         private set
-    /** Schockwelle: Mittelpunkt (Bildschirm-px) + Zeit seit Auslösung (s). */
+    /** Shock wave: centre (screen px) + time since trigger (s). */
     class Shockwave(val center: Offset) { val time = Animatable(0f) }
     var shockwave by mutableStateOf<Shockwave?>(null)
         private set
@@ -386,7 +386,7 @@ class HomeModel(
         }
     }
 
-    /** Neues Widget; gibt seine ID zurück (für die Lande-Animation). */
+    /** New widget; returns its ID (for the landing animation). */
     fun addWidget(spec: WidgetSpec, page: Int): String {
         val id = WIDGET_PREFIX + java.util.UUID.randomUUID().toString()
         widgets = widgets + (id to spec)
@@ -399,11 +399,11 @@ class HomeModel(
         return id
     }
 
-    // ── Widget-Größe per Griff (M-WIDGET-RESIZE) ─────────────────────────────────
+    // ── Widget size via handle (M-WIDGET-RESIZE) ─────────────────────────────────
     var resize by mutableStateOf<WidgetResize?>(null)
         private set
 
-    /** Layout beim Anfassen — jede Größenstufe wird von hier aus neu verteilt (nicht kumulativ), damit Apps zurückkommen. */
+    /** Layout at touch down — every size step is redistributed from here (not cumulatively), so apps come back. */
     private var resizeBasePages: List<List<String>> = emptyList()
 
     fun beginResize(key: String, start: androidx.compose.ui.geometry.Size) {
@@ -413,7 +413,7 @@ class HomeModel(
         scope.launch { r.w.snapTo(start.width); r.h.snapTo(start.height) }
     }
 
-    /** Rahmen folgt dem Finger (gummibandartig über klein/groß hinaus); Größenstufe wechselt live → Icons fließen um. */
+    /** Rect follows the finger (rubber-band-like beyond small/large); size step changes live → icons reflow. */
     fun updateResize(delta: Offset, geo: HomeGeometry) {
         val r = resize ?: return
         val min = geo.widgetSize(2, 2); val max = geo.widgetSize(4, 4)
@@ -424,13 +424,13 @@ class HomeModel(
         }
         val w = rb(r.start.width + delta.x, min.width, max.width)
         val h = rb(r.start.height + delta.y, min.height, max.height)
-        // Unschärfe = Abstand zur nächsten erlaubten Größe (iOS: je näher an klein/mittel/groß, desto schärfer)
+        // Blur = distance to the nearest allowed size (iOS: the closer to small/medium/large, the sharper)
         val half = Offset((max.width - min.width) / 2, (max.height - min.height) / 2)
         val sizes = listOf(min.width to min.height, max.width to min.height, max.width to max.height)
         val d = sizes.minOf { (sw, sh) -> maxOf(kotlin.math.abs(w - sw) / half.x, kotlin.math.abs(h - sh) / half.y) }.coerceIn(0f, 1f)
-        val blur = d * d * (3f - 2f * d) // weich (smoothstep)
+        val blur = d * d * (3f - 2f * d) // soft (smoothstep)
         scope.launch { r.w.snapTo(w); r.h.snapTo(h); r.blur.snapTo(blur) }
-        // nur echte Größen (klein 2×2, mittel 4×2, groß 4×4) — die nächstliegende; nie hoch und schmal (2×4)
+        // only real sizes (small 2×2, medium 4×2, large 4×4) — the nearest one; never tall and narrow (2×4)
         val (cols, rows) = listOf(2 to 2, 4 to 2, 4 to 4).minBy { (c, rw) ->
             val sw = if (c == 4) max.width else min.width; val sh = if (rw == 4) max.height else min.height
             maxOf(kotlin.math.abs(w - sw) / half.x, kotlin.math.abs(h - sh) / half.y)
@@ -438,7 +438,7 @@ class HomeModel(
         val spec = widgets[r.key] ?: return
         if (spec.cols != cols || spec.rows != rows) {
             widgets = widgets + (r.key to spec.copy(cols = cols, rows = rows))
-            // nur so viel weiterschieben wie nötig — immer vom Ausgangslayout aus
+            // push on only as much as needed — always from the starting layout
             pages = GridPlacement.flow(resizeBasePages, ::sizeOf).filterIndexed { i, pg -> pg.isNotEmpty() || i == 0 }
         }
     }
@@ -451,7 +451,7 @@ class HomeModel(
             kotlinx.coroutines.coroutineScope {
                 launch { r.w.animateTo(target.width, Motion.widgetResize.spec()) }
                 launch { r.h.animateTo(target.height, Motion.widgetResize.spec()) }
-                // gleichzeitig scharf werden, während es in die Größe einrastet
+                // sharpen at the same time while it snaps into the size
                 launch { r.blur.animateTo(0f, androidx.compose.animation.core.tween(Motion.widgetResizeBlurOut.value.roundToInt())) }
             }
             if (resize === r) resize = null
@@ -459,7 +459,7 @@ class HomeModel(
         save()
     }
 
-    /** Größe aus der Größenleiste: derselbe Morph wie beim Griff (unscharf → einrasten → scharf). */
+    /** Size from the size bar: the same morph as with the handle (blurred → snap → sharp). */
     fun setWidgetSize(key: String, cols: Int, rows: Int, geo: HomeGeometry) {
         val spec = widgets[key] ?: return
         if (spec.cols == cols && spec.rows == rows) return
@@ -483,23 +483,23 @@ class HomeModel(
         save()
     }
 
-    // ── Widget-Stapel (Bildschirmaufnahme 10-08 09:56) ───────────────────────────
-    /** Position je Stapel: 0 = erstes Widget, 1 = zweites …; dazwischen während des Wischens. */
+    // ── Widget stacks (screen recording 10-08 09:56) ───────────────────────────
+    /** Position per stack: 0 = first widget, 1 = second …; in between while swiping. */
     private val stackPos = androidx.compose.runtime.mutableStateMapOf<String, Animatable<Float, androidx.compose.animation.core.AnimationVector1D>>()
-    /** Glasrahmen + Punkte sichtbar (beim Wischen 1, danach ausblenden). */
+    /** Glass rim + dots visible (1 while swiping, fade out afterwards). */
     private val stackActive = androidx.compose.runtime.mutableStateMapOf<String, Animatable<Float, androidx.compose.animation.core.AnimationVector1D>>()
     private var stackHideJob: kotlinx.coroutines.Job? = null
 
     fun stackPosition(key: String) = stackPos.getOrPut(key) { Animatable(0f) }
     fun stackActivity(key: String) = stackActive.getOrPut(key) { Animatable(0f) }
-    /** Punkte neben dem Stapel: bleiben nach dem Wischen noch kurz stehen (länger als der Rahmen). */
+    /** Dots next to the stack: stay a little longer after swiping (longer than the rim). */
     private val stackDots = androidx.compose.runtime.mutableStateMapOf<String, Animatable<Float, androidx.compose.animation.core.AnimationVector1D>>()
     fun stackDotsAlpha(key: String) = stackDots.getOrPut(key) { Animatable(0f) }
-    /** Glasrand des Stapels (bleibt nach dem Wischen länger als das Aufwachsen). */
+    /** Glass rim of the stack (stays longer after swiping than the regrowth). */
     private val stackRim = androidx.compose.runtime.mutableStateMapOf<String, Animatable<Float, androidx.compose.animation.core.AnimationVector1D>>()
     fun stackRimAlpha(key: String) = stackRim.getOrPut(key) { Animatable(0f) }
 
-    /** Gerade sichtbares Widget eines Stapels (für Öffnen, Beschriftung). */
+    /** Currently visible widget of a stack (for opening, label). */
     fun shownWidget(key: String): WidgetSpec? {
         val w = widgets[key] ?: return null
         if (w.type != STACK || w.stack.isEmpty()) return w
@@ -507,13 +507,13 @@ class HomeModel(
     }
 
     private var stackStart = 0f
-    /** Letztes manuelles Blättern je Stapel — danach dreht „Intelligentes Drehen“ eine Weile nicht dazwischen. */
+    /** Last manual paging per stack — afterwards "Smart Rotate" doesn't interfere for a while. */
     private val stackTouched = HashMap<String, Long>()
     private var rotateJob: kotlinx.coroutines.Job? = null
 
     /**
-     * Intelligentes Drehen (iOS): beim Zurückkehren auf den Homescreen blättert jeder Stapel mit eingeschalteter Option zum
-     * gerade nützlichsten Widget (data/SmartRotate), sichtbar mit kurz eingeblendeten Punkten. Nicht kurz nach Handarbeit.
+     * Smart Rotate (iOS): when returning to the home screen every stack with the option enabled pages to the
+     * currently most useful widget (data/SmartRotate), visible with briefly shown dots. Not shortly after manual paging.
      */
     fun smartRotateStacks() {
         if (editing) return
@@ -551,7 +551,7 @@ class HomeModel(
         scope.launch { stackRimAlpha(key).animateTo(1f, Motion.stackFrame.spec()) }
     }
 
-    /** [dy] = Fingerweg seit Beginn (px), [h] = Widgethöhe. Hochwischen → nächstes Widget; an den Enden gummibandartig. */
+    /** [dy] = finger travel since start (px), [h] = widget height. Swipe up → next widget; rubber-band-like at the ends. */
     fun stackDrag(key: String, dy: Float, h: Float) {
         val n = widgets[key]?.stack?.size ?: return
         val raw = stackStart - dy / h
@@ -562,7 +562,7 @@ class HomeModel(
     fun stackDragEnd(key: String, velocityY: Float, h: Float) {
         val n = widgets[key]?.stack?.size ?: return
         val p = stackPosition(key)
-        // Schwung: schneller Wisch blättert genau eins weiter
+        // Momentum: a fast swipe pages exactly one further
         val base = stackStart.roundToInt()
         val target = when {
             velocityY < -STACK_FLING * h -> base + 1
@@ -570,8 +570,8 @@ class HomeModel(
             else -> p.value.roundToInt()
         }.coerceIn(0, n - 1)
         scope.launch { p.animateTo(target.toFloat(), Motion.stackSnap.spec(), initialVelocity = -velocityY / h) }
-        // Bild 862–892: Inhalt wächst im stehenden Glasrand wieder auf (≈ 0,47 s), der Rand bleibt danach noch kurz,
-        // erst dann blenden Rand + Punkte aus
+        // Frame 862–892: content regrows inside the standing glass rim (≈ 0.47 s), the rim then stays briefly,
+        // only then rim + dots fade out
         scope.launch { stackActivity(key).animateTo(0f, Motion.stackGrow.spec()) }
         stackHideJob = scope.launch {
             delay(STACK_RIM_HOLD_MS)
@@ -580,22 +580,22 @@ class HomeModel(
         }
     }
 
-    // ── Stapel bearbeiten (Aufnahme 10-08 10:21) ──────────────────────────────────
+    // ── Edit Stack (recording 10-08 10:21) ──────────────────────────────────
     var stackEditKey by mutableStateOf<String?>(null)
         private set
-    /** 0 = zu, 1 = Editor offen. */
+    /** 0 = closed, 1 = editor open. */
     val stackEdit = Animatable(0f)
-    /** Minus im Editor: Index des Widgets, für das die Abfrage offen ist. */
+    /** Minus in the editor: index of the widget the confirmation is open for. */
     var stackRemoveAsk by mutableStateOf<Int?>(null)
 
-    /** Bildschirmrahmen des Stapels beim Öffnen — daraus wächst das Panel, dorthin schrumpft es zurück. */
+    /** Screen rect of the stack on opening — the panel grows from it and shrinks back into it. */
     var stackEditFrom by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
         private set
 
     fun openStackEditor(key: String) {
         if (widgets[key]?.type != STACK) return
         val m = contextMenu?.takeIf { it.key == key }
-        // Startrahmen = angehobene Menü-Kopie (Ruheplatz × Hebung); die Kopie selbst verschwindet sofort — das Panel IST sie (Bild 288)
+        // Start rect = lifted menu copy (rest slot × lift); the copy itself disappears immediately — the panel IS it (frame 288)
         stackEditFrom = m?.widgetRect?.let { r ->
             val s = m.lift.value; val c = r.center - Offset(0f, m.liftY.value * io.github.janhurn9400.liquidy.design.UiScale.density(repository.context))
             androidx.compose.ui.geometry.Rect(c - Offset(r.width * s / 2, r.height * s / 2), androidx.compose.ui.geometry.Size(r.width * s, r.height * s))
@@ -618,7 +618,7 @@ class HomeModel(
         val s = widgets[key] ?: return
         when (items.size) {
             0 -> { removeWidget(key); closeStackEditor(); return }
-            1 -> { widgets = widgets + (key to items[0]); stackPos.remove(key); closeStackEditor() } // ein Widget → kein Stapel mehr
+            1 -> { widgets = widgets + (key to items[0]); stackPos.remove(key); closeStackEditor() } // one widget → no longer a stack
             else -> {
                 widgets = widgets + (key to s.copy(stack = items))
                 scope.launch { stackPosition(key).let { p -> p.snapTo(p.value.coerceIn(0f, items.lastIndex.toFloat())) } }
@@ -642,7 +642,7 @@ class HomeModel(
         save()
     }
 
-    /** Aus dem Editor auf den Homescreen ziehen: Widget kommt als eigenes Widget direkt hinter den Stapel. */
+    /** Drag from the editor to the home screen: the widget becomes its own widget right behind the stack. */
     fun stackDetach(key: String, index: Int) {
         val s = widgets[key] ?: return
         val item = s.stack.getOrNull(index) ?: return
@@ -653,7 +653,7 @@ class HomeModel(
         closeStackEditor()
     }
 
-    /** „+“ im Editor: neues Widget kommt oben in den Stapel (Größe des Stapels). */
+    /** "+" in the editor: new widget goes on top of the stack (stack size). */
     var addingToStack by mutableStateOf(false)
     fun addToStack(spec: WidgetSpec) {
         val k = stackEditKey ?: return
@@ -677,31 +677,31 @@ class HomeModel(
     var openFolder by mutableStateOf<OpenFolder?>(null)
         private set
 
-    /** Antipp-Feedback (M-PRESS) — immer nur ein Icon gleichzeitig. */
+    /** Tap feedback (M-PRESS) — only one icon at a time. */
     var pressedKey by mutableStateOf<String?>(null)
     val pressAlpha = Animatable(0f)
 
-    /** Icon wächst beim Halten vor dem Kontextmenü (M-CTXMENU, 1 → 1,23). */
+    /** Icon grows while holding before the context menu (M-CTXMENU, 1 → 1.23). */
     val pressScale = Animatable(1f)
-    /** Icon, das [pressScale] gerade trägt (bleibt beim Zurückfedern gesetzt, auch wenn pressedKey schon weg ist). */
+    /** Icon that currently carries [pressScale] (stays set while springing back, even if pressedKey is already gone). */
     var pressScaleKey by mutableStateOf<String?>(null)
     var contextMenu by mutableStateOf<ContextMenuState?>(null)
         private set
 
-    /** 0 = ruhig, 1 = volle Wackel-Amplitude (M-JIGGLE). */
+    /** 0 = still, 1 = full jiggle amplitude (M-JIGGLE). */
     val jiggleAmount = Animatable(0f)
-    /** Skalierung der Minus-Badges und Edit-Buttons (M-BADGE). */
+    /** Scale of the minus badges and edit buttons (M-BADGE). */
     val badgeScale = Animatable(0f)
-    /** Duo: ✓/Pinsel oben rechts (eigener Verlauf, siehe enterEdit). 0 = weg, 1 = da. */
+    /** Duo: ✓/brush top right (own curve, see enterEdit). 0 = gone, 1 = there. */
     val editButtons = Animatable(0f)
     private var editButtonsJob: kotlinx.coroutines.Job? = null
 
     val anims = HashMap<String, IconAnim>()
 
-    // ── App-Mediathek (Phase 4) ─────────────────────────────────────────────────
+    // ── App Library (phase 4) ─────────────────────────────────────────────────
     val libraryScroll = Animatable(0f)
     val library: List<LibraryCategory> by derivedStateOf { computeLibrary() }
-    /** Kategorien als „virtuelle Ordner“ (Tippen auf den Mini-Cluster öffnet sie wie einen Ordner). */
+    /** Categories as "virtual folders" (tapping the mini cluster opens them like a folder). */
     fun folderFor(id: String): SavedFolder? = folders[id] ?: library.firstOrNull { it.id == id }?.let { c ->
         SavedFolder(c.name, c.apps.map { it.key })
     }
@@ -725,22 +725,22 @@ class HomeModel(
         return res
     }
 
-    // ── Mediathek: A–Z-Liste (M-LIB-LIST) ───────────────────────────────────────
-    /** Liste sichtbar (auch während des Ein-/Ausblendens). */
+    // ── App Library: A–Z list (M-LIB-LIST) ───────────────────────────────────────
+    /** List visible (also while fading in/out). */
     var libListOpen by mutableStateOf(false)
         private set
-    /** Feld im Listen-Layout (schmal + „Cancel“) und Tastatur oben — erst nach dem Loslassen bzw. beim Antippen. */
+    /** Field in list layout (narrow + "Cancel") and keyboard up — only after release or on tap. */
     var libListActive by mutableStateOf(false)
         private set
-    /** 1 = Kacheln scharf, 0 = unscharf hinter der Liste. */
+    /** 1 = tiles sharp, 0 = blurred behind the list. */
     val libTiles = Animatable(1f)
-    /** Deckkraft der Liste. */
+    /** Opacity of the list. */
     val libList = Animatable(0f)
-    /** Abdunkeln 0…1 (× T-LIB-LIST.dim). */
+    /** Dimming 0…1 (× T-LIB-LIST.dim). */
     val libListDim = Animatable(0f)
-    /** Fingerweg beim Herunterziehen (pt): Liste folgt 1:1, Feld mit M-LIB-LIST.follow. */
+    /** Finger travel while pulling down (pt): list follows 1:1, field with M-LIB-LIST.follow. */
     val libListPull = Animatable(0f)
-    /** 0 = Feld volle Breite (Kacheln), 1 = Listen-Layout. */
+    /** 0 = field full width (tiles), 1 = list layout. */
     val libFieldMorph = Animatable(0f)
     var libQuery by mutableStateOf("")
 
@@ -753,8 +753,8 @@ class HomeModel(
         libListOpen = true
         scope.launch { libraryScroll.stop() }
         if (io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle) {
-            // Duo [GEMESSEN Video 2, 17,16–17,38 s]: Kacheln blenden in ≈ 0,15 s aus, die Zeilen GLEICHZEITIG ein
-            // (ab ≈ 80 ms, nach ≈ 0,2 s ganz da) — keine leere Pause dazwischen
+            // Duo [MEASURED video 2, 17.16–17.38 s]: tiles fade out in ≈ 0.15 s, the rows fade in AT THE SAME TIME
+            // (from ≈ 80 ms, fully there after ≈ 0.2 s) — no empty pause in between
             fade(libTiles, 0f, DUO_LIB_TILES_OUT_MS)
             fade(libList, 1f, DUO_LIB_LIST_IN_MS, DUO_LIB_LIST_DELAY_MS)
             fade(libListDim, 1f, Motion.libListDimIn.value)
@@ -765,19 +765,19 @@ class HomeModel(
         }
     }
 
-    /** Herunterziehen am oberen Ende der Mediathek: Liste erscheint sofort (recording2 10,1 s). */
+    /** Pull down at the top end of the App Library: list appears immediately (recording2 10.1 s). */
     fun libListPullBegin() = showLibList()
 
     fun libListPullTo(pt: Float) { scope.launch { libListPull.snapTo(pt.coerceAtLeast(0f)) } }
 
-    /** Loslassen: Liste und Feld federn zurück, Feld morpht ins Listen-Layout, Tastatur fährt hoch. */
+    /** Release: list and field spring back, field morphs into the list layout, keyboard comes up. */
     fun libListRelease() {
         libListActive = true
         scope.launch { libListPull.animateTo(0f, Motion.libListSettle.spec()) }
         scope.launch { libFieldMorph.animateTo(1f, Motion.searchMorph.spec()) }
     }
 
-    /** Antippen des Suchfelds: direkt in die Liste. */
+    /** Tapping the search field: straight into the list. */
     fun openLibList() {
         showLibList()
         libListRelease()
@@ -798,26 +798,26 @@ class HomeModel(
         }
     }
 
-    /** Alle Apps alphabetisch (ohne versteckte), optional gefiltert. */
+    /** All apps alphabetically (without hidden ones), optionally filtered. */
     fun libListApps(): List<AppEntry> {
         val q = libQuery.trim().lowercase()
         return apps.values.filter { it.key !in hidden && (q.isEmpty() || it.label.lowercase().contains(q)) }
             .sortedWith(compareBy(java.text.Collator.getInstance()) { it.label })
     }
 
-    // ── Mediathek: Kategorie aufklappen (M-LIB-CAT) ────────────────────────────
+    // ── App Library: expand category (M-LIB-CAT) ────────────────────────────
     var openCategory by mutableStateOf<OpenCategory?>(null)
         private set
 
     fun openCategory(index: Int) {
         val cat = library.getOrNull(index) ?: return
-        if (cat.isHidden) return // iOS: Face ID — hier noch nicht
+        if (cat.isHidden) return // iOS: Face ID — not here yet
         val c = OpenCategory(cat, index, libraryScroll.value)
         openCategory = c
         scope.launch { c.progress.animateTo(1f, Motion.libCategory.spec()) }
     }
 
-    /** Mediathek hinter der offenen Kategorie: Skala und Deckkraft (M-LIB-CAT). */
+    /** App Library behind the open category: scale and opacity (M-LIB-CAT). */
     fun libCategoryScale(): Float {
         val p = openCategory?.progress?.value ?: return 1f
         return 1f + (Motion.libCategoryScale.value - 1f) * (p / Motion.libCategoryScaleEnd.value).coerceIn(0f, 1f)
@@ -827,10 +827,10 @@ class HomeModel(
         return 1f - (p / Motion.libCategoryFadeEnd.value).coerceIn(0f, 1f)
     }
 
-    /** Sofort zu (nach dem Herausziehen einer App — die Kategorie war dabei schon unsichtbar). */
+    /** Close immediately (after pulling out an app — the category was already invisible then). */
     fun closeCategoryNow() { openCategory = null }
 
-    /** Beim Herausziehen: Kategorie-Effekte (Unschärfe, geschrumpfte Mediathek) sofort zurücknehmen, Ansicht bleibt bestehen. */
+    /** When pulling out: undo category effects (blur, shrunk App Library) immediately, the view stays. */
     fun collapseCategoryForDrag() { openCategory?.let { c -> scope.launch { c.progress.snapTo(0f) } } }
 
     fun closeCategory() {
@@ -841,10 +841,10 @@ class HomeModel(
         }
     }
 
-    // ── Suche (Phase 4) ───────────────────────────────────────────────────────
-    /** Homescreen-Versatz h (pt) der Suche: folgt beim Ziehen dem Finger, beim Öffnen und Schließen zurück auf 0. */
+    // ── Search (phase 4) ───────────────────────────────────────────────────────
+    /** Home offset h (pt) of the search: follows the finger while dragging, back to 0 on open and close. */
     val searchProgress = Animatable(0f)
-    /** 0 = zu, 1 = offen (Abdunkeln/Blur/Skalierung des offenen Zustands, unabhängig vom Versatz). */
+    /** 0 = closed, 1 = open (dimming/blur/scale of the open state, independent of the offset). */
     val searchOpenAmount = Animatable(0f)
     var searchOpen by mutableStateOf(false)
         private set
@@ -856,7 +856,7 @@ class HomeModel(
 
     private var demoPagesApplied = -1
 
-    // ── Laden / Abgleich ──────────────────────────────────────────────────────
+    // ── Loading / sync ──────────────────────────────────────────────────────
     fun onAppsLoaded(list: List<AppEntry>) {
         apps = AppMap(list.associateBy { it.key })
         refreshSuggestions()
@@ -866,7 +866,7 @@ class HomeModel(
         if (saved == null) {
             val dockApps = repository.defaultDock(list)
             val rest = list.filter { it !in dockApps }.map { it.key }
-            // Emulator-Testhilfe: App-Liste auf 1 + demo Seiten verteilen
+            // Emulator test helper: spread the app list over 1 + demo pages
             val chunk = ceil(rest.size / (1f + demo)).toInt().coerceIn(1, PER_PAGE)
             pages = if (rest.isEmpty()) listOf(emptyList()) else rest.chunked(chunk)
             dock = dockApps.map { it.key }
@@ -882,7 +882,7 @@ class HomeModel(
             widgets = saved.widgets
             today = saved.today?.filter { it in saved.widgets } ?: defaultToday()
             fun keep(id: String) = appKeyOf(id) in valid || id in folders || (id in widgets && id !in today) || GridPlacement.isGap(id)
-            dock = saved.dock.filter(::keep).take(DUO_DOCK_SLOTS_LIMIT) // „Mehr Apps im Dock“: angezeigt werden höchstens dockMax
+            dock = saved.dock.filter(::keep).take(DUO_DOCK_SLOTS_LIMIT) // "More Apps in Dock": at most dockMax are shown
             hidden = saved.hidden.filter { it in valid }.toSet()
             dock = dock.filterNot(::isWidget)
             val p = saved.pages.map { GridPlacement.trim(it.filter(::keep)) }.filterNot(GridPlacement::isBlank).toMutableList()
@@ -903,7 +903,7 @@ class HomeModel(
         }
     }
 
-    /** Raster-Regel geändert (Quirks): Seiten neu fließen lassen, damit nichts außerhalb des Rasters landet. */
+    /** Grid rule changed (Quirks): reflow the pages so nothing ends up outside the grid. */
     fun reflowPages() {
         pages = GridPlacement.flow(pages, ::sizeOf)
         save()
@@ -911,18 +911,18 @@ class HomeModel(
 
     private fun save() = store.save(SavedLayout(pages, dock, folders, hidden, widgets, today, hiddenPages))
 
-    // ── Bearbeitungsmodus ──────────────────────────────────────────────────────
-    /** Haptik-Tick (aus HomeScreen gesetzt, braucht eine View); prüft selbst, ob Haptik an ist. */
+    // ── Edit mode ──────────────────────────────────────────────────────
+    /** Haptic tick (set from HomeScreen, needs a View); checks itself whether haptics are on. */
     var haptic: () -> Unit = {}
 
     fun enterEdit() {
         if (editing) return
         editing = true
-        haptic() // iOS: spürbar beim Beginn des Wackelns
-        scope.launch { jiggleAmount.snapTo(1f) } // [GEMESSEN] kein Einblenden
+        haptic() // iOS: noticeable when jiggling starts
+        scope.launch { jiggleAmount.snapTo(1f) } // [MEASURED] no fade-in
         scope.launch { badgeScale.animateTo(1f, Motion.badge.spec()) }
-        // Duo [GEMESSEN Aufnahme 19:07:42, 6,54–6,75 s]: Statussymbole weg, ≈ 90 ms nichts, dann ploppen ✓/Pinsel aus
-        // ≈ 60 % Größe halb durchsichtig auf und federn mit leichtem Überschwingen auf volle Größe (≈ 120 ms)
+        // Duo [MEASURED recording 19:07:42, 6.54–6.75 s]: status symbols gone, ≈ 90 ms nothing, then ✓/brush pop up at
+        // ≈ 60 % size half transparent and spring to full size with a slight overshoot (≈ 120 ms)
         editButtonsJob?.cancel()
         editButtonsJob = scope.launch {
             editButtons.snapTo(0f)
@@ -937,19 +937,19 @@ class HomeModel(
         editing = false
         scope.launch { jiggleAmount.animateTo(0f, Motion.jiggleStop.spec()) }
         scope.launch { badgeScale.animateTo(0f, Motion.badge.spec()) }
-        // Duo [GEMESSEN 19:06:29, 11,97 → 11,98 s]: Knöpfe verschwinden in einem Bild
+        // Duo [MEASURED 19:06:29, 11.97 → 11.98 s]: buttons disappear in one frame
         editButtonsJob?.cancel(); editButtonsJob = scope.launch { editButtons.snapTo(0f) }
         pages = pages.filterNot(GridPlacement::isBlank).map(GridPlacement::trim).ifEmpty { listOf(emptyList()) }
         save()
     }
 
-    // ── Ziehen ────────────────────────────────────────────────────────────────
-    /** Eigener Badge-Faktor je Icon (Aufnehmen/Ablegen, M-BADGE-DRAG); fehlt = 1. */
+    // ── Dragging ────────────────────────────────────────────────────────────────
+    /** Own badge factor per icon (pick-up/drop, M-BADGE-DRAG); missing = 1. */
     val badgeOwn = androidx.compose.runtime.mutableStateMapOf<String, Animatable<Float, androidx.compose.animation.core.AnimationVector1D>>()
-    /** Minus-Badge-Größe für [key] (Bearbeiten-Modus × eigener Faktor). */
+    /** Minus badge size for [key] (edit mode × own factor). */
     fun badgeOf(key: String): Float = badgeScale.value * (badgeOwn[key]?.value ?: 1f)
 
-    /** Original an der Ausgangsstelle blendet beim Aufnehmen aus (iOS: Geist + schrumpfendes Badge). */
+    /** Original at the origin fades out on pick-up (iOS: ghost + shrinking badge). */
     class PickupGhost(val key: String, val topLeft: Offset, val dock: Boolean) { val fade = Animatable(1f) }
     var pickupGhost by mutableStateOf<PickupGhost?>(null)
         private set
@@ -963,9 +963,9 @@ class HomeModel(
         }
         val origin = when {
             key in dock -> DropTarget.Dock(dock.indexOf(key))
-            // aus der Mediathek: App liegt (noch) nirgends auf dem Homescreen → erst beim Überfahren einer Seite einsetzen
+            // from the App Library: app isn't anywhere on the home screen (yet) → insert only when hovering over a page
             pages.none { key in it } -> null
-            // Ziel = Zelle (freie Platzierung); Ausgangszelle des Items
+            // Target = cell (free placement); origin cell of the item
             else -> pages.indexOfFirst { key in it }.let { p ->
                 DropTarget.Page(p, GridPlacement.place(pages[p], ::sizeOf).getOrElse(pages[p].indexOf(key)) { 0 }.coerceAtLeast(0))
             }
@@ -978,28 +978,28 @@ class HomeModel(
 
     private var pendingHover: DropTarget? = null
     private var hoverJob: Job? = null
-    /** Platzhalter, der beim Ziehen an der Ausgangsstelle bleibt (aktuelles iOS: die anderen rücken nicht nach). */
+    /** Placeholder that stays at the origin while dragging (current iOS: the others don't move up). */
     private var dragGap = GridPlacement.newGap()
 
-    /** @param pagerPage aktuell sichtbare Seite (gerundet) */
+    /** @param pagerPage currently visible page (rounded) */
     private var pendingMerge: String? = null
     private var mergeJob: Job? = null
-    /** Fingerposition, ab der der Stillstand über dem Ziel gezählt wird (M-MERGE). */
+    /** Finger position from which the standstill over the target is counted (M-MERGE). */
     private var mergeAnchor = Offset.Zero
 
     fun updateDrag(pointer: Offset, geo: HomeGeometry, pagerPage: Int, pagerOffsetPx: Float) {
         val d = drag ?: return
         d.pointer = pointer
-        // Ordner-Absicht: Icon-Mitte nahe der Mitte eines anderen Items → Umsortieren einfrieren
+        // Folder intent: icon centre near the centre of another item → freeze reordering
         val merge = when {
             isFolder(d.key) -> null
-            isWidget(d.key) -> findStackCandidate(d, geo, pagerPage, pagerOffsetPx) // gleich großes Widget → Stapel
+            isWidget(d.key) -> findStackCandidate(d, geo, pagerPage, pagerOffsetPx) // equally sized widget → stack
             else -> findMergeCandidate(d, geo, pagerPage, pagerOffsetPx)
         }
         if (merge != null) {
             hoverJob?.cancel(); pendingHover = null
-            // iOS: die Absicht entsteht, sobald das Icon über dem Ziel STILLSTEHT (nicht beim Drüberwischen) — jede größere
-            // Bewegung startet die kurze Wartezeit neu, solange der Hinweis noch nicht steht
+            // iOS: the intent arises as soon as the icon STANDS STILL over the target (not when swiping over) — every larger
+            // movement restarts the short wait, as long as the hint isn't showing yet
             val still = DesignTokens.folderMergeStill.value * geo.icon / DesignTokens.iconSize.value
             val restart = merge != pendingMerge || (d.mergeTarget == null && (pointer - mergeAnchor).getDistance() > still)
             if (restart) {
@@ -1015,9 +1015,9 @@ class HomeModel(
             return
         }
         pendingMerge = null; mergeJob?.cancel(); d.mergeTarget = null
-        // Über einem Icon (noch nicht ganz in der Mitte): NICHT ausweichen — sonst rückt das Ziel weg, bevor die Ordner-Absicht
-        // entstehen kann. iOS weicht erst aus, wenn man daneben hält (Nutzer 10-14)
-        // (nicht im Dock: dort ist man immer nah an einem Dock-Icon — Einfügen ins Dock muss weiter gehen)
+        // Over an icon (not quite in the centre yet): DON'T make way — otherwise the target moves away before the folder intent
+        // can arise. iOS makes way only when you hold next to it (user 10-14)
+        // (not in the dock: there you're always close to a dock icon — inserting into the dock must still work)
         if (!isFolder(d.key) && !isWidget(d.key) && !geo.inDockZone(d.pointer) &&
             findMergeCandidate(d, geo, pagerPage, pagerOffsetPx, DesignTokens.folderMergeNear.value) != null) {
             hoverJob?.cancel(); pendingHover = null
@@ -1034,7 +1034,7 @@ class HomeModel(
         }
     }
 
-    /** Widget über ein gleich großes Widget gezogen (Mitten nahe beieinander) → Stapel-Ziel (iOS). */
+    /** Widget dragged over an equally sized widget (centres close together) → stack target (iOS). */
     private fun findStackCandidate(d: DragState, geo: HomeGeometry, page: Int, pagerOffsetPx: Float): String? {
         val spec = widgets[d.key] ?: return null
         val mine = geo.widgetRect(d.pointer - d.grabOffset, spec.cols, spec.rows)
@@ -1075,25 +1075,25 @@ class HomeModel(
             return DropTarget.Dock(geo.dockIndexAt(center, baseDock.size))
         }
         val local = center - Offset(pagerOffsetPx, 0f)
-        // freie Platzierung: Ziel ist die Zelle unter dem Icon (Widget: Zelle oben links), nicht mehr eine Listenposition
+        // free placement: target is the cell under the icon (widget: top-left cell), no longer a list position
         val targetCell = geo.slotAt(local, Int.MAX_VALUE).coerceIn(0, DesignTokens.GRID_COLUMNS * DesignTokens.GRID_ROWS - 1)
         return DropTarget.Page(page, targetCell)
     }
 
-    /** Legt das gezogene Icon ab; Bildschirm→Container-Umrechnung, damit es vom Finger aus in den Platz fällt. */
+    /** Drops the dragged icon; screen→container conversion so it falls from the finger into the slot. */
     fun drop(geo: HomeGeometry, pagerPosition: Float) {
         val d = drag ?: return
         hoverJob?.cancel()
         mergeJob?.cancel()
         pendingHover = null
         pendingMerge = null
-        badgeOwn.remove(d.key) // landet nicht an einem Platz (Ordner/zurück) → Faktor nicht mehr nötig
+        badgeOwn.remove(d.key) // doesn't land in a slot (folder/back) → factor no longer needed
         d.mergeTarget?.let { target -> mergeInto(d.key, target); drag = null; pruneEmptyPages(); save(); return }
         val result = computeDisplay()
-        // nirgends abgelegt (z. B. aus der Mediathek gezogen, aber nie über eine Seite) → bleibt, wo es war
+        // dropped nowhere (e.g. dragged from the App Library but never over a page) → stays where it was
         if (result.pages.none { d.key in it } && d.key !in result.dock) { drag = null; pruneEmptyPages(); return }
         badgeOwn[d.key] = Animatable(0f)
-        hidden = hidden - appKeyOf(d.key) // aus der Mediathek wieder auf den Homescreen geholt
+        hidden = hidden - appKeyOf(d.key) // brought back from the App Library to the home screen
         val screenTopLeft = d.pointer - d.grabOffset
         val container = when {
             d.key in result.dock -> Container.Dock
@@ -1107,34 +1107,34 @@ class HomeModel(
         anim.container = container
         scope.launch { anim.pos.snapTo(local) }
         anim.nextSpring = Motion.drop
-        // Badge wächst sofort beim Loslassen weich herein (Nutzer 10-14: Warten auf das Ende der Lande-Feder wirkte träge)
+        // Badge grows in smoothly immediately on release (user 10-14: waiting for the end of the landing spring felt sluggish)
         badgeOwn[d.key]?.let { a -> scope.launch { a.animateTo(1f, Motion.badgeDrag.spec()); if (badgeOwn[d.key] === a && drag?.key != d.key) badgeOwn.remove(d.key) } }
         pages = result.gapped.map(GridPlacement::trim)
         dock = result.dock
         drag = null
-        pruneEmptyPages() // z. B. vorne angelegte Seite, auf der dann doch nichts abgelegt wurde
+        pruneEmptyPages() // e.g. page created at the front on which nothing was dropped after all
         save()
     }
 
-    // ── Widget-Einstellungen (Antippen im Bearbeiten-Modus) ───────────────────────
+    // ── Widget settings (tap in edit mode) ───────────────────────
     var widgetConfigKey by mutableStateOf<String?>(null)
         private set
     val widgetConfig = Animatable(0f)
 
-    /** Bildschirmrahmen des Widgets, aus dem das Blatt herausdreht (und in das es zurückdreht). */
+    /** Screen rect of the widget the sheet turns out of (and back into). */
     var widgetConfigFrom by mutableStateOf(androidx.compose.ui.geometry.Rect.Zero)
         private set
 
     /**
-     * [GEMESSEN iPhone 10-11 16:40, Bewegung je Bild bei 60 fps]: Öffnen ≈ 0,62 s — das Widget dreht sich um die senkrechte
-     * Achse (hochkant ≈ 0,16 s), dahinter erscheint die Karte und wächst mittig auf; Schließen ≈ 0,55 s rückwärts.
+     * [MEASURED iPhone 10-11 16:40, motion per frame at 60 fps]: open ≈ 0.62 s — the widget turns around the vertical
+     * axis (edge-on ≈ 0.16 s), behind it the card appears and grows from the centre; close ≈ 0.55 s in reverse.
      */
     fun openWidgetConfig(key: String, from: androidx.compose.ui.geometry.Rect) {
         widgetConfigFrom = from
         widgetConfigKey = key
         scope.launch {
             widgetConfig.snapTo(0f)
-            // [GEMESSEN Bewegung je Bild]: kräftig ab dem ersten Bild, 0,29 s Hauptteil, langer Auslauf bis 0,62 s; hochkant bei ≈ 0,16 s
+            // [MEASURED motion per frame]: strong from the first frame, 0.29 s main part, long tail until 0.62 s; edge-on at ≈ 0.16 s
             widgetConfig.animateTo(1f, androidx.compose.animation.core.tween(WIDGET_CONFIG_OPEN_MS,
                 easing = androidx.compose.animation.core.CubicBezierEasing(0.22f, 0.55f, 0.28f, 1f)))
         }
@@ -1142,7 +1142,7 @@ class HomeModel(
 
     fun closeWidgetConfig() {
         scope.launch {
-            // [GEMESSEN]: Bewegung steigt in ≈ 80 ms an, hochkant bei ≈ 0,11 s, ausgelaufen nach ≈ 0,55 s
+            // [MEASURED]: motion rises in ≈ 80 ms, edge-on at ≈ 0.11 s, settled after ≈ 0.55 s
             widgetConfig.animateTo(0f, androidx.compose.animation.core.tween(WIDGET_CONFIG_CLOSE_MS,
                 easing = androidx.compose.animation.core.CubicBezierEasing(0.25f, 0.4f, 0.25f, 1f)))
             widgetConfigKey = null
@@ -1155,18 +1155,18 @@ class HomeModel(
         save()
     }
 
-    /** Nur Test (Debug-Build, adb-Intent „teststack“): die ersten beiden kleinen Widgets einer Seite zu einem Stapel. */
+    /** Test only (debug build, adb intent "teststack"): the first two small widgets of a page into a stack. */
     fun debugMakeStack() {
         val small = pages.flatten().filter { k -> widgets[k]?.let { it.type != STACK && it.cols == 2 && it.rows == 2 } == true }
         if (small.size < 2) return
         mergeInto(small[0], small[1]); save()
     }
 
-    /** Legt [key] in den Ordner [target] bzw. erzeugt aus App [target] + [key] einen neuen Ordner an dessen Platz. */
+    /** Puts [key] into folder [target] or creates a new folder from app [target] + [key] in its place. */
     private fun mergeInto(key: String, target: String) {
         val basePages = pagesWithHole(key)
         val baseDock = dock - key
-        if (isWidget(key)) { // Widget auf Widget → Stapel; das hinzugefügte liegt oben (iOS zeigt es danach)
+        if (isWidget(key)) { // widget on widget → stack; the added one is on top (iOS shows it afterwards)
             val t = widgets.getValue(target); val k = widgets.getValue(key)
             fun parts(w: WidgetSpec) = if (w.type == STACK) w.stack else listOf(w)
             val items = parts(k) + parts(t)
@@ -1188,7 +1188,7 @@ class HomeModel(
         dock = baseDock.map { if (it == target) id else it }
     }
 
-    // ── Edit-Menü (Bearbeitungsmodus, Knopf oben links) + Wallpaper-Editor ───────────
+    // ── Edit menu (edit mode, button top left) + wallpaper editor ───────────
     val editMenu = Animatable(0f)
     var editMenuOpen by mutableStateOf(false)
         private set
@@ -1217,13 +1217,13 @@ class HomeModel(
             exitEdit(); wallpaperEditorOpen = true
         },
         MenuItem(repository.context.getString(io.github.janhurn9400.liquidy.R.string.edit_pages), MenuGlyph.Pages) { pagesOverviewRequested = true },
-        // Launcher-Einstellungen (Haptik, Duo-Stil, Android-Wallpaper …) — eigenes Blatt statt weiterer Menüeinträge
+        // Launcher settings (haptics, Duo style, Android wallpaper …) — own sheet instead of more menu entries
         MenuItem(repository.context.getString(io.github.janhurn9400.liquidy.R.string.launcher_settings), MenuGlyph.Settings) { openSettings() },
     )
 
-    /** Duo: Pinsel-Knopf leuchtet vor dem Menü weiß auf (0…1) [GEMESSEN] 21:28, 53,53–53,71 s. */
+    /** Duo: brush button lights up white before the menu (0…1) [MEASURED] 21:28, 53.53–53.71 s. */
     val editBrushFlash = Animatable(0f)
-    /** Duo: Menü fließt gerade in den Pinsel zurück (andere Tropfenform als beim Öffnen). */
+    /** Duo: menu is flowing back into the brush right now (different droplet shape than when opening). */
     var editMenuClosing by mutableStateOf(false)
 
     fun openEditMenu(duo: Boolean = false) {
@@ -1233,22 +1233,22 @@ class HomeModel(
             return
         }
         scope.launch {
-            // Tropfen liegt sofort deckungsgleich auf dem Knopf (Knopf selbst ausgeblendet) → er leuchtet auf und fließt los
+            // Droplet lies congruently on the button immediately (button itself hidden) → it lights up and flows off
             editMenu.snapTo(0f)
             editMenuOpen = true
             editBrushFlash.animateTo(1f, androidx.compose.animation.core.tween(BRUSH_FLASH_IN_MS))
             kotlinx.coroutines.delay(BRUSH_FLASH_HOLD_MS)
             launch { editBrushFlash.animateTo(0f, androidx.compose.animation.core.tween(BRUSH_FLASH_OUT_MS)) }
-            // Tropfen fließt in ≈ 0,19 s zur Menüform (Video 4: 3,91 → 4,10 s), leichtes Nachfedern
+            // Droplet flows into the menu shape in ≈ 0.19 s (video 4: 3.91 → 4.10 s), slight spring-back
             editMenu.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = DROP_DAMPING, stiffness = DROP_STIFFNESS))
         }
     }
 
     fun closeEditMenu() {
         scope.launch {
-            // Duo: Tropfen zieht sich in den Pinsel zurück (gleicher Weg rückwärts, etwas schneller)
+            // Duo: droplet withdraws into the brush (same path backwards, a bit faster)
             if (io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle) {
-                // [GEMESSEN Video 4] Zuklappen ≈ 0,22 s bis in den Knopf: anfangs schnell kleiner, dann langsam hineingezogen
+                // [MEASURED video 4] closing ≈ 0.22 s into the button: shrinks quickly at first, then drawn in slowly
                 editMenuClosing = true
                 editMenu.animateTo(0f, androidx.compose.animation.core.tween(DROP_CLOSE_MS, easing = DROP_CLOSE_EASE))
                 editMenuClosing = false
@@ -1258,23 +1258,23 @@ class HomeModel(
         }
     }
 
-    // ── Rückkehr aus einer App (Gesten-Navigation) ───────────────────────────────
-    /** Von HomeScreen gesetzt: Bildschirmrechteck des Icons einer App auf der sichtbaren Seite/im Dock/im Ordner. */
+    // ── Returning from an app (gesture navigation) ───────────────────────────────
+    /** Set by HomeScreen: screen rect of an app's icon on the visible page/in the dock/in the folder. */
     var iconLocator: (android.content.ComponentName, android.os.UserHandle) -> androidx.compose.ui.geometry.Rect? = { _, _ -> null }
 
-    /** Zuletzt angetipptes Icon (bei mehreren Icons derselben App: genau dieses für Öffnen + Rückkehr), sonst null. */
+    /** Last tapped icon (with several icons of the same app: exactly this one for open + return), otherwise null. */
     var launchedIconKey: String? = null
 
-    /** Aus der Mediathek (Übersicht oder Kategorie) geöffnet: App-Key + Bildschirmrahmen des Icons dort, für die Rückkehr. */
+    /** Opened from the App Library (overview or category): app key + screen rect of the icon there, for the return. */
     var libraryLaunch: Pair<String, androidx.compose.ui.geometry.Rect>? = null
 
-    /** Von HomeScreen gesetzt: Mediathek (bzw. offene Kategorie) ist gerade sichtbar → Rückkehr dorthin möglich. */
+    /** Set by HomeScreen: App Library (or open category) is visible right now → return there possible. */
     var libraryVisible: () -> Boolean = { false }
 
-    /** Icon, in das gerade ein App-Fenster fliegt: wird ausgeblendet (die Icon-Fläche des Systems steht an seiner Stelle). */
+    /** Icon an app window is flying into right now: hidden (the system's icon surface stands in its place). */
     var flyingKey by mutableStateOf<String?>(null)
 
-    /** Von MainActivity gesetzt: zeigt die Icon-Fläche und meldet Position + Fläche ans System. */
+    /** Set by MainActivity: shows the icon surface and reports position + surface to the system. */
     var flyingSurface: (io.github.janhurn9400.liquidy.data.GestureNavContract, android.graphics.RectF, android.graphics.Bitmap?, () -> Unit, Float?) -> Unit =
         { c, r, _, done, _ -> c.sendEndPosition(r); done() }
 
@@ -1282,58 +1282,58 @@ class HomeModel(
         holdReturnBlur()
         contract?.let { c ->
             val app = apps.values.firstOrNull { it.component == c.component && it.user == c.user }
-            // aus der Mediathek geöffnet und sie ist noch zu sehen → zurück an dieselbe Stelle (iOS)
+            // opened from the App Library and it's still visible → back to the same spot (iOS)
             val lib = libraryLaunch?.takeIf { (k, _) -> k == app?.key && libraryVisible() }?.second
             if (lib != null && app != null) {
                 flyingKey = null
-                // echtes Mediathek-Icon ausblenden, bis die Icon-Fläche des Systems fertig ist — sonst stand es sofort sichtbar da
+                // hide the real App Library icon until the system's icon surface is done — otherwise it stood there visible immediately
                 LibraryFlying.key = app.key
                 flyingSurface(c, android.graphics.RectF(lib.left, lib.top, lib.right, lib.bottom), app.icon.asAndroidBitmap(),
                     { if (LibraryFlying.key == app.key) LibraryFlying.key = null }, null)
                 return@let
             }
             val r = iconLocator(c.component, c.user) ?: return@let
-            // Ziel ist ein Widget (größer als ein Icon) → keine Icon-Fläche, das Widget selbst bleibt sichtbar
-            // Icon-Ziel (Seite: 60 pt, Duo-Dock: 48 pt) statt Widget: quadratisch und höchstens Icon-groß
+            // Target is a widget (bigger than an icon) → no icon surface, the widget itself stays visible
+            // Icon target (page: 60 pt, Duo dock: 48 pt) instead of widget: square and at most icon-sized
             val iconPx = DesignTokens.iconSize.value * io.github.janhurn9400.liquidy.design.UiScale.density(repository.context)
             val isIconSized = kotlin.math.abs(r.width - r.height) < 2f && r.width <= iconPx + 2f
             fun visibleIcon(k: String) = dock.contains(k) || pages.any { k in it } ||
                 openFolder?.let { of -> folderFor(of.id)?.apps?.contains(k) } == true
-            // angetipptes Icon zuerst, sonst irgendein Icon dieser App (mehrere Icons derselben App möglich)
+            // tapped icon first, otherwise any icon of this app (several icons of the same app possible)
             val target = app?.key?.let { base ->
                 launchedIconKey?.takeIf { appKeyOf(it) == base && visibleIcon(it) }
                     ?: (listOf(base) + pages.flatten() + dock).firstOrNull { appKeyOf(it) == base && visibleIcon(it) }
             }?.takeIf { isIconSized }
             flyingKey = target
-            // Widget-Ziel: Bild des Widgets als Fläche, mit Widget-Ecken (wie beim Dock-Icon, nur in Widget-Größe)
+            // Widget target: image of the widget as surface, with widget corners (like the dock icon, just widget-sized)
             val widgetKey = io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetOrigins[c.component.packageName]?.takeIf { !isIconSized }
             val snap = widgetKey?.let { io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetSnapshots[it] }
             flyingKey = target ?: widgetKey?.takeIf { snap != null }
             val corner = if (snap != null) DesignTokens.widgetCorner.value * io.github.janhurn9400.liquidy.design.UiScale.density(repository.context) else null
             val fk = flyingKey
-            android.util.Log.i("GestureNavContract", "Rückkehr ${c.component.packageName} → $r widget=$widgetKey snap=${snap != null} iconSized=$isIconSized")
+            android.util.Log.i("GestureNavContract", "Return ${c.component.packageName} → $r widget=$widgetKey snap=${snap != null} iconSized=$isIconSized")
             flyingSurface(c, android.graphics.RectF(r.left, r.top, r.right, r.bottom),
                 snap ?: if (target != null) app.icon.asAndroidBitmap() else null, { if (flyingKey == fk) flyingKey = null }, corner)
         }
     }
 
-    /** Unschärfe beim Zurückkehren aus einer App (1 = voll, 0 = scharf); gehalten, bis der Homescreen den Fokus hat. */
+    /** Blur when returning from an app (1 = full, 0 = sharp); held until the home screen has focus. */
     val returnBlur = Animatable(0f)
     private var returnPending = false
 
-    /** Unschärfe beim Öffnen einer App (Android-Wallpaper + Icons), 0…1. */
+    /** Blur when opening an app (Android wallpaper + icons), 0…1. */
     val launchBlur = Animatable(0f)
     private var launchedApp = false
 
-    /** Icon angetippt → Homescreen wird unscharf, während die App aus dem Icon wächst. */
+    /** Icon tapped → home screen blurs while the app grows out of the icon. */
     fun onAppLaunching() {
         launchedApp = true
         scope.launch { launchBlur.animateTo(1f, Motion.appOpen.spec(visibilityThreshold = 0.002f)) }
     }
 
     /**
-     * Homescreen nicht mehr sichtbar (App liegt davor). Hintergrund zurück auf scharf — Android zeigt ihn während der
-     * Zurück-Geste ebenfalls scharf —, die Icons bleiben für die Rückkehr unscharf (werden beim Erscheinen scharf).
+     * Home screen no longer visible (app is in front). Background back to sharp — Android shows it sharp during the
+     * back gesture as well —, the icons stay blurred for the return (they sharpen on appearing).
      */
     fun onHomeHidden() {
         scope.launch { launchBlur.snapTo(0f) }
@@ -1346,10 +1346,10 @@ class HomeModel(
         returnPending = true
     }
 
-    /** Von MainActivity.onWindowFocusChanged: Rückkehr-Animation des Systems ist fertig → scharf werden. */
+    /** From MainActivity.onWindowFocusChanged: the system's return animation is done → sharpen. */
     fun onHomeVisible() {
         smartRotateStacks()
-        // App doch nicht gestartet (oder abgebrochen): nicht unscharf hängen bleiben
+        // App not launched after all (or cancelled): don't stay stuck blurred
         if (launchBlur.value > 0f || launchBlur.isRunning) scope.launch { launchBlur.animateTo(0f, Motion.homeReturn.spec()) }
         launchedApp = false
         if (!returnPending) return
@@ -1360,8 +1360,8 @@ class HomeModel(
         }
     }
 
-    // ── Kontextmenü (M-CTXMENU) ──────────────────────────────────────────────────
-    /** Shortcuts schon beim Aufsetzen im Hintergrund laden (LauncherApps + Glyphen), damit das Menü ohne Ruckler öffnet. */
+    // ── Context menu (M-CTXMENU) ──────────────────────────────────────────────────
+    /** Load shortcuts in the background already on touch down (LauncherApps + glyphs), so the menu opens without stutter. */
     private var shortcutPrefetch: Pair<String, kotlinx.coroutines.Deferred<List<io.github.janhurn9400.liquidy.data.AppShortcut>>>? = null
 
     fun prefetchShortcuts(key: String, density: Float) {
@@ -1371,15 +1371,15 @@ class HomeModel(
         shortcutPrefetch = key to scope.async(kotlinx.coroutines.Dispatchers.Default) { repository.shortcuts(app, px) }
     }
 
-    /** App aus der Mediathek gezogen: Mediathek bleibt sichtbar, bis der Pager zur letzten Seite gewischt hat. */
+    /** App dragged out of the App Library: App Library stays visible until the pager has swiped to the last page. */
     var leavingLibrary by mutableStateOf(false)
 
     fun openContextMenu(key: String, iconTopLeft: Offset, density: Float, widgetRect: androidx.compose.ui.geometry.Rect? = null,
                         fromLibrary: Boolean = false, iconScale: Float = 1f) {
-        haptic() // iOS: spürbar, wenn das Menü aufgeht
+        haptic() // iOS: noticeable when the menu opens
         val res = repository.context
         val items = if (fromLibrary) buildList {
-            // Mediathek (iOS): kein „Vom Home-Bildschirm entfernen“/„Home-Bildschirm bearbeiten“ — App löschen, Info, Shortcuts
+            // App Library (iOS): no "Remove from Home Screen"/"Edit Home Screen" — delete app, info, shortcuts
             val app = apps[key]
             if (app != null) {
                 add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.delete_app_menu), MenuGlyph.Remove, destructive = true) { deleteApp(key) })
@@ -1391,11 +1391,11 @@ class HomeModel(
             }
         } else buildList {
             val app = apps[key]
-            // Ordner: kein „App entfernen“/App-Info (würde einen Lösch-Dialog ohne App öffnen)
+            // Folder: no "Remove App"/app info (would open a delete dialog without an app)
             if (app != null) add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.remove_app_menu), MenuGlyph.Remove, destructive = true) { pendingRemoval = key })
             val isStack = widgets[key]?.type == STACK
-            // Stapel (Aufnahme 10-08 10:21, Bild 262): Stapel bearbeiten · Home-Bildschirm bearbeiten · Stapel entfernen (rot, unten)
-            // Reihenfolge wie die übrigen Systemeinträge: zuerst der äußerste (rot), ContextMenu dreht je nach Lage um
+            // Stack (recording 10-08 10:21, frame 262): Edit Stack · Edit Home Screen · Remove Stack (red, bottom)
+            // Order like the other system entries: the outermost (red) first, ContextMenu flips depending on position
             if (isStack) add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.remove_stack), MenuGlyph.Remove, destructive = true) { removeWidget(key) })
             if (isWidget(key) && !isStack) add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.remove_widget), MenuGlyph.Remove, destructive = true) { removeWidget(key) })
             add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.edit_home_screen), MenuGlyph.EditHome) { enterEdit() })
@@ -1404,7 +1404,7 @@ class HomeModel(
                 add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.app_info), MenuGlyph.Info) {
                     repository.showAppInfo(app, android.graphics.Rect())
                 })
-                // native App-Shortcuts (Android), im iOS-Stil — vorab geladen; fehlen sie noch, öffnet das Menü ohne sie
+                // native app shortcuts (Android), in iOS style — preloaded; if they're still missing, the menu opens without them
                 val pre = shortcutPrefetch?.takeIf { it.first == key }?.second
                 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
                 val list = if (pre != null && pre.isCompleted) pre.getCompleted() else emptyList()
@@ -1417,7 +1417,7 @@ class HomeModel(
         val m = ContextMenuState(key, iconTopLeft, items, widgetRect, if (isWidget(key)) WIDGET_SIZES else emptyList(), iconScale)
         contextMenu = m
         scope.launch { pressAlpha.snapTo(0f); pressedKey = null }
-        // Widgets heben sich kaum (große Fläche) — Icons wie gemessen 1,15× und 10 pt
+        // Widgets barely lift (large area) — icons as measured 1.15× and 10 pt
         val liftScale = if (widgetRect != null) WIDGET_LIFT else Motion.ctxLiftScale.value
         scope.launch { m.lift.snapTo(pressScale.value); pressScale.snapTo(1f); m.lift.animateTo(liftScale, Motion.ctxLift.spec()) }
         if (widgetRect == null) scope.launch { m.liftY.animateTo(Motion.ctxLiftY.value, Motion.ctxLift.spec()) }
@@ -1425,7 +1425,7 @@ class HomeModel(
         scope.launch { m.dim.animateTo(1f, androidx.compose.animation.core.tween(Motion.ctxDimIn.value.roundToInt())) }
     }
 
-    /** Schließen; [then] läuft sofort (z. B. Aktion), die Animation läuft weiter. */
+    /** Close; [then] runs immediately (e.g. action), the animation keeps running. */
     fun closeContextMenu(animated: Boolean = true) {
         val m = contextMenu ?: return
         if (m.closing) return
@@ -1440,20 +1440,20 @@ class HomeModel(
         }
     }
 
-    // ── Ordner öffnen / schließen (M-FOLDER) ─────────────────────────────────────
-    /** Ordner umbenennen (Bearbeiten-Modus, Kapsel über dem offenen Ordner). Leer → beim Schließen Standardname. */
+    // ── Open / close folder (M-FOLDER) ─────────────────────────────────────
+    /** Rename folder (edit mode, capsule above the open folder). Empty → default name on close. */
     var folderFly by mutableStateOf<FolderFly?>(null)
         private set
 
-    /** Sichtbare Ordnerseite (Kommazahl beim Blättern); beim Öffnen 0. */
+    /** Visible folder page (fractional while paging); 0 on open. */
     val folderPage = Animatable(0f)
-    /** App wird gerade im offenen Ordner gezogen. */
+    /** App is being dragged in the open folder right now. */
     var folderDrag by mutableStateOf<FolderDrag?>(null)
 
-    /** Ordner, in dem [key] liegt (null = keiner). */
+    /** Folder that [key] is in (null = none). */
     fun folderContaining(key: String): String? = folders.entries.firstOrNull { key in it.value.apps }?.key
 
-    /** Startet den Flug ins Ordner-Mini-Raster; der Mini-Platz bleibt bis zur Landung leer (FolderIconView.hiddenApp). */
+    /** Starts the flight into the folder mini grid; the mini slot stays empty until landing (FolderIconView.hiddenApp). */
     fun flyIntoFolder(fly: FolderFly) {
         folderFly = fly
         scope.launch {
@@ -1462,7 +1462,7 @@ class HomeModel(
         }
     }
 
-    /** Im offenen Ordner umsortiert: [key] an [index] (Liste ohne [key]). */
+    /** Reordered in the open folder: [key] at [index] (list without [key]). */
     fun reorderInFolder(id: String, key: String, index: Int) {
         val f = folders[id] ?: return
         val rest = f.apps - key
@@ -1470,9 +1470,9 @@ class HomeModel(
         save()
     }
 
-    /** Ordnername wird gerade bearbeitet (Textfeld hat Fokus, Tastatur offen). */
+    /** Folder name is being edited right now (text field has focus, keyboard open). */
     var folderRenaming by mutableStateOf(false)
-    /** Tippstelle aufs Namensfeld (Bildschirm-px) → Cursor dorthin. */
+    /** Tap point on the name field (screen px) → cursor there. */
     var folderRenameTap by mutableStateOf<Offset?>(null)
 
     fun renameFolder(id: String, name: String) {
@@ -1492,22 +1492,22 @@ class HomeModel(
     fun closeFolder() {
         val f = openFolder ?: return
         folders[f.id]?.let { if (it.name.isBlank()) renameFolder(f.id, DEFAULT_FOLDER_NAME) }
-        // von einer späteren Ordnerseite zurück zur ersten — nur die steckt als Mini-Raster im Ordner-Icon
+        // from a later folder page back to the first — only that one sits as a mini grid in the folder icon
         if (folderPage.value != 0f) scope.launch { folderPage.animateTo(0f, Motion.folder.spec()) }
-        // Die Feder kriecht am Ende (ζ 1) — eine Überblendung nach Fortschritt zog sich deshalb beim Schließen lange hin
-        // (Nutzer 10-14). Stattdessen keine Überblendung: Glas (Größe, Ecken, Unschärfe, Tönung) und App-Icons morphen
-        // ganz in das Ordner-Icon, am Ende wird unsichtbar getauscht.
+        // The spring creeps at the end (ζ 1) — a crossfade by progress therefore dragged on for a long time when closing
+        // (user 10-14). Instead no crossfade: glass (size, corners, blur, tint) and app icons morph
+        // fully into the folder icon, at the end they are swapped invisibly.
         f.closing = true
         scope.launch {
-            // feine Sichtbarkeitsschwelle, damit kein Rest-Panel „hängen bleibt“
+            // fine visibility threshold so no leftover panel "hangs around"
             f.progress.animateTo(0f, Motion.folder.spec(visibilityThreshold = FOLDER_DONE))
             if (openFolder === f) openFolder = null
         }
     }
 
-    /** Überblendung in der kleinsten Phase: 0 = nur geschlossenes Icon, 1 = nur Panel (M-FOLDER.handoff). */
-    /** Sichtbarkeit des Panels (0 = nur Ordner-Icon): Öffnen mit kurzer Überblendung am Anfang; Schließen ohne — das Panel
-     *  morpht ganz bis ins Ordner-Icon und wird erst am Ende (deckungsgleich) getauscht. */
+    /** Crossfade in the smallest phase: 0 = only the closed icon, 1 = only the panel (M-FOLDER.handoff). */
+    /** Visibility of the panel (0 = only folder icon): opening with a short crossfade at the start; closing without — the panel
+     *  morphs all the way into the folder icon and is swapped (congruently) only at the end. */
     fun folderVisible(f: OpenFolder): Float = if (f.closing) 1f else folderHandoff(f.progress.value)
 
     fun folderHandoff(p: Float): Float {
@@ -1515,7 +1515,7 @@ class HomeModel(
         return x * x * (3f - 2f * x)
     }
 
-    /** Long-Press auf ein Icon im offenen Ordner: aus dem Ordner nehmen und auf dem Homescreen weiterziehen. */
+    /** Long press on an icon in the open folder: take it out of the folder and keep dragging on the home screen. */
     fun dragOutOfFolder(key: String, pointer: Offset, iconTopLeftScreen: Offset) {
         val f = openFolder ?: return
         if (isLibraryFolder(f.id)) return
@@ -1524,7 +1524,7 @@ class HomeModel(
         val page = pages.indexOfFirst { f.id in it }
         folders = if (remaining.isEmpty()) folders - f.id else folders + (f.id to folder.copy(apps = remaining))
         if (remaining.isEmpty()) { pages = pages.map { it - f.id }; dock = dock - f.id }
-        // Icon zunächst direkt hinter dem Ordner einsortieren, dann normal ziehen
+        // first insert the icon right behind the folder, then drag normally
         if (page >= 0) {
             val idx = pages[page].indexOf(f.id)
             pages = pages.toMutableList().also { it[page] = it[page].toMutableList().apply { add((idx + 1).coerceIn(0, size), key) } }
@@ -1539,14 +1539,14 @@ class HomeModel(
 
     private fun computeDisplay(): DisplayLayout {
         val d = drag ?: return DisplayLayout(pages.map(GridPlacement::stripGaps), dock.take(dockMax), pages)
-        // Ausgangsstelle bleibt als Lücke stehen (aktuelles iOS) — die anderen Icons rücken nicht nach
+        // Origin stays as a gap (current iOS) — the other icons don't move up
         val p = pages.map { pg -> pg.map { if (it == d.key) dragGap else it } }.toMutableList()
         var dk = (dock - d.key).take(dockMax)
         when (val h = d.hover) {
             is DropTarget.Page -> {
                 while (p.size <= h.page) p += emptyList<String>()
                 p[h.page] = GridPlacement.placeAt(p[h.page], d.key, h.index, ::sizeOf)
-                // Überlauf (nach Platz im Raster, Widgets belegen mehrere Zellen) auf die Folgeseiten schieben
+                // push overflow (by space in the grid, widgets occupy several cells) to the following pages
                 val flowed = GridPlacement.flow(p, ::sizeOf)
                 p.clear(); p.addAll(flowed)
             }
@@ -1556,41 +1556,41 @@ class HomeModel(
         return DisplayLayout(p.map(GridPlacement::stripGaps), dk, p)
     }
 
-    // ── Seitenübersicht („Seiten bearbeiten“, Bildschirmaufnahme 10-08 09:55) ─────
+    // ── Page overview ("Edit Pages", screen recording 10-08 09:55) ─────
     var hiddenPages by mutableStateOf<List<io.github.janhurn9400.liquidy.data.HiddenPage>>(emptyList())
         private set
     var pagesOverviewOpen by mutableStateOf(false)
         private set
-    /** 0 = zu, 1 = offen (Karten im Raster). */
+    /** 0 = closed, 1 = open (cards in the grid). */
     val pagesOverview = Animatable(0f)
-    /** Karte (Übersichts-Index), aus der beim Öffnen herausgezoomt bzw. in die beim Schließen hineingezoomt wird. */
+    /** Card (overview index) that is zoomed out of on open or zoomed into on close. */
     var overviewFocus by mutableStateOf(0)
         private set
 
     /**
-     * Von der Seitenübersicht gesetzt: aktuelle Lage der Fokus-Karte und die Seitenfläche, der sie entspricht (beide px).
-     * Der echte Homescreen zoomt beim Öffnen/Schließen damit mit (wie Duo) — liegt so immer deckungsgleich unter der Karte.
+     * Set by the page overview: current position of the focus card and the page area it corresponds to (both px).
+     * The real home screen zooms along with it on open/close (like Duo) — so it always lies congruently under the card.
      */
     /**
-     * Sichtbare Seite in der linken Bildschirmhälfte beim Öffnen/Schließen (−1 = Heute-Ansicht). Duo aufgeklappt wandert auch
-     * die Seite rechts daneben (+1) in ihre Karte — beide sichtbaren Seiten zoomen gleichzeitig.
+     * Visible page in the left screen half on open/close (−1 = Today view). Duo unfolded the page to the right of it (+1)
+     * also moves into its card — both visible pages zoom at the same time.
      */
     var overviewLeftPage by mutableStateOf(0)
 
-    /** Je sichtbarer Seite: aktuelle Kartenlage + Bildschirmfläche der Seite (px), von der Übersicht gesetzt. */
-    // State-Map: der Zeichenblock der Seiten muss neu laufen, sobald die Übersicht ihre Karten einträgt
+    /** Per visible page: current card position + screen area of the page (px), set by the overview. */
+    // State map: the pages' drawing block must rerun as soon as the overview registers its cards
     val overviewZoom = androidx.compose.runtime.mutableStateMapOf<Int, () -> Pair<androidx.compose.ui.geometry.Rect, androidx.compose.ui.geometry.Rect>>()
 
-    /** Übersichts-Index → sichtbare Seitennummer (null = ausgeblendete Seite). */
+    /** Overview index → visible page number (null = hidden page). */
     fun overviewVisibleIndex(overviewIndex: Int): Int? =
         overviewPages().takeIf { it.getOrNull(overviewIndex)?.visible == true }?.let { visibleIndexOf(overviewIndex) }
 
-    /** Aus dem Bearbeiten-Menü angefordert (HomeScreen kennt die aktuelle Seite). */
+    /** Requested from the edit menu (HomeScreen knows the current page). */
     var pagesOverviewRequested by mutableStateOf(false)
 
     data class OverviewPage(val items: List<String>, val visible: Boolean)
 
-    /** Sichtbare und ausgeblendete Seiten in Übersichts-Reihenfolge. */
+    /** Visible and hidden pages in overview order. */
     fun overviewPages(): List<OverviewPage> {
         val hid = hiddenPages.sortedBy { it.pos }.toMutableList()
         val vis = pages.toMutableList()
@@ -1613,20 +1613,20 @@ class HomeModel(
         scope.launch { pagesOverview.animateTo(1f, Motion.pagesOverview.spec()) }
     }
 
-    /** Schließen: zoomt in [toIndex] (Übersichts-Index einer sichtbaren Seite) und meldet deren Seitennummer. */
+    /** Close: zooms into [toIndex] (overview index of a visible page) and reports its page number. */
     fun closePagesOverview(toIndex: Int = overviewFocus, onPage: (Int) -> Unit) {
         if (!pagesOverviewOpen) return
         val ov = overviewPages()
         val target = toIndex.takeIf { ov.getOrNull(it)?.visible == true } ?: ov.indexOfFirst { it.visible }.coerceAtLeast(0)
         overviewFocus = target
         scope.launch {
-            pagesOverview.animateTo(0f, Motion.pagesOverview.spec(visibilityThreshold = OVERVIEW_SETTLE)) // fein auslaufen: Standard-Schwelle 0,01 sprang am Ende
+            pagesOverview.animateTo(0f, Motion.pagesOverview.spec(visibilityThreshold = OVERVIEW_SETTLE)) // settle finely: the default threshold 0.01 jumped at the end
             pagesOverviewOpen = false
         }
         onPage(visibleIndexOf(target))
     }
 
-    /** Haken: Seite ein-/ausblenden (mindestens eine Seite bleibt sichtbar). */
+    /** Checkmark: show/hide page (at least one page stays visible). */
     fun togglePage(index: Int) {
         val ov = overviewPages()
         val page = ov.getOrNull(index) ?: return
@@ -1643,7 +1643,7 @@ class HomeModel(
         save()
     }
 
-    /** Karte in der Übersicht verschieben (sichtbare und ausgeblendete Seiten gemeinsam). */
+    /** Move a card in the overview (visible and hidden pages together). */
     fun movePage(from: Int, to: Int) {
         val ov = overviewPages().toMutableList()
         if (from !in ov.indices || to !in ov.indices || from == to) return
@@ -1659,22 +1659,22 @@ class HomeModel(
         save()
     }
 
-    /** Minus an einer ausgeblendeten Seite: Seite entfernen (Apps bleiben in der App-Mediathek). */
+    /** Minus on a hidden page: remove page (apps stay in the App Library). */
     fun deleteHiddenPage(index: Int) {
         if (hiddenPages.none { it.pos == index }) return
         hiddenPages = hiddenPages.filterNot { it.pos == index }.map { if (it.pos > index) it.copy(pos = it.pos - 1) else it }
         save()
     }
 
-    // ── Suche ────────────────────────────────────────────────────────────────
-    /** 0 = „Search“-Pill, 1 = Suchfeld (M-SEARCH-MORPH). */
+    // ── Search ────────────────────────────────────────────────────────────────
+    /** 0 = "Search" pill, 1 = search field (M-SEARCH-MORPH). */
     val searchMorph = Animatable(0f)
     private var morphTarget = 0f
-    /** h beim Loslassen — das Feld bleibt auf dieser Höhe, bis die Tastatur es erreicht. */
+    /** h on release — the field stays at this height until the keyboard reaches it. */
     var searchReleaseH by mutableStateOf(0f)
         private set
 
-    /** true, sobald die Pill zum Suchfeld morpht (auch schon während des Ziehens) → Tastatur lugt heraus. */
+    /** true as soon as the pill morphs into the search field (already while dragging) → keyboard peeks out. */
     var searchMorphOn by mutableStateOf(false)
         private set
 
@@ -1685,10 +1685,10 @@ class HomeModel(
         scope.launch { searchMorph.animateTo(target, spring.spec()) }
     }
 
-    /** Versatz des Vorschlagsblocks (pt) — läuft beim Ziehen 1:1 mit h, federt beim Öffnen auf 0 (M-SEARCH). */
+    /** Offset of the suggestions block (pt) — runs 1:1 with h while dragging, springs to 0 on open (M-SEARCH). */
     val searchBlockOffset = Animatable(0f)
 
-    /** Während des Ziehens: h folgt dem Finger. Es öffnet nichts (gemessen). */
+    /** While dragging: h follows the finger. Nothing opens (measured). */
     fun searchPull(h: Float) {
         val v = h.coerceAtLeast(0f)
         scope.launch { searchProgress.snapTo(v) }
@@ -1696,12 +1696,12 @@ class HomeModel(
         if (v >= Motion.searchMorphOn.value) morphTo(1f) else if (v < Motion.searchMorphOff.value) morphTo(0f)
     }
 
-    /** Loslassen: ab M-SEARCH.commit öffnen, sonst zurück. */
+    /** Release: open from M-SEARCH.commit, otherwise back. */
     fun searchRelease() {
         if (searchProgress.value >= Motion.searchCommit.value) openSearch() else closeSearch()
     }
 
-    /** Duo-Lupe: Aufleuchten beim Antippen (0…1), danach öffnet die Suche. */
+    /** Duo magnifier: lights up on tap (0…1), then search opens. */
     val duoLupePress = Animatable(0f)
 
     fun openSearchFromDuoLupe() {
@@ -1716,7 +1716,7 @@ class HomeModel(
         searchReleaseH = searchProgress.value
         morphTo(1f)
         searchOpen = true
-        // gemessen: Homescreen federt zurück nach oben (0 pt), bleibt aber verkleinert + abgedunkelt
+        // measured: home screen springs back up (0 pt), but stays shrunk + dimmed
         scope.launch { searchProgress.animateTo(0f, Motion.search.spec()) }
         scope.launch { searchOpenAmount.animateTo(1f, Motion.search.spec()) }
         scope.launch { searchBlockOffset.animateTo(0f, Motion.search.spec()) }
@@ -1732,10 +1732,10 @@ class HomeModel(
         scope.launch { if (animated) searchOpenAmount.animateTo(0f, Motion.searchClose.spec()) else searchOpenAmount.snapTo(0f) }
     }
 
-    /** Sichtbar, solange gezogen wird oder der offene Zustand noch ausklingt. */
+    /** Visible while dragging or while the open state is still settling. */
     val searchVisible: Boolean get() = searchOpen || searchProgress.value > 0f || searchOpenAmount.value > 0.001f || searchMorph.value > 0.001f
 
-    /** Homescreen-Skalierung: beim Ziehen je pt kleiner, offen T-SEARCH.openScale. */
+    /** Home screen scale: smaller per pt while dragging, open T-SEARCH.openScale. */
     fun searchContentScale(): Float {
         val o = searchOpenAmount.value.coerceIn(0f, 1f)
         val pull = 1f - DesignTokens.searchScalePerPt.value * searchProgress.value
@@ -1750,11 +1750,11 @@ class HomeModel(
         return x * x * (3f - 2f * x)
     }
 
-    /** Blur-Anteil des Vorschlagsblocks 1 → 0 (M-SEARCH-BLOCK.sharp*); offen scharf. */
+    /** Blur share of the suggestions block 1 → 0 (M-SEARCH-BLOCK.sharp*); sharp when open. */
     fun searchBlockBlurFraction(): Float =
         if (searchOpen) 0f else 1f - smooth(searchProgress.value, Motion.searchBlockSharpStart.value, Motion.searchBlockSharpEnd.value)
 
-    /** Sichtbarkeit des Vorschlagsblocks 0…1 (smoothstep über M-SEARCH-BLOCK.fadeStart…End); offen immer 1. */
+    /** Visibility of the suggestions block 0…1 (smoothstep over M-SEARCH-BLOCK.fadeStart…End); always 1 when open. */
     fun searchBlockAlpha(): Float {
         val h = searchProgress.value
         val x = ((h - Motion.searchBlockFadeStart.value) / (Motion.searchBlockFadeEnd.value - Motion.searchBlockFadeStart.value)).coerceIn(0f, 1f)
@@ -1762,13 +1762,13 @@ class HomeModel(
     }
 
     private val suggester = io.github.janhurn9400.liquidy.data.AppSuggestions(repository.context)
-    /** App-Keys nach Vorschlagswert (Häufigkeit, Tageszeit, Aktualität), im Hintergrund berechnet. */
+    /** App keys by suggestion score (frequency, time of day, recency), computed in the background. */
     private var ranked by mutableStateOf<List<String>>(emptyList())
     private var rankJob: Job? = null
 
     fun hasUsageAccess() = suggester.hasUsageAccess()
 
-    /** Neu bewerten — beim Zurückkehren auf den Homescreen und nach jedem Start (Tageszeit/Nutzung ändern sich). */
+    /** Re-score — when returning to the home screen and after every launch (time of day/usage change). */
     fun refreshSuggestions() {
         val snapshot = apps
         if (snapshot.isEmpty()) return
@@ -1779,7 +1779,7 @@ class HomeModel(
         }
     }
 
-    /** App-Vorschläge: bewertete Apps, dann zuletzt gestartete, dann alphabetisch aufgefüllt. */
+    /** App suggestions: scored apps, then recently launched, then filled up alphabetically. */
     fun suggestions(count: Int): List<AppEntry> =
         (ranked.mapNotNull { apps[it] } + recents.mapNotNull { apps[it] } + apps.values.sortedBy { it.label.lowercase() })
             .distinct().take(count)
@@ -1798,24 +1798,24 @@ class HomeModel(
         suggester.record(key)
     }
 
-    // ── Entfernen ─────────────────────────────────────────────────────────────
+    // ── Removing ─────────────────────────────────────────────────────────────
     fun removeFromHome(key: String) {
         pages = pagesWithHole(key)
         dock = dock - key
         folders = folders.mapValues { (_, f) -> f.copy(apps = f.apps - key) }
-        // „ausgeblendet“ gilt je App — nur, wenn kein weiteres Icon dieser App mehr auf dem Homescreen liegt
+        // "hidden" applies per app — only if no other icon of this app is on the home screen anymore
         if (!onHome(appKeyOf(key))) hidden = hidden + appKeyOf(key)
         pruneEmptyPages()
         save()
     }
 
-    /** Seiten ohne [key]; an seiner Stelle bleibt eine Lücke (freie Platzierung — die anderen rücken nicht nach). */
+    /** Pages without [key]; a gap stays in its place (free placement — the others don't move up). */
     private fun pagesWithHole(key: String): List<List<String>> =
         pages.map { pg -> GridPlacement.trim(pg.map { if (it == key) GridPlacement.newGap() else it }) }
 
     /**
-     * Beim Ziehen an den linken Rand der ersten Seite: neue leere Seite davor (wie rechts hinter der letzten).
-     * Hover-Ziele rücken mit. @return false, wenn vorne schon eine leere Seite liegt.
+     * When dragging to the left edge of the first page: new empty page in front (like on the right after the last).
+     * Hover targets move along. @return false if there is already an empty page at the front.
      */
     fun insertPageFront(): Boolean {
         val d = drag ?: return false
@@ -1826,21 +1826,21 @@ class HomeModel(
         return true
     }
 
-    /** Liegt irgendein Icon der App [appKey] auf dem Homescreen (Seiten, Dock, Ordner)? */
+    /** Is any icon of app [appKey] on the home screen (pages, dock, folders)? */
     fun onHome(appKey: String): Boolean {
         fun hit(k: String) = appKeyOf(k) == appKey
         return pages.any { pg -> pg.any(::hit) } || dock.any(::hit) || folders.values.any { f -> f.apps.any(::hit) }
     }
 
-    /** Key für ein neues Icon der App aus der Mediathek: liegt sie schon auf dem Homescreen → weiteres Icon. */
+    /** Key for a new icon of the app from the App Library: if it's already on the home screen → another icon. */
     fun newIconKey(appKey: String): String =
         if (onHome(appKey)) appKey + INSTANCE_SEP + java.util.UUID.randomUUID().toString().take(8) else appKey
 
-    /** Plätze im Dock: 4 wie iOS; Duo mit „Mehr Apps im Dock“ so viele, wie in die Spalte passen — von HomeScreen gesetzt.
-     *  Liegen mehr Apps im Dock (Layout wechselt, z. B. Tablet hochkant), bleiben sie gespeichert und werden nur nicht gezeigt. */
+    /** Dock slots: 4 like iOS; Duo with "More Apps in Dock" as many as fit into the column — set by HomeScreen.
+     *  If there are more apps in the dock (layout changes, e.g. tablet in portrait), they stay saved and are just not shown. */
     var dockMax by mutableStateOf(DOCK_MAX)
 
-    /** „Mehr Apps im Dock“ ausgeschaltet: Apps über [max] wandern ans Ende des Homescreens statt zu verschwinden. */
+    /** "More Apps in Dock" turned off: apps beyond [max] move to the end of the home screen instead of disappearing. */
     fun trimDock(max: Int) {
         if (dock.size <= max) return
         val p = pages.toMutableList()
@@ -1851,10 +1851,10 @@ class HomeModel(
         save()
     }
 
-    /** Nimmt das Dock [key] auf? (Platz frei oder schon drin; Widgets nie) */
+    /** Does the dock accept [key]? (free slot or already in it; never widgets) */
     fun dockAccepts(key: String): Boolean = !isWidget(key) && (key in dock || dock.size < dockMax)
 
-    /** Leere Seiten sofort entfernen (nicht beim Ziehen — da ist die leere Seite am Ende das Ablageziel). */
+    /** Remove empty pages immediately (not while dragging — then the empty page at the end is the drop target). */
     fun pruneEmptyPages() {
         if (drag != null) return
         if (pages.any(GridPlacement::isBlank)) pages = pages.filterNot(GridPlacement::isBlank).ifEmpty { listOf(emptyList()) }
@@ -1883,5 +1883,5 @@ class HomeModel(
     }
 }
 
-/** Auslauf-Schwelle der Seitenübersicht (Anteil 0…1): Karte gleitet bis auf Bruchteile eines Pixels an ihren Platz. */
+/** Run-out threshold of the page overview (share 0…1): card glides into place down to fractions of a pixel. */
 private const val OVERVIEW_SETTLE = 0.0005f

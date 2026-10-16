@@ -4,10 +4,10 @@ import android.content.Context
 import java.time.ZoneId
 
 /**
- * Städte für das Uhr-Widget (Einstellung „Stadt“). Gespeichert als „Zeitzone;Stadt“ (z. B. „Europe/Vienna;Bleiburg“),
- * null = Ortszeit des Geräts.
- * Offline: alle Zeitzonen von Android (IANA, z. B. Europe/Vienna → „Vienna“) — funktioniert ohne Internet.
- * Online zusätzlich jede Stadt über dieselbe Ortssuche wie das Wetter (Open-Meteo liefert die Zeitzone mit).
+ * Cities for the clock widget (setting "City"). Saved as "timezone;city" (e.g. "Europe/Vienna;Bleiburg"),
+ * null = the device's local time.
+ * Offline: all time zones from Android (IANA, e.g. Europe/Vienna → "Vienna") — works without internet.
+ * Online additionally any city via the same place search as the weather (Open-Meteo also returns the time zone).
  */
 object WorldClock {
     data class City(val zone: String, val name: String, val region: String = "") {
@@ -19,7 +19,7 @@ object WorldClock {
         }
     }
 
-    /** Eine Stadt je IANA-Zeitzone (Kontinent/Stadt), alphabetisch. */
+    /** One city per IANA time zone (continent/city), alphabetical. */
     val zoneCities: List<City> by lazy {
         ZoneId.getAvailableZoneIds().asSequence()
             .filter { id -> id.count { it == '/' } >= 1 && id.substringBefore('/') in CONTINENTS }
@@ -29,7 +29,7 @@ object WorldClock {
             .toList()
     }
 
-    /** Offline-Treffer (sofort) für [query]. */
+    /** Offline matches (immediate) for [query]. */
     fun searchOffline(query: String, max: Int = 12): List<City> {
         val q = query.trim()
         if (q.isEmpty()) return emptyList()
@@ -37,7 +37,7 @@ object WorldClock {
             zoneCities.filter { !it.name.startsWith(q, ignoreCase = true) && it.name.contains(q, ignoreCase = true) }.take(max)
     }
 
-    /** Online (Open-Meteo-Geocoding) — Städte mit Zeitzone. Blockiert, im IO-Thread aufrufen. */
+    /** Online (Open-Meteo geocoding) — cities with time zone. Blocks, call on the IO thread. */
     fun searchOnline(query: String): List<City> =
         WeatherRepository.searchPlaces(query).filter { it.timezone.isNotEmpty() }.map { City(it.timezone, it.name, it.region) }
 

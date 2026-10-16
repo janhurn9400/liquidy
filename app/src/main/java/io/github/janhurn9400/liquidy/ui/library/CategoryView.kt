@@ -38,25 +38,25 @@ import io.github.janhurn9400.liquidy.ui.home.OpenCategory
 import kotlin.math.roundToInt
 
 /**
- * Aufgeklappte Kategorie (recording2 17,5–21 s, frameweise): KEIN Panel — großer weißer Titel und das
- * Homescreen-Raster (4 Spalten, 64 pt) direkt auf dem verwischten Hintergrund.
- * Bewegung (M-LIB-CAT): Titel + Raster zoomen als EINE Gruppe aus der Mitte des Mini-Clusters (Skala = Fortschritt).
- * Die 4 Cluster-Icons fliegen dagegen einzeln aus ihren Mini-Plätzen (der Cluster in der Kachel ist leer) —
- * beim Zuklappen sieht man genau das: die vier werden zum 2×2-Cluster, der Rest schrumpft in dessen Mitte.
+ * Expanded category (recording2 17.5–21 s, frame by frame): NO panel — a large white title and the
+ * home grid (4 columns, 64 pt) directly on the blurred background.
+ * Motion (M-LIB-CAT): title + grid zoom as ONE group out of the centre of the mini cluster (scale = progress).
+ * The 4 cluster icons, however, fly individually out of their mini slots (the cluster in the tile is empty) —
+ * when collapsing you see exactly that: the four become the 2×2 cluster, the rest shrinks into its centre.
  */
 @Composable
 fun CategoryView(model: HomeModel, open: OpenCategory, geo: LibraryGeometry, density: Float, onLaunch: (AppEntry, Rect) -> Unit,
-    /** Bildschirm-x der Mediathek-Spalte (Duo aufgeklappt: rechte Seite), sonst 0. */
+    /** Screen x of the App Library column (Duo unfolded: right page), otherwise 0. */
     originX: Float = 0f,
-    /** Halten: Kontextmenü (Mediathek-Variante); danach Ziehen holt die App auf den Homescreen. */
+    /** Hold: context menu (App Library variant); dragging afterwards brings the app to the home screen. */
     onLongPress: (AppEntry, Offset) -> Unit = { _, _ -> },
     onDragStart: (AppEntry, Offset, Offset) -> Unit = { _, _, _ -> },
     onDragMove: (Offset) -> Unit = {},
     onDragEnd: () -> Unit = {}) {
     val apps = open.category.apps
     val icon = DesignTokens.iconSize.value * density
-    // Duo: Titel + Raster als Block senkrecht mittig (aus Displayhöhe + Reihenzahl), so viele Reihen wie passen
-    // [Duo-Aufnahme 10:40, 17 s: 5 Reihen, Titel oben]; iPhone: feste Werte aus recording2
+    // Duo: title + grid as a block vertically centred (from display height + row count), as many rows as fit
+    // [Duo recording 10:40, 17 s: 5 rows, title at the top]; iPhone: fixed values from recording2
     val hPt = geo.height / density
     val rowPitch = if (geo.duo) DUO_CAT_ROW_PITCH else DesignTokens.gridRowPitch.value
     val maxRows = if (geo.duo) ((hPt - DUO_CAT_MIN_TOP - DUO_CAT_TITLE_BLOCK - DUO_CAT_BOTTOM) / rowPitch).toInt().coerceAtLeast(1)
@@ -68,8 +68,8 @@ fun CategoryView(model: HomeModel, open: OpenCategory, geo: LibraryGeometry, den
     val gridTop = if (geo.duo) titleBaseline + (DesignTokens.libCatGridTop.value - DesignTokens.libCatTitleBaseline.value) else DesignTokens.libCatGridTop.value
     val clusterApps = if (apps.size > 4) apps.drop(3).take(4).map { it.key }.toSet() else emptySet()
 
-    // Duo: Raster der Kategorie wie das Homescreen-Raster einer Seite (Spalte 1 bei 65 pt, Abstand 88 pt), in der Spalte
-    // Duo: Abstand 88 pt, Rand 65 pt bei 448 pt Spalte; auf schmaleren Spalten zuerst Rand, dann Abstand verkleinern
+    // Duo: the category grid like the home grid of a page (column 1 at 65 pt, pitch 88 pt), in the column
+    // Duo: pitch 88 pt, margin 65 pt for a 448 pt column; on narrower columns reduce the margin first, then the pitch
     val colPt = geo.columnWidth / density
     val pitch = if (geo.duo) minOf(DUO_CAT_PITCH, (colPt - 2 * DUO_CAT_MIN_SIDE - DesignTokens.iconSize.value) / 3) else DesignTokens.gridColPitch.value
     val side = if (geo.duo) minOf(DUO_CAT_SIDE, (colPt - 3 * pitch - DesignTokens.iconSize.value) / 2) else DesignTokens.gridSide.value
@@ -77,19 +77,19 @@ fun CategoryView(model: HomeModel, open: OpenCategory, geo: LibraryGeometry, den
         originX + (side + pitch * (k % DesignTokens.GRID_COLUMNS)) * density,
         (gridTop + rowPitch * (k / DesignTokens.GRID_COLUMNS)) * density,
     )
-    /** Inhalts- → Bildschirmkoordinate inkl. Scroll beim Öffnen und der aktuellen Schrumpfung der Mediathek. */
+    /** Content → screen coordinate incl. scroll on open and the App Library's current shrink. */
     fun libToScreen(p: Offset): Offset {
         val s = model.libCategoryScale()
         val pivot = Offset(geo.columnWidth / 2, geo.height * Motion.libCategoryPivotY.value)
         return Offset(originX, 0f) + pivot + (p - Offset(0f, open.scrollAtOpen) - pivot) * s
     }
-    val clusterRect = geo.appRect(open.tileIndex, 3, 4) // Quadrant unten rechts
+    val clusterRect = geo.appRect(open.tileIndex, 3, 4) // bottom-right quadrant
     val pivot = clusterRect.center.let { Offset(originX + it.x, it.y - open.scrollAtOpen) }
 
     Box(
         Modifier
             .fillMaxSize()
-            // beim Herausziehen unsichtbar, bleibt aber da (sonst bräche die laufende Geste ab)
+            // invisible while pulling out, but stays (otherwise the running gesture would break off)
             .graphicsLayer { alpha = if (model.drag != null) 0f else 1f }
             .pointerInput(open) {
                 awaitEachGesture {
@@ -99,7 +99,7 @@ fun CategoryView(model: HomeModel, open: OpenCategory, geo: LibraryGeometry, den
                         Rect(gridTopLeft(k), Size(icon, icon)).inflate(icon * TAP_SLOP).contains(down.position)
                     }
                     if (k == null) { if (waitForUpOrCancellation() != null) model.closeCategory(); return@awaitEachGesture }
-                    // Antippen öffnet, Halten → Menü, Halten + Ziehen → auf den Homescreen (wie in der Mediathek-Übersicht)
+                    // Tap opens, hold → menu, hold + drag → onto the home screen (like in the App Library overview)
                     val up = withTimeoutOrNull(Motion.longPress.value.toLong()) { waitForUpOrCancellation() }
                     if (up != null) { onLaunch(shown[k], Rect(gridTopLeft(k), Size(icon, icon))); return@awaitEachGesture }
                     if (currentEvent.changes.none { it.pressed }) return@awaitEachGesture
@@ -121,7 +121,7 @@ fun CategoryView(model: HomeModel, open: OpenCategory, geo: LibraryGeometry, den
             }
     ) {
         val shape = ContinuousRoundedShape(DesignTokens.iconCorner.dp)
-        // ── Gruppe: Titel + alle Nicht-Cluster-Icons, gemeinsam um die Cluster-Mitte gezoomt ──
+        // ── Group: title + all non-cluster icons, zoomed together around the cluster centre ──
         Box(
             Modifier
                 .fillMaxSize()
@@ -158,7 +158,7 @@ fun CategoryView(model: HomeModel, open: OpenCategory, geo: LibraryGeometry, den
                 }
             }
         }
-        // ── Cluster-Icons: einzeln vom Mini-Platz in den Rasterplatz ──
+        // ── Cluster icons: individually from the mini slot into the grid slot ──
         shown.forEachIndexed { k, app ->
             if (app.key !in clusterApps) return@forEachIndexed
             val m = apps.indexOf(app)
@@ -179,14 +179,14 @@ fun CategoryView(model: HomeModel, open: OpenCategory, geo: LibraryGeometry, den
                         transformOrigin = TransformOrigin(0f, 0f)
                     }
             ) {
-                // Label gehört zur Gruppe: wächst mit deren Skala ein
+                // The label belongs to the group: grows in with its scale
                 CategoryCell(app, shape) { (open.progress.value / LABEL_FADE).coerceIn(0f, 1f) }
             }
         }
     }
 }
 
-/** Icon + weißes Label (auf dem verwischten Hintergrund weiß, recording2 18,2 s). */
+/** Icon + white label (white on the blurred background, recording2 18.2 s). */
 @Composable
 private fun CategoryCell(app: AppEntry, shape: ContinuousRoundedShape, labelAlpha: () -> Float) {
     Layout(
@@ -211,15 +211,15 @@ private fun CategoryCell(app: AppEntry, shape: ContinuousRoundedShape, labelAlph
     }
 }
 
-private const val TAP_SLOP = 0.2f    // × Icon-Größe
-private const val GROUP_FADE = 0.12f // Gruppe ist ab diesem Fortschritt voll deckend (klein schon sichtbar, 17,59 s) [GEMESSEN grob]
-private const val LABEL_FADE = 0.5f  // Labels der Cluster-Icons [GESCHÄTZT]
+private const val TAP_SLOP = 0.2f    // × icon size
+private const val GROUP_FADE = 0.12f // the group is fully opaque from this progress (already visible when small, 17.59 s) [MEASURED roughly]
+private const val LABEL_FADE = 0.5f  // labels of the cluster icons [ESTIMATED]
 
-private const val DUO_CAT_SIDE = 65.1f // pt: Icon-Oberkante-links Spalte 1 (Mitte 95,1 − 30)
+private const val DUO_CAT_SIDE = 65.1f // pt: icon top-left of column 1 (centre 95.1 − 30)
 private const val DUO_CAT_PITCH = 88f
 private const val DUO_CAT_MIN_SIDE = 16f
-private const val DUO_CAT_ROW_PITCH = 98.7f   // wie das Duo-Homescreen-Raster
-private const val DUO_CAT_TITLE_BLOCK = 76f   // Titel-Oberkante bis erste Icon-Oberkante
+private const val DUO_CAT_ROW_PITCH = 98.7f   // like the Duo home grid
+private const val DUO_CAT_TITLE_BLOCK = 76f   // title top to the first icon top
 private const val DUO_CAT_TITLE_ASCENT = 30f
-private const val DUO_CAT_MIN_TOP = 50f       // unter Uhr/Statusbereich
+private const val DUO_CAT_MIN_TOP = 50f       // below the clock/status area
 private const val DUO_CAT_BOTTOM = 20f

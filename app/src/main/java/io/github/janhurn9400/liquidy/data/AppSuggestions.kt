@@ -12,16 +12,16 @@ import kotlin.math.exp
 import kotlin.math.min
 
 /**
- * App-Vorschläge auf dem Gerät: bewertet vergangene App-Starts nach Aktualität, Häufigkeit und Tageszeit
- * (wer morgens um 8 immer dieselbe App öffnet, bekommt sie morgens vorgeschlagen).
+ * App suggestions on the device: scores past app launches by recency, frequency and time of day
+ * (whoever always opens the same app at 8 in the morning gets it suggested in the morning).
  *
- * Quelle: Android-Nutzungsstatistik, wenn „Zugriff auf Nutzungsdaten“ erlaubt ist (erfasst auch Starts außerhalb
- * des Launchers), sonst das eigene Startprotokoll. Nichts verlässt das Gerät.
+ * Source: Android usage statistics if "Usage access" is allowed (also records launches outside
+ * the launcher), otherwise our own launch log. Nothing leaves the device.
  */
 class AppSuggestions(private val context: Context) {
     private val prefs = context.getSharedPreferences("suggestions", Context.MODE_PRIVATE)
 
-    /** Eigenes Protokoll: Paar (App-Key, Zeit), älteste zuerst. */
+    /** Own log: pair (app key, time), oldest first. */
     private var log: List<Pair<String, Long>> = load()
 
     fun record(key: String, now: Long = System.currentTimeMillis()) {
@@ -35,7 +35,7 @@ class AppSuggestions(private val context: Context) {
             AppOpsManager.MODE_ALLOWED
     }
 
-    /** App-Keys nach Wahrscheinlichkeit, jetzt geöffnet zu werden (bestes zuerst). Blockiert kurz — nicht im UI-Thread. */
+    /** App keys by probability of being opened now (best first). Blocks briefly — not on the UI thread. */
     fun rank(apps: Map<String, AppEntry>, now: Long = System.currentTimeMillis()): List<String> {
         val events = usageEvents(apps, now) ?: log
         if (events.isEmpty()) return emptyList()
@@ -50,24 +50,24 @@ class AppSuggestions(private val context: Context) {
             cal.timeInMillis = t
             val hour = cal.get(Calendar.HOUR_OF_DAY) + cal.get(Calendar.MINUTE) / 60f
             val dh = abs(hour - nowHour).let { min(it, 24f - it) }
-            // Grundgewicht: Häufigkeit, über ~1 Woche abklingend
+            // Base weight: frequency, decaying over ~1 week
             var w = exp(-age / DECAY_MS)
-            // Gleiche Tageszeit (±2 h) und gleicher Tagestyp (Werktag/Wochenende) zählen mehr
+            // Same time of day (±2 h) and same day type (weekday/weekend) count more
             w *= 1f + TIME_WEIGHT * (1f - dh / TIME_SPAN_H).coerceAtLeast(0f)
             if (cal.isWeekend() == nowWeekend) w *= DAYTYPE_WEIGHT
-            // Gerade benutzt: kurzer Bonus, damit die letzte App gleich wieder da ist
+            // Just used: a short bonus so the last app is right back
             w += RECENT_WEIGHT * exp(-age / RECENT_MS)
             score[key] = (score[key] ?: 0f) + w
         }
         return score.entries.sortedByDescending { it.value }.map { it.key }
     }
 
-    /** Vordergrund-Sitzungen aus der Nutzungsstatistik als (App-Key, Zeit); null ohne Zugriff. */
+    /** Foreground sessions from the usage statistics as (app key, time); null without access. */
     private fun usageEvents(apps: Map<String, AppEntry>, now: Long): List<Pair<String, Long>>? {
         if (!hasUsageAccess()) return null
         val usm = context.getSystemService(UsageStatsManager::class.java) ?: return null
         val me = Process.myUserHandle()
-        // Paket → Key der Haupt-App (erste startbare Activity des aktuellen Nutzers)
+        // Package → key of the main app (first launchable activity of the current user)
         val byPackage = HashMap<String, String>()
         for (a in apps.values) if (a.user == me) byPackage.putIfAbsent(a.component.packageName, a.key)
         val out = ArrayList<Pair<String, Long>>()
@@ -79,7 +79,7 @@ class AppSuggestions(private val context: Context) {
             ev.getNextEvent(e)
             if (e.eventType != UsageEvents.Event.ACTIVITY_RESUMED) continue
             val pkg = e.packageName
-            // Activity-Wechsel innerhalb derselben App = eine Sitzung
+            // Activity changes within the same app = one session
             if (pkg == lastPkg && e.timeStamp - lastTime < SESSION_GAP_MS) { lastTime = e.timeStamp; continue }
             lastPkg = pkg; lastTime = e.timeStamp
             if (pkg == context.packageName) continue

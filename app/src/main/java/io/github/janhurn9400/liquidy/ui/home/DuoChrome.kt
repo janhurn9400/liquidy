@@ -20,22 +20,22 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Lupenknopf (Duo): runder Liquid-Glass-Knopf in der rechten Spalte. Antippen → leuchtet weiß auf, verschwindet, während die
- * Suche offen ist, und ist nach dem Schließen sofort wieder da (Aufnahme 21:28, 41,15 / 41,22 / 42,54 s).
+ * Magnifier button (Duo): round Liquid Glass button in the right column. Tap → lights up white, disappears while
+ * search is open, and is back immediately after closing (recording 21:28, 41.15 / 41.22 / 42.54 s).
  */
 @Composable
 fun DuoSearchButton(model: HomeModel, geo: HomeGeometry, density: Float) {
-    // Herunterziehen zur Suche: Lupe blendet weich aus (folgt dem Zug), statt hart zu verschwinden [Duo, Nutzer 10-11];
-    // beim Antippen leuchtet sie erst weiß auf (duoLupePress) und geht dann
+    // Pulling down to search: the magnifier fades out smoothly (follows the pull) instead of disappearing hard [Duo, user 10-11];
+    // on tap it first lights up white (duoLupePress) and then goes
     val searchFade = if (model.duoLupePress.value > 0.01f) 0f
         else (model.searchDim() / (io.github.janhurn9400.liquidy.design.DesignTokens.searchDimMax.value * LUPE_FADE_FULL_AT)).coerceIn(0f, 1f)
     if (searchFade >= 0.999f) return
-    // Bearbeiten-Modus: Lupe weg [Duo, Video 6, 11 s / Video 4, 10 s]
+    // Edit mode: magnifier gone [Duo, video 6, 11 s / video 4, 10 s]
     val hide = model.badgeScale.value.coerceIn(0f, 1f)
     if (hide >= 0.999f) return
     val r = geo.pillRect
-    // Referenz (10:40, 13 s): fast klares Glas ohne Tönung und ohne Farbsaum, feiner Rand (oben/unten hell, seitlich
-    // dunkle Haarlinie), Lupe weiß und dünn (≈ 1,4 pt Strich, Kreis ≈ 13 pt) leicht links oberhalb der Mitte
+    // Reference (10:40, 13 s): almost clear glass without tint and without colour fringe, fine rim (top/bottom light, sides
+    // a dark hairline), magnifier white and thin (≈ 1.4 pt stroke, circle ≈ 13 pt) slightly left above the centre
     LiquidGlass(
         shape = glassCapsule(),
         modifier = Modifier.offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }.size(Dp(r.width / density))
@@ -56,13 +56,13 @@ fun DuoSearchButton(model: HomeModel, geo: HomeGeometry, density: Float) {
     }
 }
 
-/** Mitte der Seitenpunkte (aufgeklappt wandern sie mit offener Heute-Seite unter die rechte Seite). */
+/** Centre of the page dots (unfolded they move under the right page with the Today page open). */
 private fun duoDotsCenter(geo: HomeGeometry, pagerPos: Float): Offset = if (geo.unfolded) {
     val t = (-pagerPos).coerceIn(0f, 1f)
     Offset(geo.duoDotsHomeX + (geo.duoDotsTodayX - geo.duoDotsHomeX) * t, geo.duoDotsCenter.y)
 } else geo.duoDotsCenter
 
-/** Glas-Kapsel um die Punkte im Bearbeiten-Modus [GEMESSEN Video 6, 11 s: 56 × 25 pt, mittig auf den Punkten, 2 Punkte]. */
+/** Glass capsule around the dots in edit mode [MEASURED video 6, 11 s: 56 × 25 pt, centred on the dots, 2 dots]. */
 fun duoDotsCapsule(geo: HomeGeometry, pagerPos: Float, density: Float, dotCount: Int = 2): androidx.compose.ui.geometry.Rect {
     val c = duoDotsCenter(geo, pagerPos)
     val w = (DOTS_CAPSULE_W + DOT_PITCH * (dotCount - 2).coerceAtLeast(0)) * density
@@ -70,11 +70,11 @@ fun duoDotsCapsule(geo: HomeGeometry, pagerPos: Float, density: Float, dotCount:
     return androidx.compose.ui.geometry.Rect(c.x - w / 2, c.y - h / 2, c.x + w / 2, c.y + h / 2)
 }
 
-/** iPhone-Duo-Stil: Seitenpunkte dauerhaft unter dem Raster (aufgeklappt unter der rechten Seite). Die Lupe ist die SearchPill.
- *  Im Bearbeiten-Modus ([edit] 0…1) liegen sie in einer klaren Glas-Kapsel (antippen → Seitenübersicht). */
+/** iPhone Duo style: page dots permanently below the grid (unfolded below the right page). The magnifier is the SearchPill.
+ *  In edit mode ([edit] 0…1) they sit in a clear glass capsule (tap → page overview). */
 @Composable
 fun DuoDots(geo: HomeGeometry, pager: PagerState, density: Float, dotCount: Int, edit: () -> Float = { 0f }) {
-    if (dotCount <= 1 && edit() <= 0.001f) return // iOS: im Bearbeiten-Modus auch bei einer Seite (Zugang zur Seitenübersicht)
+    if (dotCount <= 1 && edit() <= 0.001f) return // iOS: in edit mode even with one page (access to the page overview)
     val e = edit().coerceIn(0f, 1f)
     if (e > 0.001f) {
         val r = duoDotsCapsule(geo, pager.position.value, density, dotCount)
@@ -87,11 +87,11 @@ fun DuoDots(geo: HomeGeometry, pager: PagerState, density: Float, dotCount: Int,
         )
     }
     Canvas(Modifier.fillMaxSize()) {
-        // aufgeklappt: mittig über der Fläche links vom Dock (x 436 pt); mit offener Heute-Seite wandern sie unter die
-        // rechte Seite (x 624 pt) [GEMESSEN 19:18, 1,5 s / 2,6 s]
+        // unfolded: centred above the area left of the dock (x 436 pt); with the Today page open they move under the
+        // right page (x 624 pt) [MEASURED 19:18, 1.5 s / 2.6 s]
         val c = duoDotsCenter(geo, pager.position.value)
         val pitch = DOT_PITCH * density; val rad = DOT_D / 2 * density
-        // aktiv = rechte sichtbare Seite (aufgeklappt) bzw. die Seite (zugeklappt) [GEMESSEN Bild 0,5 s: mittlerer Punkt]
+        // active = right visible page (unfolded) or the page (folded) [MEASURED frame 0.5 s: middle dot]
         val active = (pager.position.value + geo.pagesVisible - 1).coerceIn(0f, (dotCount - 1).toFloat())
         val x0 = c.x - pitch * (dotCount - 1) / 2
         for (k in 0 until dotCount) {
@@ -103,9 +103,9 @@ fun DuoDots(geo: HomeGeometry, pager: PagerState, density: Float, dotCount: Int,
 
 private val LUPE_GLYPH = Color(0xF5FFFFFF)
 private const val LUPE_RIM = 0.7f
-private const val LUPE_FADE_FULL_AT = 0.4f // Anteil des vollen Abdunkelns, bei dem die Lupe ganz weg ist
+private const val LUPE_FADE_FULL_AT = 0.4f // share of full dimming at which the magnifier is fully gone
 private const val LUPE_OUTLINE = 0.16f
-private const val DOT_PITCH = 17.7f // pt [GEMESSEN]
+private const val DOT_PITCH = 17.7f // pt [MEASURED]
 private const val DOT_D = 7f
 private const val DOTS_CAPSULE_W = 56f
 private const val DOTS_CAPSULE_H = 25f

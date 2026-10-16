@@ -68,15 +68,15 @@ import io.github.janhurn9400.liquidy.ui.home.HomeModel
 import io.github.janhurn9400.liquidy.motion.Motion
 
 /**
- * Suche (Swipe nach unten), Layout nach IMG_3131: Überschrift „Siri Suggestions“ + „Show More“,
- * dunkle Glaskarte mit 4 Vorschlägen bzw. Treffern, Suchfeld-Kapsel direkt über der Tastatur.
- * Die Tastatur-Animation gehört dem System (RESEARCH M-SEARCH-KB); das Feld hängt an WindowInsets.ime.
+ * Search (swipe down), layout after IMG_3131: header "Siri Suggestions" + "Show More",
+ * dark glass card with 4 suggestions or results, search field capsule directly above the keyboard.
+ * The keyboard animation belongs to the system (RESEARCH M-SEARCH-KB); the field hangs on WindowInsets.ime.
  */
 @Composable
 fun SearchOverlay(model: HomeModel, onLaunch: (AppEntry, Rect) -> Unit,
-    /** Duo aufgeklappt: Vorschläge als mittige Spalte dieser Breite (dp), sonst volle Breite. */
+    /** Duo unfolded: suggestions as a centred column of this width (dp), otherwise full width. */
     columnWidth: androidx.compose.ui.unit.Dp? = null,
-    /** Duo zugeklappt: Spalte links bündig (rechts davon bleibt die Dock-Spalte frei). */
+    /** Duo folded: column aligned left (the dock column to the right of it stays free). */
     columnStart: Boolean = false) {
     val density = LocalDensity.current
     val noRipple = remember { MutableInteractionSource() }
@@ -92,31 +92,31 @@ fun SearchOverlay(model: HomeModel, onLaunch: (AppEntry, Rect) -> Unit,
             .fillMaxSize()
             .then(if (model.searchOpen) Modifier.clickable(interactionSource = noRipple, indication = null) { model.closeSearch() } else Modifier)
     ) {
-        // Vorschlagsblock: blendet mit p ein und folgt dem Finger (M-SEARCH-BLOCK), federt nach dem Loslassen zurück
+        // Suggestions block: fades in with p and follows the finger (M-SEARCH-BLOCK), springs back after release
         val blockLayer = Modifier.graphicsLayer {
             alpha = model.searchBlockAlpha()
             translationY = model.searchBlockOffset.value * density.density
-            // blendet unscharf ein und wird mit dem Zugweg scharf (gemessen)
+            // fades in blurred and sharpens with the pull distance (measured)
             val r = model.searchBlockBlurFraction() * DesignTokens.searchBlockBlur.value * density.density
             renderEffect = if (r > 0.5f) androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Decal) else null
         }
         val colMod = if (columnWidth != null) Modifier.align(if (columnStart) Alignment.TopStart else Alignment.TopCenter).width(columnWidth) else Modifier
         val showResults = model.query.isNotBlank()
         if (showResults) {
-            // Globale Suche: Apps, Rechner, Kontakte, Web-Vorschläge als scrollbare Abschnitte über dem Suchfeld
+            // Global search: apps, calculator, contacts, web suggestions as scrollable sections above the search field
             UniversalResults(model, colMod, columnWidth == null, ::launch)
             return@Box
         }
         val items = model.suggestions(COLUMNS)
 
-        // Vorschlagsblock als EINE Ebene; ihre Höhe umfasst Überschrift + Karte, damit Blur/Versatz nichts abschneiden
+        // Suggestions block as ONE layer; its height covers header + card, so blur/offset don't clip anything
         Box(
             colMod
                 .then(if (columnWidth == null) Modifier.fillMaxWidth() else Modifier)
                 .height(DesignTokens.searchCardTop.dp + DesignTokens.searchCardHeight.dp * 2 + DesignTokens.searchCardSide.dp)
                 .then(blockLayer)
         ) {
-        // Überschrift
+        // Header
         Row(
             Modifier
                 .fillMaxWidth()
@@ -131,7 +131,7 @@ fun SearchOverlay(model: HomeModel, onLaunch: (AppEntry, Rect) -> Unit,
             if (!showResults) BasicText(stringResource(R.string.show_more), style = headerStyle())
         }
 
-        // Karte
+        // card
         val cardShape = ContinuousRoundedShape(DesignTokens.searchCardCorner.dp)
         Box(
             Modifier
@@ -143,7 +143,7 @@ fun SearchOverlay(model: HomeModel, onLaunch: (AppEntry, Rect) -> Unit,
                 .background(DesignTokens.searchCardFill)
                 .clickable(interactionSource = noRipple, indication = null) { },
         ) {
-            // iOS (IMG_3131): Vorschlags-Karte ohne Lichtkante — nur die helle Fläche
+            // iOS (IMG_3131): suggestion card without a light edge — only the light area
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
                 items.chunked(COLUMNS).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -158,14 +158,14 @@ fun SearchOverlay(model: HomeModel, onLaunch: (AppEntry, Rect) -> Unit,
             }
         }
 
-        } // Ende Vorschlagsblock
+        } // end suggestions block
 
     }
 }
 
-private const val COLUMNS = 4 // IMG_3131: 4 Vorschläge pro Reihe
+private const val COLUMNS = 4 // IMG_3131: 4 suggestions per row
 
-/** Treffer-Ansicht beim Tippen [iPhone 10-11 17:10]: Apps, Rechner, Kontakte, Einstellungen, Fotos, Dateien, Vorschläge (Web). */
+/** Results view while typing [iPhone 10-11 17:10]: apps, calculator, contacts, settings, photos, files, suggestions (web). */
 @Composable
 private fun UniversalResults(model: HomeModel, colMod: Modifier, fullWidth: Boolean, launch: (AppEntry, Rect) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -243,7 +243,7 @@ private fun UniversalResults(model: HomeModel, colMod: Modifier, fullWidth: Bool
             }
         }
         SectionHeader(stringResource(R.string.search_suggestions))
-        // bei einer Rechnung nur die Zeile „so suchen“ — Googles Ergänzungen („12*75“) sind dort sinnlos
+        // for a calculation only the "search for" row — Google's completions ("12*75") make no sense there
         (if (calc != null) web.take(1) else web).let { w -> w.forEachIndexed { i, sgg ->
             WebRow(q, sgg, i == w.lastIndex) {
                 io.github.janhurn9400.liquidy.data.UniversalSearch.searchWeb(context, sgg); model.closeSearch(animated = false)
@@ -257,8 +257,8 @@ private fun UniversalResults(model: HomeModel, colMod: Modifier, fullWidth: Bool
 private fun Modifier.androidx_verticalScroll(): Modifier = this.verticalScroll(androidx.compose.foundation.rememberScrollState())
 
 private const val SEARCH_DEBOUNCE_MS = 160L
-private const val RESULTS_TOP = 40f // unter der Statusleiste
-private const val RESULTS_ABOVE_FIELD = 72f // Platz fürs Suchfeld über der Tastatur
+private const val RESULTS_TOP = 40f // below the status bar
+private const val RESULTS_ABOVE_FIELD = 72f // space for the search field above the keyboard
 
 @Composable
 private fun headerStyle() = TextStyle(

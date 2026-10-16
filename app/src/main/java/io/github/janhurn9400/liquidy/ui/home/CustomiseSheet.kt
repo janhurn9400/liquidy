@@ -58,9 +58,9 @@ import io.github.janhurn9400.liquidy.ui.Inter
 import kotlin.math.roundToInt
 
 /**
- * „Customise“-Blatt (recording7 13–30 s, T-CUST): Liquid-Glass-Blatt unten mit vier Stil-Vorschauen
- * (Default · Dark · Clear · Tinted), darunter Always|Auto bzw. Light|Dark|Auto; Tinted zusätzlich Farbton + Sättigung.
- * Liegt in HomeScreen (Glas-Quelle = Homescreen); Tippen außerhalb schließt.
+ * "Customise" sheet (recording7 13–30 s, T-CUST): Liquid Glass sheet at the bottom with four style previews
+ * (Default · Dark · Clear · Tinted), below them Always|Auto or Light|Dark|Auto; Tinted additionally hue + saturation.
+ * Lives in HomeScreen (glass source = home screen); tapping outside closes.
  */
 @Composable
 fun CustomiseSheet(model: HomeModel, sample: AppEntry?, wallpaper: ImageBitmap, onClose: () -> Unit) {
@@ -77,11 +77,11 @@ fun CustomiseSheet(model: HomeModel, sample: AppEntry?, wallpaper: ImageBitmap, 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current.density
         val screenW = constraints.maxWidth / density; val screenH = constraints.maxHeight / density
-        // Tippen außerhalb schließt
+        // Tapping outside closes
         Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { model.closeCustomise() } })
         val side = SHEET_SIDE
-        // Duo (auf-/zugeklappt): Blatt höchstens 396 pt breit, waagerecht mittig, Unterkante 17 pt über dem Rand —
-        // die iPhone-Maße (Unterkante 864 pt) passen nicht auf 672/678 pt hohe Displays [GEMESSEN 10:40, 62/66 s]
+        // Duo (unfolded/folded): sheet at most 396 pt wide, horizontally centred, bottom 17 pt above the edge —
+        // the iPhone dimensions (bottom 864 pt) don't fit on 672/678 pt tall displays [MEASURED 10:40, 62/66 s]
         val duo = io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle
         val width = if (duo) minOf(screenW - 2 * side, DUO_SHEET_W) else screenW - 2 * side
         val left = if (duo) (screenW - width) / 2 else side
@@ -100,12 +100,12 @@ fun CustomiseSheet(model: HomeModel, sample: AppEntry?, wallpaper: ImageBitmap, 
                 blur = SHEET_BLUR.dp,
                 whiteTint = SHEET_TINT,
             )
-            // Inhalt, Positionen relativ zur Blatt-Oberkante (gemessen am kurzen bzw. hohen Blatt)
-            fun y(short: Float, tallY: Float) = (short - SHEET_TOP) + ((tallY - SHEET_TOP_TALL) - (short - SHEET_TOP)) * tall.value // relativ zur Oberkante
+            // Content, positions relative to the sheet top (measured on the short and the tall sheet)
+            fun y(short: Float, tallY: Float) = (short - SHEET_TOP) + ((tallY - SHEET_TOP_TALL) - (short - SHEET_TOP)) * tall.value // relative to the top
             Centered(width, { y(629f, 441f) }) {
                 BasicText(stringResource(R.string.customise), style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Color.White))
             }
-            // Stil-Vorschauen
+            // Style previews
             IconStyle.entries.forEachIndexed { i, st ->
                 val cx = STYLE_X[i] - side + contentDx
                 val selected = IconAppearance.style == st
@@ -126,7 +126,7 @@ fun CustomiseSheet(model: HomeModel, sample: AppEntry?, wallpaper: ImageBitmap, 
                 val label = stringResource(when (st) { IconStyle.Default -> R.string.style_default; IconStyle.Dark -> R.string.style_dark; IconStyle.Clear -> R.string.style_clear; IconStyle.Tinted -> R.string.style_tinted })
                 CenteredAt(cx, { y(770f, 582f) }, selected) { LabelText(label, selected) }
             }
-            // Tinted: Farbton + Sättigung
+            // Tinted: hue + saturation
             if (tall.value > 0.01f) {
                 Box(Modifier.fillMaxSize().graphicsLayer { alpha = tall.value }) {
                     Slider(width, { y(0f, 643f) }, Brush.horizontalGradient(HUES), IconAppearance.hue / 360f) { IconAppearance.hue = it * 360f; save() }
@@ -134,7 +134,7 @@ fun CustomiseSheet(model: HomeModel, sample: AppEntry?, wallpaper: ImageBitmap, 
                         IconAppearance.saturation) { IconAppearance.saturation = it; save() }
                 }
             }
-            // Hell/Dunkel: Dark → Always | Auto, sonst Light | Dark | Auto
+            // Light/dark: Dark → Always | Auto, otherwise Light | Dark | Auto
             val options = if (IconAppearance.style == IconStyle.Dark) listOf(IconVariant.Light to R.string.variant_always, IconVariant.Auto to R.string.variant_auto)
             else listOf(IconVariant.Light to R.string.variant_light, IconVariant.Dark to R.string.variant_dark, IconVariant.Auto to R.string.variant_auto)
             if (IconAppearance.style != IconStyle.Default) {
@@ -163,7 +163,7 @@ private fun Centered(width: Float, y: () -> Float, content: @Composable () -> Un
     }
 }
 
-/** Beschriftung zentriert bei (cx, y); ausgewählt mit heller Glas-Kapsel dahinter (recording7 15,6 s). */
+/** Caption centred at (cx, y); when selected with a light glass capsule behind it (recording7 15.6 s). */
 @Composable
 private fun CenteredAt(cx: Float, y: () -> Float, selected: Boolean, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Layout(content = {
@@ -201,15 +201,15 @@ private fun Slider(width: Float, y: () -> Float, track: Brush, value: Float, onC
     }
 }
 
-// Maße [GEMESSEN] recording7 14,7 s (kurz) / 22,4 s (hoch), 0,804 pt/px
+// Dimensions [MEASURED] recording7 14.7 s (short) / 22.4 s (tall), 0.804 pt/px
 private const val SHEET_TOP = 594.67f
 private const val SHEET_TOP_TALL = 406f
 private const val SHEET_BOTTOM = 864f
 private const val SHEET_SIDE = 10f
-private const val DUO_SHEET_W = 396f          // [GEMESSEN 10:40, 58 s: 626 px × 0,634]
-private const val DUO_SHEET_BOTTOM_GAP = 17f  // [GEMESSEN 10:40, 62/66 s]
-private const val SHEET_CORNER = 48f   // ≈ Display-Ecke [GESCHÄTZT]
-private const val SHEET_BLUR = 14f     // Icons dahinter nur noch Farbflecken
+private const val DUO_SHEET_W = 396f          // [MEASURED 10:40, 58 s: 626 px × 0.634]
+private const val DUO_SHEET_BOTTOM_GAP = 17f  // [MEASURED 10:40, 62/66 s]
+private const val SHEET_CORNER = 48f   // ≈ display corner [ESTIMATED]
+private const val SHEET_BLUR = 14f     // icons behind only colour patches
 private const val SHEET_TINT = 0.06f
 private val STYLE_X = floatArrayOf(67.5f, 156f, 244.6f, 333f)
 private const val PREVIEW = 61f

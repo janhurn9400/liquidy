@@ -6,13 +6,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /**
- * „🍎 Quirks“ (Launcher-Einstellungen): Standard ist 1:1 wie iOS, auch mit dessen Eigenheiten. Hier lassen sie sich einzeln
- * lockern — jede Option ist bewusst „nicht wie im Original“. (Mehr Apps im Duo-Dock liegt in [FoldableStyle].)
+ * "🍎 Quirks" (Launcher settings): the default is 1:1 like iOS, including its peculiarities. Here they can be relaxed
+ * one by one — every option is deliberately "not like the original". (More apps in the Duo dock lives in [FoldableStyle].)
  */
 object Quirks {
     private const val PREFS = "quirks"
 
-    /** Widgets in jeder Reihe (iOS: 2 Reihen hohe Widgets nur in den Reihenpaaren 1–2, 3–4, 5–6). */
+    /** Widgets in any row (iOS: 2-row-tall widgets only in the row pairs 1–2, 3–4, 5–6). */
     var freeWidgetRows by mutableStateOf(false)
         private set
 

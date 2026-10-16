@@ -48,8 +48,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Ergebnis-Abschnitte der globalen Suche nach iPhone-Screenshot 10-11 17:10: Abschnittstitel grau-halbfett mit Linie
- * darunter, Zeilen mit 28-pt-Symbol, Text 17 pt (getippter Teil weiß, Rest grau), ↗ rechts, eingerückte Trennlinien.
+ * Result sections of the global search after iPhone screenshot 10-11 17:10: section title grey semi-bold with a line
+ * below, rows with a 28 pt glyph, text 17 pt (typed part white, rest grey), ↗ on the right, indented separators.
  */
 @Composable
 internal fun SectionHeader(title: String, action: String? = null, onAction: () -> Unit = {}) {
@@ -66,7 +66,7 @@ internal fun SectionHeader(title: String, action: String? = null, onAction: () -
 @Composable
 private fun Line(start: Float) = Box(Modifier.padding(start = start.dp, end = SIDE.dp).fillMaxWidth().height(0.6.dp).background(Color.White.copy(alpha = LINE_ALPHA)))
 
-/** Web-Vorschlag: Browser-Symbol, getippter Teil weiß, Ergänzung grau, ↗. */
+/** Web suggestion: browser glyph, typed part white, completion grey, ↗. */
 @Composable
 internal fun WebRow(query: String, suggestion: String, last: Boolean, onClick: () -> Unit) {
     Row(rowMod(onClick), verticalAlignment = Alignment.CenterVertically) {
@@ -102,7 +102,7 @@ internal fun ContactRow(c: UniversalSearch.Contact, last: Boolean, onOpen: () ->
     if (!last) Line(SIDE + ICON + GAP)
 }
 
-/** Hinweis-Zeile (z. B. „Kontakte in der Suche erlauben“). */
+/** Hint row (e.g. "Allow contacts in search"). */
 @Composable
 internal fun HintRow(text: String, onClick: () -> Unit) {
     Row(rowMod(onClick), verticalAlignment = Alignment.CenterVertically) {
@@ -133,7 +133,7 @@ private fun BrowserIcon() {
     val i = icon
     if (i != null) Image(i, null, Modifier.size(ICON.dp).clip(RoundedCornerShape((ICON * 0.24f).dp)), contentScale = ContentScale.Crop)
     else Box(Modifier.size(ICON.dp).clip(RoundedCornerShape((ICON * 0.24f).dp)).background(Color(0xFF0A84FF)), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size((ICON * 0.6f).dp)) { // Globus
+        Canvas(Modifier.size((ICON * 0.6f).dp)) { // globe
             val s = size.width; val sw = s * 0.08f
             drawCircle(Color.White, s * 0.45f, center, style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
             drawLine(Color.White, Offset(s * 0.05f, s / 2), Offset(s * 0.95f, s / 2), sw)
@@ -179,7 +179,7 @@ private fun header() = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Sem
 private fun rowText() = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 17.sp, color = Color.White)
 
 private val GREY = Color.White.copy(alpha = 0.55f)
-// Maße aus dem Screenshot (920 px = 402 pt): Rand 16, Symbol 26, Abstand 15, Zeile 56, Linie 0,6 pt
+// Dimensions from the screenshot (920 px = 402 pt): margin 16, glyph 26, gap 15, row 56, line 0.6 pt
 private const val SIDE = 16f
 private const val ICON = 26f
 private const val GAP = 15f
@@ -187,7 +187,7 @@ private const val ROW_H = 56f
 private const val SECTION_TOP = 14f
 private const val LINE_ALPHA = 0.16f
 
-/** Foto-Treffer als waagrechte Reihe quadratischer Vorschaubilder (iOS „Fotos“), Tippen öffnet das Foto. */
+/** Photo results as a horizontal row of square thumbnails (iOS "Photos"), tapping opens the photo. */
 @Composable
 internal fun PhotoStrip(photos: List<io.github.janhurn9400.liquidy.data.DeviceSearch.Photo>, onOpen: (io.github.janhurn9400.liquidy.data.DeviceSearch.Photo) -> Unit) {
     val context = LocalContext.current
@@ -210,7 +210,7 @@ internal fun PhotoStrip(photos: List<io.github.janhurn9400.liquidy.data.DeviceSe
     }
 }
 
-/** Datei-Zeile: farbiges Typ-Symbol, Name, darunter Ordner · Größe · Datum. */
+/** File row: coloured type glyph, name, below it folder · size · date. */
 @Composable
 internal fun FileRow(f: io.github.janhurn9400.liquidy.data.DeviceSearch.FileHit, last: Boolean, onClick: () -> Unit) {
     Row(rowMod(onClick), verticalAlignment = Alignment.CenterVertically) {
@@ -244,7 +244,7 @@ private fun FileIcon(mime: String?, name: String) {
     }
 }
 
-/** Einstellungs-Zeile: graues Zahnrad, Name, ↗. */
+/** Settings row: grey gear, name, ↗. */
 @Composable
 internal fun SettingRow(label: String, last: Boolean, onClick: () -> Unit) {
     Row(rowMod(onClick), verticalAlignment = Alignment.CenterVertically) {

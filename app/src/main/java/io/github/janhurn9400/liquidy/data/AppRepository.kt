@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.text.Collator
 
-/** App-Shortcut aus Android (LauncherApps) — im iOS-Menü als einfarbiges Symbol + Text. */
+/** App shortcut from Android (LauncherApps) — in the iOS menu as a monochrome glyph + text. */
 class AppShortcut(val label: String, val glyph: ImageBitmap?, val info: android.content.pm.ShortcutInfo)
 
 data class AppEntry(
@@ -27,22 +27,22 @@ data class AppEntry(
     val component: ComponentName,
     val user: UserHandle,
     val icon: ImageBitmap,
-    /** ApplicationInfo.category (für Ordnernamen + App-Mediathek). */
+    /** ApplicationInfo.category (for folder names + App Library). */
     val category: Int = android.content.pm.ApplicationInfo.CATEGORY_UNDEFINED,
     val installTime: Long = 0L,
 )
 
 /**
- * Ebenen für Dark/Clear/Tinted — nur bei Bedarf berechnet (≈ 2 Bitmaps je App) und als Compose-State abgelegt,
- * damit die Icons neu zeichnen, sobald ihre Ebenen fertig sind.
+ * Layers for Dark/Clear/Tinted — computed only when needed (≈ 2 bitmaps per app) and stored as Compose state,
+ * so the icons redraw as soon as their layers are done.
  */
 object IconLayerCache {
     val map = androidx.compose.runtime.mutableStateMapOf<String, IconLayers>()
 }
 
 /**
- * App-Liste über LauncherApps (wie Launcher3), inkl. Callback bei Installation/Deinstallation.
- * Das Layout (Seiten/Dock/Ordner) verwaltet HomeModel + LayoutStore.
+ * App list via LauncherApps (like Launcher3), incl. a callback on install/uninstall.
+ * The layout (pages/dock/folders) is managed by HomeModel + LayoutStore.
  */
 class AppRepository(val context: Context, private val iconSizePx: Int) {
 
@@ -51,7 +51,7 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val _apps = MutableStateFlow<List<AppEntry>?>(null)
-    /** null = noch nicht geladen. Reihenfolge: alphabetisch. */
+    /** null = not loaded yet. Order: alphabetical. */
     val apps: StateFlow<List<AppEntry>?> = _apps
 
     private val callback = object : LauncherApps.Callback() {
@@ -97,7 +97,7 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
         }
     }
 
-    /** Paketname-Heuristik für ein iOS-artiges Default-Dock: Telefon, Nachrichten, Browser, Musik/Kamera. */
+    /** Package name heuristic for an iOS-like default dock: phone, messages, browser, music/camera. */
     fun defaultDock(apps: List<AppEntry>): List<AppEntry> {
         val dock = mutableListOf<AppEntry>()
         listOf("dialer", "messaging", "chrome", "music", "camera").forEach { hint ->
@@ -107,8 +107,8 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
     }
 
     /**
-     * Ordnername wie bei iOS aus der App-Kategorie (iOS: App-Store-Kategorie, Android: ApplicationInfo.category).
-     * Beide Apps gleicher Kategorie → deren Name, sonst die des Ziel-Icons; ohne Kategorie „Ordner“.
+     * Folder name like on iOS from the app category (iOS: App Store category, Android: ApplicationInfo.category).
+     * Both apps of the same category → its name, otherwise that of the target icon; without a category "Folder".
      */
     fun folderName(target: AppEntry?, dragged: AppEntry?): String {
         val undefined = android.content.pm.ApplicationInfo.CATEGORY_UNDEFINED
@@ -144,8 +144,8 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
     }.getOrDefault(true)
 
     /**
-     * Berechnet fehlende Stil-Ebenen im Hintergrund (in Anzeigegröße, nicht in der 1,5-fachen Icon-Auflösung)
-     * und legt sie Stück für Stück im Cache ab. Erst aufgerufen, wenn ein anderer Stil als Default aktiv ist.
+     * Computes missing style layers in the background (at display size, not at the 1.5× icon resolution)
+     * and stores them piece by piece in the cache. Called only when a style other than Default is active.
      */
     suspend fun ensureLayers(apps: Collection<AppEntry>) = kotlinx.coroutines.withContext(Dispatchers.Default) {
         val px = (iconSizePx / ICON_OVERSAMPLE).toInt()
@@ -164,8 +164,8 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
     }
 
     /**
-     * Die nativen App-Shortcuts (Manifest + dynamisch), wie Launcher3 sie beim Long-Press zeigt: nach Rang, max. [MAX_SHORTCUTS].
-     * Nur verfügbar, wenn wir der Standard-Launcher sind (hasShortcutHostPermission).
+     * The native app shortcuts (manifest + dynamic), as Launcher3 shows them on long press: by rank, max. [MAX_SHORTCUTS].
+     * Only available if we're the default launcher (hasShortcutHostPermission).
      */
     fun shortcuts(app: AppEntry, glyphPx: Int): List<AppShortcut> {
         if (!runCatching { launcherApps.hasShortcutHostPermission() }.getOrDefault(false)) return emptyList()
@@ -199,7 +199,7 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
 
     companion object {
         const val MAX_SHORTCUTS = 4
-        /** MainActivity rendert Icons in 1,5-facher Größe (für das Vergrößern); Stil-Ebenen reichen in Anzeigegröße. */
+        /** MainActivity renders icons at 1.5× size (for enlarging); style layers are fine at display size. */
         const val ICON_OVERSAMPLE = 1.5f
-    } // Launcher3: höchstens 4 Shortcuts im Popup
+    } // Launcher3: at most 4 shortcuts in the popup
 }

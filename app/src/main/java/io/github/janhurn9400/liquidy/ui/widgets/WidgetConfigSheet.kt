@@ -61,22 +61,22 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
-/** Hat dieses Widget ein Einstellungsblatt (Antippen im Bearbeiten-Modus)? */
+/** Does this widget have a settings sheet (tap in edit mode)? */
 fun hasWidgetConfig(spec: WidgetSpec?) = spec?.type in setOf(IosWidgetTypes.WEATHER, IosWidgetTypes.PHOTOS, IosWidgetTypes.CALENDAR, IosWidgetTypes.CLOCK)
 
 /**
- * Einstellungsblatt eines Widgets (iPhone-Aufnahme 10-11 16:40, docs/reference/widgets/widget_config_menu.mp4):
- * schwarze Karte mittig über dem verwischten Homescreen — App-Symbol, Name, Beschreibung, darunter die Optionen als
- * graue Kapseln mit blauem Wert. „Ort“ öffnet die Ortsliste (dunkles Blatt von unten: × und Titel, „Deine Orte“,
- * Suchfeld unten). [amount] 0…1 blendet ein.
+ * Settings sheet of a widget (iPhone recording 10-11 16:40, docs/reference/widgets/widget_config_menu.mp4):
+ * black card centred above the blurred home screen — app icon, name, description, below it the options as
+ * grey capsules with a blue value. "Location" opens the location list (dark sheet from below: × and title, "Your Locations",
+ * search field at the bottom). [amount] 0…1 fades in.
  */
 @Composable
 fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect, amount: () -> Float, onChange: (String?) -> Unit, onClose: () -> Unit) {
     val context = LocalContext.current
-    // Auswahlliste (Album/Kalender/Ort): Liquid-Glass-Blatt, gleitet von unten herein (M-WPE-SHEET), schiebt die Karte
-    // leicht nach hinten; zu → gleitet hinaus, erst dann verschwindet es (vorher: schwarzes Blatt mit hartem Schnitt)
+    // Selection list (album/calendar/location): Liquid Glass sheet, slides in from below (M-WPE-SHEET), pushes the card
+    // slightly back; close → slides out, only then does it disappear (before: black sheet with a hard cut)
     val list = io.github.janhurn9400.liquidy.glass.rememberGlassSheetState()
-    var query by remember { mutableStateOf("") } // Suchtext (Ort/Stadt) — Feld schwebt über der Liste
+    var query by remember { mutableStateOf("") } // search text (location/city) — the field floats above the list
     val sheet = list.progress
     val listOpen = list.visible
     fun openList() = list.open()
@@ -91,17 +91,17 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
         val cardRect = androidx.compose.ui.geometry.Rect(
             androidx.compose.ui.geometry.Offset((constraints.maxWidth - cardW * density) / 2f, (constraints.maxHeight - CARD_H * density) / 2f),
             androidx.compose.ui.geometry.Size(cardW * density, CARD_H * density))
-        // Wo steht die drehende Fläche gerade? Von Widget-Rahmen zur Karte; Fortschritt darf leicht überschwingen (Feder)
+        // Where is the turning surface right now? From the widget rect to the card; progress may overshoot slightly (spring)
         fun current(): androidx.compose.ui.geometry.Rect {
             val t = amount()
             return androidx.compose.ui.geometry.Rect(
                 from.left + (cardRect.left - from.left) * t, from.top + (cardRect.top - from.top) * t,
                 from.right + (cardRect.right - from.right) * t, from.bottom + (cardRect.bottom - from.bottom) * t)
         }
-        // Drehung um die senkrechte Achse: 0 → 180°; bis 90° sieht man das Widget, danach die Rückseite = Karte
+        // Rotation around the vertical axis: 0 → 180°; up to 90° you see the widget, afterwards the back = card
         fun angle() = 180f * amount().coerceIn(0f, 1f)
         val showFront = angle() < 90f
-        // Vorderseite: Kopie des Widgets
+        // Front: copy of the widget
         if (showFront) Box(
             Modifier.offset { androidx.compose.ui.unit.IntOffset(from.left.toInt(), from.top.toInt()) }
                 .size((from.width / density).dp, (from.height / density).dp)
@@ -113,7 +113,7 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
                     shape = RoundedCornerShape(io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.dp); clip = true
                 },
         ) { IosWidget(spec.type, spec.cols, spec.rows, Modifier.fillMaxSize(), spec.config) }
-        // Rückseite: Karte (um 180° gegengedreht, damit sie nicht gespiegelt ist)
+        // Back: card (counter-rotated by 180° so it isn't mirrored)
         if (!showFront) Column(
             Modifier.align(Alignment.Center).width(cardW.dp).height(CARD_H.dp)
                 .graphicsLayer {
@@ -126,7 +126,7 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
                 .clickable(noRipple, null) { }
                 .padding(horizontal = 22.dp, vertical = 22.dp),
         ) {
-            // Kopf + eine Option je Widget-Art (gleiches Aussehen wie das Wetter-Blatt aus der Aufnahme)
+            // Header + one option per widget kind (same look as the weather sheet from the recording)
             val (title, sub, desc) = when (spec.type) {
                 IosWidgetTypes.PHOTOS -> Triple(stringResource(R.string.wcfg_photos_title), stringResource(R.string.widget_photos), stringResource(R.string.widget_photos_long))
                 IosWidgetTypes.CALENDAR -> Triple(stringResource(R.string.wcfg_calendar_title), stringResource(R.string.widget_calendar), stringResource(R.string.widget_calendar_long))
@@ -177,7 +177,7 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
                 BasicText(value, maxLines = 1, overflow = TextOverflow.Ellipsis, style = text(17f, FontWeight.Normal, BLUE))
             }
         }
-        // Blatt offen: Karte bleibt stehen, alles dahinter dunkelt ab (wie am iPhone, Nutzer 10-15)
+        // Sheet open: the card stays, everything behind it dims (like on the iPhone, user 10-15)
         if (listOpen) androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) { drawRect(Color.Black.copy(alpha = SHEET_DIM * sheet.value)) }
         when (spec.type) {
             IosWidgetTypes.PHOTOS -> GlassSheet(list, stringResource(R.string.wcfg_album)) {
@@ -231,11 +231,11 @@ private fun androidx.compose.foundation.layout.ColumnScope.LocationRows(query: S
                 Spacer(Modifier.height(8.dp))
                 results.forEach { p -> PlaceRow(p.name, p.region.ifEmpty { null }) { onPick(p) } }
             }
-            Spacer(Modifier.height(io.github.janhurn9400.liquidy.glass.GlassSheetBottomBarSpace)) // Zeilen laufen unter dem Suchfeld durch
+            Spacer(Modifier.height(io.github.janhurn9400.liquidy.glass.GlassSheetBottomBarSpace)) // rows run under the search field
     }
     }
 
-/** Städte für das Uhr-Widget: Ortszeit, zuletzt gewählte, dann Suche (offline Zeitzonen sofort, online jede Stadt). */
+/** Cities for the clock widget: local time, recently chosen, then search (offline time zones immediately, online any city). */
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.CityRows(query: String, onPick: (io.github.janhurn9400.liquidy.data.WorldClock.City?) -> Unit) {
     val context = LocalContext.current
@@ -254,17 +254,17 @@ private fun androidx.compose.foundation.layout.ColumnScope.CityRows(query: Strin
             saved.forEach { c -> PlaceRow(c.name, zoneLabel(c)) { onPick(c) } }
         } else {
             Spacer(Modifier.height(8.dp))
-            // online zuerst (genauer, z. B. kleine Orte), danach offline ohne Doppelte
+            // online first (more precise, e.g. small places), then offline without duplicates
             val all = (online + offline).distinctBy { it.name.lowercase() + it.zone }
             if (all.isEmpty()) BasicText(stringResource(R.string.wcfg_nothing), Modifier.fillMaxWidth().padding(top = 24.dp),
                 style = text(15f, FontWeight.Normal, GREY).copy(textAlign = TextAlign.Center))
             all.forEach { c -> PlaceRow(c.name, listOfNotNull(c.region.ifEmpty { null }, zoneLabel(c)).joinToString(" · ")) { onPick(c) } }
         }
-        Spacer(Modifier.height(io.github.janhurn9400.liquidy.glass.GlassSheetBottomBarSpace)) // Zeilen laufen unter dem Suchfeld durch
+        Spacer(Modifier.height(io.github.janhurn9400.liquidy.glass.GlassSheetBottomBarSpace)) // rows run under the search field
     }
 }
 
-/** Zeitverschiebung gegenüber dem Gerät, z. B. „+6 Std.“ / „Gleiche Zeit“. */
+/** Time difference to the device, e.g. "+6 hrs" / "Same time". */
 @Composable
 private fun zoneLabel(c: io.github.janhurn9400.liquidy.data.WorldClock.City): String {
     val z = c.zoneId ?: return ""
@@ -276,10 +276,10 @@ private fun zoneLabel(c: io.github.janhurn9400.liquidy.data.WorldClock.City): St
     return stringResource(R.string.wcfg_hours_offset, s)
 }
 
-/** Suchfeld unten im Blatt (wie iOS), über der Tastatur — Liquid Glass wie das Mediathek-Suchfeld. */
+/** Search field at the bottom of the sheet (like iOS), above the keyboard — Liquid Glass like the App Library search field. */
 @Composable
 private fun SearchField(query: String, onChange: (String) -> Unit) {
-    // Suchfeld unten (wie iOS), über der Tastatur — Liquid Glass wie das Mediathek-Suchfeld (bricht das Blatt dahinter)
+    // Search field at the bottom (like iOS), above the keyboard — Liquid Glass like the App Library search field (refracts the sheet behind)
     Box(Modifier.windowInsetsPadding(WindowInsets.ime).padding(16.dp).fillMaxWidth().height(44.dp)) {
     io.github.janhurn9400.liquidy.glass.LiquidGlass(shape = io.github.janhurn9400.liquidy.glass.glassCapsule(), modifier = Modifier.matchParentSize(),
         whiteTint = io.github.janhurn9400.liquidy.design.DesignTokens.libListFieldTint.value)
@@ -302,7 +302,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
     }
 }
 
-/** Auswahlzeilen für ein [io.github.janhurn9400.liquidy.glass.GlassSheet]: Häkchen bei ausgewählten Einträgen, optional Farbpunkt. */
+/** Selection rows for a [io.github.janhurn9400.liquidy.glass.GlassSheet]: checkmark on selected entries, optional colour dot. */
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.OptionRows(options: List<Pair<String?, String>>, selected: (String?) -> Boolean,
                                                                       onPick: (String?) -> Unit, dots: Map<String, Color> = emptyMap()) {
@@ -341,14 +341,14 @@ private fun PlaceRow(name: String, region: String?, onClick: () -> Unit) {
 private fun text(size: Float, weight: FontWeight, color: Color) =
     TextStyle(fontFamily = Inter, fontWeight = weight, fontSize = size.sp, lineHeight = (size * 1.25f).sp, color = color, textAlign = TextAlign.Start)
 
-// Farben/Maße aus der Aufnahme (402 pt breit): Karte 350 × 345 pt, Ecken 38, Zeile 52 hoch
+// Colours/dimensions from the recording (402 pt wide): card 350 × 345 pt, corners 38, row 52 tall
 private val CARD = Color(0xFF050505)
 private val ROW = Color(0xFF2C2C2E)
-private const val SHEET_DIM = 0.35f // Abdunklung hinter dem Auswahlblatt [GESCHÄTZT]
+private const val SHEET_DIM = 0.35f // dimming behind the selection sheet [ESTIMATED]
 private val GREY = Color(0xFF8E8E93)
 private val BLUE = Color(0xFF0A84FF)
 private const val DIM = 0.35f
-private const val CAMERA = 14f // Perspektive der Drehung (wie iOS: deutlich, nicht übertrieben)
+private const val CAMERA = 14f // perspective of the rotation (like iOS: clear, not exaggerated)
 private const val CARD_W = 350f
 private const val CARD_H = 345f
 private const val CARD_CORNER = 38f

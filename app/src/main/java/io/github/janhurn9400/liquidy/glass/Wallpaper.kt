@@ -11,13 +11,13 @@ import androidx.compose.ui.graphics.toArgb
 import io.github.janhurn9400.liquidy.design.DesignTokens
 
 /**
- * Eigener Standard-Wallpaper (RESEARCH §5.1: System-Wallpaper ist für Drittanbieter nicht lesbar).
- * Weicher neutraler Grauverlauf, Farben aus IMG_3123 gesampelt — damit Emulator- und iPhone-Screenshots
- * direkt vergleichbar sind. Kein Apple-Asset; Fotoauswahl folgt später.
- * Positionen der Lichtflecken sind relative Bildkoordinaten (keine Layout-Werte).
+ * Own default wallpaper (originally because the system wallpaper wasn't readable for third parties, RESEARCH §5.1).
+ * Soft neutral grey gradient, colours sampled from IMG_3123 — so emulator and iPhone screenshots
+ * are directly comparable. No Apple asset.
+ * Positions of the light spots are relative image coordinates (not layout values).
  */
 object Wallpaper {
-    /** Farbiger Test-Wallpaper: kräftige weiche Farbflecken + feine Streifen, damit Linse/Dispersion sichtbar werden. */
+    /** Colourful test wallpaper: strong soft colour spots + fine stripes, so lens/dispersion become visible. */
     fun generateColorful(widthPx: Int, heightPx: Int): ImageBitmap {
         val bmp = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
@@ -32,7 +32,7 @@ object Wallpaper {
         blob(0.85f, 0.35f, 0.7f, 0xFF4FACFE.toInt())
         blob(0.3f, 0.7f, 0.8f, 0xFF43E97B.toInt())
         blob(0.8f, 0.9f, 0.7f, 0xFFFFC371.toInt())
-        // feine Streifen: daran sieht man die Verzerrung am Glasrand
+        // fine stripes: on them you see the distortion at the glass edge
         val line = Paint().apply { color = 0x33FFFFFF; strokeWidth = w / 200f }
         var y = 0f
         while (y < h) { c.drawLine(0f, y, w, y + w * 0.3f, line); y += w / 18f }

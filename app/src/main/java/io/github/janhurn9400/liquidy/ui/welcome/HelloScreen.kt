@@ -69,22 +69,22 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** Begrüßungen wie beim iPhone-Setup (iOS 26: „hello“ → „你好“ → …, eigene Auswahl). */
+/** Greetings like in the iPhone setup (iOS 26: "hello" → "你好" → …, own selection). */
 private val HELLOS = listOf("hello", "你好", "hola", "hallo", "bonjour", "こんにちは", "ciao", "안녕하세요", "olá", "привет", "merhaba", "hej")
 
 /**
- * „Hallo“ wie in iOS 26: heller Hintergrund aus echten Liquid-Glass-Scheiben über einem wandernden Lichtfeld; darauf
- * wird der Gruß als dünne Liquid-Glass-Linie „geschrieben“ — die Linie wächst wie ein Stift, bis „hello“ dasteht,
- * hält kurz, verschwimmt und die nächste Sprache entsteht. „hello“ ist eine eigene, durchgehende Schreiblinie
- * (keine Schrift); andere Sprachen sind dünne Systemschrift in Glas, die von links nach rechts entsteht.
- * Hochwischen zieht den Inhalt mit dem Finger nach oben; Tippen geht ebenfalls weiter.
+ * "Hello" like in iOS 26: light background of real Liquid Glass panes over a moving light field; on it
+ * the greeting is "written" as a thin Liquid Glass line — the line grows like a pen until "hello" stands there,
+ * holds briefly, blurs and the next language appears. "hello" is an own continuous writing line
+ * (no font); other languages are thin system font in glass that appears from left to right.
+ * Swiping up pulls the content up with the finger; tapping continues as well.
  */
 @Composable
 fun HelloScreen(onContinue: () -> Unit) {
     var index by remember { mutableIntStateOf(0) }
-    val draw = remember { Animatable(0f) }    // Schreibfortschritt des aktuellen Grußes 0 → 1
-    val out = remember { Animatable(0f) }     // Ausblenden (verschwimmen) 0 → 1
-    val lift = remember { Animatable(0f) }    // Hochwischen (px, negativ)
+    val draw = remember { Animatable(0f) }    // writing progress of the current greeting 0 → 1
+    val out = remember { Animatable(0f) }     // fade out (blur away) 0 → 1
+    val lift = remember { Animatable(0f) }    // swipe up (px, negative)
     var time by remember { mutableFloatStateOf(0f) }
     var height by remember { mutableFloatStateOf(1f) }
     var leaving by remember { mutableIntStateOf(0) }
@@ -102,7 +102,7 @@ fun HelloScreen(onContinue: () -> Unit) {
             draw.snapTo(0f); out.snapTo(0f)
         }
     }
-    /** Karte nach oben aus dem Bild schieben (Startgeschwindigkeit vom Finger), kurz vor dem Ende geht es weiter. */
+    /** Push the card up out of view (initial velocity from the finger), shortly before the end it continues. */
     fun leave(velocity: Float = 0f) {
         if (leaving == 1) return
         leaving = 1
@@ -124,7 +124,7 @@ fun HelloScreen(onContinue: () -> Unit) {
                 detectVerticalDragGestures(
                     onDragStart = { tracker.resetTracking() },
                     onDragEnd = {
-                        // wie die Mitteilungszentrale: genug weit oder schnell genug nach oben → raus, sonst zurückfedern
+                        // like the notification centre: far or fast enough upwards → out, otherwise spring back
                         val v = tracker.calculateVelocity().y
                         if (lift.value < -size.height * LEAVE_SHARE || v < -FLING_PX_S) leave(v)
                         else scope.launch { lift.animateTo(0f, spring(SNAP_BACK_DAMPING, SNAP_BACK_STIFFNESS), initialVelocity = v) }
@@ -133,27 +133,27 @@ fun HelloScreen(onContinue: () -> Unit) {
                 ) { change, dy ->
                     change.consume()
                     tracker.addPosition(change.uptimeMillis, change.position)
-                    // nach oben 1:1 (wie iOS), nach unten stark gebremst
+                    // upwards 1:1 (like iOS), downwards strongly damped
                     val step = if (dy < 0f || lift.value < 0f) dy else dy * 0.15f
                     scope.launch { lift.snapTo((lift.value + step).coerceAtMost(40f)) }
                 }
             }
     ) {
-        // Darunter (iOS: gleichbleibend gedimmter, unscharfer, grauer Hintergrund) — wird beim Hochschieben freigelegt
+        // Below it (iOS: constantly dimmed, blurred, grey background) — revealed when pushing up
         Canvas(Modifier.fillMaxSize().graphicsLayer {
             val b = UNDER_BLUR_DP * density
             renderEffect = BlurEffect(b, b, TileMode.Clamp)
         }) { drawLightField(time); drawRect(UNDER_DIM) }
 
-        // Die Karte: Szene, Schrift und Hinweis bewegen sich starr mit dem Finger; runde Ecken wie der Bildschirm
+        // The card: scene, text and hint move rigidly with the finger; round corners like the screen
         Box(Modifier.fillMaxSize().graphicsLayer {
             translationY = lift.value
             shape = androidx.compose.foundation.shape.RoundedCornerShape(SHEET_CORNER_DP.dp)
             clip = lift.value < -0.5f
             shadowElevation = if (lift.value < -0.5f) 24.dp.toPx() else 0f
         }) {
-        // Lichtfeld (Quelle) + echte Liquid-Glass-Scheiben darüber, die es brechen (wie die Glasscheiben im iOS-26-Setup).
-        // Beides zusammen ist die Quelle für die gläserne Schrift.
+        // Light field (source) + real Liquid Glass panes above it that refract it (like the glass panes in the iOS 26 setup).
+        // Both together are the source for the glass text.
         val field = rememberLayerBackdrop()
         val scene = rememberLayerBackdrop()
         Box(Modifier.fillMaxSize().layerBackdrop(scene)) {
@@ -176,14 +176,14 @@ fun HelloScreen(onContinue: () -> Unit) {
                 shadow = androidx.compose.ui.graphics.Shadow(Color(0x40274C8C), Offset(0f, 1f), 8f)),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 46.dp),
         )
-        } // Karte
+        } // card
     }
 }
 
 /**
- * Gruß als dünne Liquid-Glass-Linie, die wie ein Stift wächst. Material = das Glas vom Dock (Kyant-Linse), hier als
- * eigener Shader mit Abstandsfeld zur Linie statt zum abgerundeten Rechteck: Kreisprofil, Brechung nach außen,
- * Farbsaum, helle Lichtkante oben links; Quelle ist die echte Szene (Lichtfeld + Glasscheiben).
+ * Greeting as a thin Liquid Glass line that grows like a pen. Material = the glass of the dock (Kyant lens), here as
+ * an own shader with a distance field to the line instead of the rounded rectangle: circular profile, refraction outwards,
+ * colour fringe, light edge top left; the source is the real scene (light field + glass panes).
  */
 @Composable
 private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progress: () -> Float) {
@@ -195,14 +195,14 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
     }
     val total = remember(strokes) { strokes.sumOf { strokeLength(it).toDouble() }.toFloat() }
     val shader = remember { android.graphics.RuntimeShader(GLASS_LINE_AGSL) }
-    // Maske statt Punktliste: Linie wird pro Bild einmal auf der CPU gezeichnet (R = scharfe Fläche, G = weiche Höhe),
-    // der Shader liest nur noch 5 Werte je Pixel statt bis zu 768 Segmente zu prüfen
-    // Zwei Masken im Wechsel: nie in das Bild zeichnen, das die Grafik evtl. noch liest (sonst Flackern);
-    // neu gezeichnet wird nur, wenn sich die Linie geändert hat
+    // Mask instead of a point list: the line is drawn once per frame on the CPU (R = sharp area, G = soft height),
+    // the shader only reads 5 values per pixel instead of checking up to 768 segments
+    // Two masks alternating: never draw into the image the graphics may still be reading (otherwise flicker);
+    // redrawn only when the line has changed
     val mask = remember { arrayOfNulls<android.graphics.Bitmap>(2) }
-    val maskState = remember { IntArray(1) }        // Index der aktuellen Maske
-    val maskKey = remember { arrayOfNulls<Any>(1) } // (Fortschritt, Größe) der aktuellen Maske
-    val gMax = remember { floatArrayOf(0.6f) }      // Höhe in der Linienmitte (gemessen)
+    val maskState = remember { IntArray(1) }        // index of the current mask
+    val maskKey = remember { arrayOfNulls<Any>(1) } // (progress, size) of the current mask
+    val gMax = remember { floatArrayOf(0.6f) }      // height at the line centre (measured)
     val sharpPaint = remember { android.graphics.Paint().apply { isAntiAlias = true; style = android.graphics.Paint.Style.STROKE
         strokeCap = android.graphics.Paint.Cap.ROUND; strokeJoin = android.graphics.Paint.Join.ROUND; color = 0xFFFF0000.toInt()
         blendMode = android.graphics.BlendMode.PLUS } }
@@ -216,18 +216,18 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
     Box(
         Modifier.fillMaxSize().layout { m, c ->
             val sw = c.maxWidth.toFloat()
-            val u = minOf(c.maxWidth, c.maxHeight).toFloat()          // kürzere Seite (Fold quer: sonst riesig)
-            val s = minOf(u * 0.82f, u * 0.24f / aspect)              // Wortbreite in px
+            val u = minOf(c.maxWidth, c.maxHeight).toFloat()          // shorter side (Fold landscape: huge otherwise)
+            val s = minOf(u * 0.82f, u * 0.24f / aspect)              // word width in px
             val bw = (s + 2 * margin).toInt(); val bh = (s * aspect + 2 * margin).toInt()
             val pl = m.measure(androidx.compose.ui.unit.Constraints.fixed(bw, bh))
             layout(c.maxWidth, c.maxHeight) { pl.place(((sw - bw) / 2).toInt(), (c.maxHeight * 0.45f - bh / 2f).toInt()) }
         }
     ) {
-        // Polylinie bis zum aktuellen Fortschritt, in Box-Pixeln (Punkt + „Stift unten“-Flag)
+        // Polyline up to the current progress, in box pixels (point + "pen down" flag)
         fun drawn(bw: Float, bh: Float): Pair<FloatArray, Int> {
             val s = bw - 2 * margin
             val out = FloatArray(MAX_POINTS * 3); var n = 0
-            var left = total * s * progress()   // total ist normiert (Wortbreite 1) → in px
+            var left = total * s * progress()   // total is normalised (word width 1) → in px
             for (a in strokes) {
                 if (left <= 0f || n >= MAX_POINTS - 1) break
                 var px = 0f; var py = 0f
@@ -246,7 +246,7 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
             }
             return out to n
         }
-        // weicher, bläulicher Schatten unter der Linie
+        // soft, bluish shadow below the line
         Canvas(Modifier.fillMaxSize()) {
             val (pts, n) = drawn(size.width, size.height)
             if (n < 2) return@Canvas
@@ -263,7 +263,7 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
             Modifier.fillMaxSize().drawBackdrop(
                 backdrop = scene,
                 shape = { androidx.compose.ui.graphics.RectangleShape },
-                highlight = null, shadow = null, innerShadow = null, // keine Kante/Schatten um die Fläche, nur die Linie
+                highlight = null, shadow = null, innerShadow = null, // no edge/shadow around the area, only the line
                 effects = {
                     val bw = size.width; val bh = size.height
                     val (pts, n) = drawn(bw, bh)
@@ -278,14 +278,14 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
                     val c = android.graphics.Canvas(bmp)
                     c.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR)
                     val path = smoothPath(pts, n)
-                    // Höhe: breit + weich (Mitte hell, zum Rand abfallend) → Kreisprofil/Normale; Fläche: scharf in Strichbreite
-                    // Höhe: schmaler Kern, weich ausgeblendet → Mitte = Maximum, am Strichrand ≈ 0 (Kreisprofil wie vorher exakt)
+                    // Height: wide + soft (bright centre, falling off towards the edge) → circular profile/normal; area: sharp at stroke width
+                    // Height: narrow core, softly faded → centre = maximum, ≈ 0 at the stroke edge (circular profile exactly as before)
                     softPaint.strokeWidth = halfW * 0.5f
                     softPaint.maskFilter = android.graphics.BlurMaskFilter(halfW * 0.85f, android.graphics.BlurMaskFilter.Blur.NORMAL)
                     c.drawPath(path, softPaint)
                     sharpPaint.strokeWidth = halfW * 2f
                     c.drawPath(path, sharpPaint)
-                    // Maximum der Höhe an einem Punkt der Linie messen (Mitte eines Segments) → Normierung im Shader
+                    // Measure the height maximum at a point on the line (centre of a segment) → normalisation in the shader
                     if (n >= 2) {
                         val mx = ((pts[0] + pts[3]) / 2).toInt().coerceIn(0, w - 1); val my = ((pts[1] + pts[4]) / 2).toInt().coerceIn(0, h - 1)
                         gMax[0] = ((bmp.getPixel(mx, my) shr 8) and 0xFF).coerceAtLeast(20) / 255f
@@ -303,14 +303,14 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
 }
 
 /**
- * Punkte (x, y, Stift unten) → weiche Linie: Kurven durch die Mitten benachbarter Segmente (quadratisch), damit bei
- * großer Darstellung keine Ecken zwischen den Abtastpunkten sichtbar werden.
+ * Points (x, y, pen down) → smooth line: curves through the midpoints of neighbouring segments (quadratic), so that at
+ * large sizes no corners between the sample points become visible.
  */
 private fun smoothPath(pts: FloatArray, n: Int): android.graphics.Path {
     val path = android.graphics.Path()
     var i = 0
     while (i < n) {
-        // ein Zug: von i bis vor den nächsten „Stift ab“
+        // one stroke: from i up to the next "pen up"
         var j = i + 1
         while (j < n && pts[3 * j + 2] >= 0.5f) j++
         path.moveTo(pts[3 * i], pts[3 * i + 1])
@@ -327,7 +327,7 @@ private fun smoothPath(pts: FloatArray, n: Int): android.graphics.Path {
     return path
 }
 
-/** Polylinien eines Grußes, normiert (Wortbreite 1, Mitte 0,0). „hello“ ist die eigene Schreiblinie. */
+/** Polylines of a greeting, normalised (word width 1, centre 0,0). "hello" is the own writing line. */
 private fun strokesFor(word: String): Array<FloatArray> = if (word == "hello") HELLO_NORM else HELLO_STROKES.getValue(word)
 
 private fun strokeLength(a: FloatArray): Float {
@@ -338,7 +338,7 @@ private fun strokeLength(a: FloatArray): Float {
 
 private val HELLO_NORM: Array<FloatArray> by lazy {
     val pm = android.graphics.PathMeasure(HELLO_PATH, false)
-    val n = (pm.length / 5f).toInt()   // fein abgetastet → glatte Röhre
+    val n = (pm.length / 5f).toInt()   // finely sampled → smooth tube
     val pos = FloatArray(2); val pts = FloatArray(2 * (n + 1))
     for (i in 0..n) {
         pm.getPosTan(pm.length * i / n, pos, null)
@@ -348,9 +348,9 @@ private val HELLO_NORM: Array<FloatArray> by lazy {
 }
 
 /**
- * Glaslinie (AGSL): Abstand zur Polylinie (Punkte als Textur, b = Stift unten) → Röhre mit Halbbreite halfW.
- * Innen wie Kyants Linse: Versatz = circleMap(1 − Tiefe) · amount entlang der Normalen (nach außen), Farbsaum
- * über drei Proben, leicht aufgehellt; Lichtkante: oben links hell, unten rechts schwächer.
+ * Glass line (AGSL): distance to the polyline (points as texture, b = pen down) → tube with half width halfW.
+ * Inside like Kyant's lens: offset = circleMap(1 − depth) · amount along the normal (outwards), colour fringe
+ * via three samples, slightly brightened; light edge: bright top left, weaker bottom right.
  */
 private const val GLASS_LINE_AGSL = """
 uniform shader content;
@@ -363,14 +363,14 @@ half4 main(float2 coord) {
     half4 m = mask.eval(coord);
     float cov = m.r;
     if (cov < 0.004) return half4(0.0);
-    // Höhe aus der weichen Maske, Normale aus ihrem Gefälle (4 Proben)
+    // Height from the soft mask, normal from its gradient (4 samples)
     float s = max(halfW * 0.45, 1.0);
     float hx = mask.eval(coord + float2(s, 0.0)).g - mask.eval(coord - float2(s, 0.0)).g;
     float hy = mask.eval(coord + float2(0.0, s)).g - mask.eval(coord - float2(0.0, s)).g;
     float2 grad = float2(hx, hy);
     float gl = length(grad);
-    float2 n = gl > 0.0001 ? -grad / gl : float2(0.0, -1.0);   // zeigt nach außen
-    float depth = clamp(m.g / gMax, 0.0, 1.0);                 // Mitte = 1, Strichrand ≈ 0
+    float2 n = gl > 0.0001 ? -grad / gl : float2(0.0, -1.0);   // points outwards
+    float depth = clamp(m.g / gMax, 0.0, 1.0);                 // centre = 1, stroke edge ≈ 0
     float e = 1.0 - depth;
     float disp = (1.0 - sqrt(max(1.0 - e * e, 0.0))) * amount;
     float2 rc = coord + n * disp;
@@ -387,20 +387,20 @@ half4 main(float2 coord) {
 """
 
 /**
- * Eigene, durchgehende Schreiblinie „hello“ (einzelner Stiftzug, geneigte Schreibschrift), Koordinaten in einer
- * 720 × 330-Fläche, Grundlinie bei y ≈ 300. Selbst gezeichnet — kein Apple-Asset.
+ * Own continuous writing line "hello" (single pen stroke, slanted script), coordinates in a
+ * 720 × 330 area, baseline at y ≈ 300. Drawn ourselves — no Apple asset.
  */
 private val HELLO_PATH: android.graphics.Path by lazy {
     android.graphics.Path().apply {
         moveTo(20f, 298f)
-        // h: Aufstrich in die Oberlängen-Schleife, Abstrich, Bogen
+        // h: upstroke into the ascender loop, downstroke, arc
         cubicTo(70f, 270f, 140f, 170f, 152f, 95f)
         cubicTo(160f, 45f, 135f, 22f, 118f, 52f)
         cubicTo(98f, 92f, 92f, 200f, 86f, 300f)
         cubicTo(100f, 235f, 140f, 196f, 170f, 200f)
         cubicTo(200f, 204f, 196f, 250f, 196f, 278f)
         cubicTo(196f, 302f, 214f, 306f, 236f, 290f)
-        // e: kleine Schleife
+        // e: small loop
         cubicTo(266f, 270f, 312f, 246f, 312f, 220f)
         cubicTo(312f, 198f, 286f, 192f, 272f, 210f)
         cubicTo(254f, 236f, 258f, 302f, 302f, 303f)
@@ -415,7 +415,7 @@ private val HELLO_PATH: android.graphics.Path by lazy {
         cubicTo(508f, 48f, 484f, 44f, 474f, 78f)
         cubicTo(460f, 138f, 454f, 222f, 460f, 272f)
         cubicTo(464f, 302f, 490f, 306f, 514f, 288f)
-        // o: Bogen, geschlossen, Schwung nach rechts
+        // o: arc, closed, swing to the right
         cubicTo(534f, 268f, 550f, 222f, 580f, 206f)
         cubicTo(614f, 190f, 642f, 214f, 634f, 254f)
         cubicTo(626f, 294f, 586f, 312f, 566f, 288f)
@@ -426,7 +426,7 @@ private val HELLO_PATH: android.graphics.Path by lazy {
 private const val HELLO_W = 720f
 private const val HELLO_MID_Y = 175f
 
-/** Eine Glasscheibe: Mittelpunkt/Radius relativ zur Bildschirmbreite, Tönung, Parallaxe beim Hochwischen. */
+/** A glass pane: centre/radius relative to the screen width, tint, parallax when swiping up. */
 private class Pane(val cx: Float, val cy: Float, val r: Float, val tint: Color, val tintAlpha: Float, val parallax: Float)
 
 private val PANES = listOf(
@@ -436,23 +436,23 @@ private val PANES = listOf(
 )
 
 /**
- * Echte Liquid-Glass-Scheibe (Kyant-Linse wie Dock/Ordner): bricht das Lichtfeld am Rand stark (Lichtbänder biegen sich),
- * leicht gestreut, mit Glanzkante und weichem Schatten; treibt langsam.
+ * Real Liquid Glass pane (Kyant lens like dock/folder): strongly refracts the light field at the edge (light bands bend),
+ * slightly scattered, with a gloss edge and soft shadow; drifts slowly.
  */
 @Composable
 private fun GlassPane(field: com.kyant.backdrop.Backdrop, p: Pane, k: Int, time: () -> Float, lift: () -> Float) {
-    // Scheiben sind größer als der Bildschirm → feste Größe messen und frei platzieren (sonst gestaucht)
+    // Panes are larger than the screen → measure a fixed size and place freely (squashed otherwise)
     Box(
         Modifier.fillMaxSize().layout { m, c ->
-            // Größe an der KÜRZEREN Seite ausrichten: auf dem querliegenden Fold-Innendisplay wären die Scheiben sonst
-            // > 5000 px groß — das Glas nimmt jede Scheibe in jedem Bild komplett auf (Sekunden pro Bild im Emulator)
+            // Align the size to the SHORTER side: on the landscape Fold inner display the panes would otherwise be
+            // > 5000 px large — the glass records every pane completely in every frame (seconds per frame in the emulator)
             val w = c.maxWidth.toFloat(); val u = minOf(c.maxWidth, c.maxHeight).toFloat()
             val d = (2 * p.r * u).toInt()
             val pl = m.measure(androidx.compose.ui.unit.Constraints.fixed(d, d))
             layout(c.maxWidth, c.maxHeight) {
                 val t = time(); val a = t * 2f * PI.toFloat() / (DRIFT_S + k * 7f)
                 val x = w * p.cx - p.r * u + u * 0.03f * sin(a + k)
-                // cy ist in Breiten eines Hochformat-Handys angegeben (Höhe ≈ 2,17 Breiten) → anteilig auf die echte Höhe
+                // cy is given in widths of a portrait phone (height ≈ 2.17 widths) → proportionally to the real height
                 val y = c.maxHeight * p.cy / PORTRAIT_ASPECT - p.r * u + u * 0.025f * cos(a * 0.8f + k * 1.7f) + lift() * p.parallax
                 pl.place(x.toInt(), y.toInt())
             }
@@ -477,7 +477,7 @@ private fun GlassPane(field: com.kyant.backdrop.Backdrop, p: Pane, k: Int, time:
     }
 }
 
-/** Lichtfeld hinter dem Glas: heller Pastellverlauf, weiche Farbflächen und schräge Lichtbänder, die langsam wandern. */
+/** Light field behind the glass: light pastel gradient, soft colour areas and slanted light bands that move slowly. */
 private fun DrawScope.drawLightField(t: Float) {
     val w = size.width; val h = size.height
     drawRect(Brush.verticalGradient(listOf(Color(0xFFD5DDF8), Color(0xFFE3E6FA), Color(0xFFCBE6F7)), endY = h))
@@ -497,21 +497,21 @@ private fun DrawScope.drawLightField(t: Float) {
 }
 
 private val EASE = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
-private val WRITE_EASE = CubicBezierEasing(0.45f, 0.05f, 0.35f, 1f) // Stift: zügig, am Ende ausschwingend
+private val WRITE_EASE = CubicBezierEasing(0.45f, 0.05f, 0.35f, 1f) // pen: brisk, swinging out at the end
 private const val START_DELAY_MS = 500L
 private const val WRITE_HERO_MS = 2600
 private const val WRITE_MS = 1400
 private const val HOLD_MS = 1500L
 private const val OUT_MS = 550
-private const val LEAVE_SHARE = 0.25f          // ab ¼ Höhe losgelassen → raus
-private const val FLING_PX_S = 1200f           // oder schneller nach oben
-private const val CONTINUE_AT = 0.85f          // Seite erscheint, wenn die Karte zu 85 % raus ist
-private val SHEET_STIFFNESS = (2 * PI.toFloat() / 0.35f).let { it * it }   // Antwort ≈ 0,35 s, kritisch gedämpft
+private const val LEAVE_SHARE = 0.25f          // released from ¼ height → out
+private const val FLING_PX_S = 1200f           // or faster upwards
+private const val CONTINUE_AT = 0.85f          // page appears when the card is 85 % out
+private val SHEET_STIFFNESS = (2 * PI.toFloat() / 0.35f).let { it * it }   // response ≈ 0.35 s, critically damped
 private const val SNAP_BACK_DAMPING = 0.86f
 private val SNAP_BACK_STIFFNESS = (2 * PI.toFloat() / 0.4f).let { it * it }
-private const val SHEET_CORNER_DP = 50f        // ≈ Display-Ecke
+private const val SHEET_CORNER_DP = 50f        // ≈ display corner
 private const val UNDER_BLUR_DP = 40f
-private val UNDER_DIM = Color(0x5C6E7480)       // gedimmt, entsättigt (Messung: konstante Helligkeit unter der Karte)
+private val UNDER_DIM = Color(0x5C6E7480)       // dimmed, desaturated (measurement: constant brightness below the card)
 private const val BLUR_DP = 10f
 private const val DRIFT_S = 24f
 private const val PORTRAIT_ASPECT = 2.17f

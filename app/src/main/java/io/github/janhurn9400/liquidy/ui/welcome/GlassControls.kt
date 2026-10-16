@@ -59,12 +59,12 @@ import com.kyant.shapes.Capsule
 import kotlinx.coroutines.launch
 
 /*
- * Liquid-Glass-Bedienelemente im Stil von iOS 26 (Setup-Assistent): Knopf wächst beim Drücken (Feder),
- * Schalter- und Slider-Knauf verwandeln sich beim Anfassen in eine Glaslinse, die die Spur darunter vergrößert.
- * Quelle der Linse ist jeweils die eigene Spur (eigene LayerBackdrop), damit die Brechung sichtbar ist.
+ * Liquid Glass controls in iOS 26 style (setup assistant): the button grows when pressed (spring),
+ * switch and slider knobs turn into a glass lens when touched that magnifies the track below.
+ * The lens's source is always its own track (own LayerBackdrop), so the refraction is visible.
  */
 
-/** Blaue (oder klare) Glas-Kapsel, volle Breite, 52 pt — wie „Weiter“ im iOS-Setup. */
+/** Blue (or clear) glass capsule, full width, 52 pt — like "Continue" in the iOS setup. */
 @Composable
 fun GlassButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, prominent: Boolean = true) {
     val press = remember { Animatable(0f) }
@@ -86,7 +86,7 @@ fun GlassButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifie
         LiquidGlass(glassCapsule(), Modifier.matchParentSize(), whiteTint = if (prominent) 0f else 0.55f, blackTint = 0f) {
             Box(Modifier.matchParentSize().clip(CircleShape).drawBehind {
                 if (prominent) drawRect(ACCENT.copy(alpha = 0.94f))
-                // beim Drücken aufhellen (das Licht macht die Glaskante, kein aufgemalter Glanz)
+                // brighten when pressed (the light makes the glass edge, no painted-on gloss)
                 drawRect(Color.White.copy(alpha = 0.16f * press.value))
             })
         }
@@ -95,7 +95,7 @@ fun GlassButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifie
     }
 }
 
-/** Runder Glasknopf mit Zurück-Pfeil (oben links auf Setup-Seiten). */
+/** Round glass button with a back arrow (top left on setup pages). */
 @Composable
 fun GlassBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val press = remember { Animatable(0f) }
@@ -123,8 +123,8 @@ fun GlassBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /**
- * iOS-26-Schalter: grüne/graue Spur, weißer Knauf wird beim Drücken zur vergrößernden Glaslinse.
- * Tippen schaltet um; Ziehen nimmt den Knauf mit, beim Loslassen rastet er auf der näheren Seite ein.
+ * iOS 26 switch: green/grey track, the white knob becomes a magnifying glass lens when pressed.
+ * Tapping toggles; dragging takes the knob along, on release it snaps to the nearer side.
  */
 @Composable
 fun GlassToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
@@ -172,7 +172,7 @@ fun GlassToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: 
 }
 
 /**
- * iOS-26-Slider: dünne Spur (gefüllt bis zum Wert oder eigener Verlauf), Knauf wird beim Ziehen zur Glaslinse.
+ * iOS 26 slider: thin track (filled up to the value or an own gradient), the knob becomes a glass lens while dragging.
  * [value] 0…1.
  */
 @Composable
@@ -197,7 +197,7 @@ fun GlassSlider(value: Float, onValueChange: (Float) -> Unit, modifier: Modifier
                 }
             }
         ) {
-            // Spur in voller Höhe aufnehmen (oben/unten transparent) — die Linse zeigt sie vergrößert
+            // Record the track at full height (transparent above/below) — the lens shows it magnified
             Box(Modifier.matchParentSize().layerBackdrop(track).drawBehind {
                 val th = SLIDER_TRACK.dp.toPx(); val y = (size.height - th) / 2; val r = CornerRadius(th / 2)
                 if (trackBrush != null) drawRoundRect(trackBrush, Offset(0f, y), Size(size.width, th), r)
@@ -214,7 +214,7 @@ fun GlassSlider(value: Float, onValueChange: (Float) -> Unit, modifier: Modifier
     }
 }
 
-/** Knauf: ruhend weiße Kapsel mit Schatten; beim Anfassen wächst er und wird klar (Linse über der Spur). */
+/** Knob: at rest a white capsule with a shadow; when touched it grows and becomes clear (lens over the track). */
 @Composable
 private fun GlassThumb(track: com.kyant.backdrop.Backdrop, press: Animatable<Float, *>, modifier: Modifier) {
     Box(
@@ -242,7 +242,7 @@ internal val SECONDARY = Color(0x993C3C43) // secondaryLabel hell
 private val GREEN = Color(0xFF34C759)
 private val TRACK_OFF = Color(0xFFE3E3E8)
 private const val BUTTON_H = 50
-private const val PRESS_GROW = 0.04f   // Knöpfe wachsen beim Drücken (nicht schrumpfen)
+private const val PRESS_GROW = 0.04f   // buttons grow when pressed (don't shrink)
 private const val TOGGLE_W = 64f
 private const val TOGGLE_H = 28f
 private const val THUMB_W = 38f

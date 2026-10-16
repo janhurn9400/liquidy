@@ -17,20 +17,20 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /**
- * Globale Suche (Stufe 2/3): Fotos (Dateiname, Album, Monat/Jahr), Dateien (Name), Android-Einstellungen (Stichworte).
- * Nutzt den vorhandenen Android-Index (MediaStore) — kein eigenes Indexieren; bleibt komplett auf dem Gerät.
+ * Global search (stage 2/3): photos (file name, album, month/year), files (name), Android settings (keywords).
+ * Uses the existing Android index (MediaStore) — no own indexing; stays entirely on the device.
  */
 object DeviceSearch {
     data class Photo(val uri: Uri, val name: String)
     data class FileHit(val uri: Uri, val name: String, val mime: String?, val size: Long, val modified: Long, val folder: String)
     data class SettingHit(val label: String, val action: String)
 
-    // ── Fotos ─────────────────────────────────────────────────────────────────
+    // ── Photos ─────────────────────────────────────────────────────────────────
     fun hasPhotos(c: Context) =
         ContextCompat.checkSelfPermission(c, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(c, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
 
-    /** „Screenshots“, „Camera“ (Album), „IMG_2024“ (Name), „Juli 2025“ / „July“ / „2024“ (Aufnahmedatum). */
+    /** "Screenshots", "Camera" (album), "IMG_2024" (name), "Juli 2025" / "July" / "2024" (capture date). */
     fun photos(c: Context, query: String, max: Int = 12): List<Photo> {
         val q = query.trim()
         if (q.length < 2 || !hasPhotos(c)) return emptyList()
@@ -38,7 +38,7 @@ object DeviceSearch {
         val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         val sel: String; val args: Array<String>
         if (range != null) {
-            // ohne EXIF-Aufnahmedatum (z. B. Screenshots, geladene Bilder) zählt das Hinzufügedatum
+            // without an EXIF capture date (e.g. screenshots, downloaded images) the date added counts
             val d = "COALESCE(${MediaStore.Images.Media.DATE_TAKEN}, ${MediaStore.Images.Media.DATE_ADDED} * 1000)"
             sel = "$d >= ? AND $d < ?"
             args = arrayOf(range.first.toString(), range.second.toString())
@@ -56,7 +56,7 @@ object DeviceSearch {
         return out
     }
 
-    /** Monat (+ optional Jahr) oder Jahr im Text → [Start, Ende) in ms; Monatsnamen in Gerätesprache und Englisch. */
+    /** Month (+ optional year) or year in the text → [start, end) in ms; month names in the device language and English. */
     private fun dateRange(q: String): Pair<Long, Long>? {
         val words = q.lowercase(Locale.getDefault()).split(' ', ',', '.').filter { it.isNotBlank() }
         val year = words.firstNotNullOfOrNull { w -> w.toIntOrNull()?.takeIf { it in 1990..2100 } }
@@ -69,7 +69,7 @@ object DeviceSearch {
             }
         }
         if (month == null && year == null) return null
-        // nur Monats-/Jahres-Wörter → Datumssuche; sonst Namenssuche (z. B. „Mai Urlaub“ bleibt Name)
+        // only month/year words → date search; otherwise name search (e.g. "May holiday" stays a name)
         if (words.size > (if (month != null) 1 else 0) + (if (year != null) 1 else 0)) return null
         val zone = ZoneId.systemDefault()
         val y = year ?: LocalDate.now().year.let { if (month != null && month > LocalDate.now().monthValue) it - 1 else it }
@@ -80,15 +80,15 @@ object DeviceSearch {
 
     fun openPhoto(c: Context, p: Photo) = view(c, p.uri, "image/*")
 
-    // ── Dateien ───────────────────────────────────────────────────────────────
-    /** Alle Dateien lesbar? (Dateizugriff — sonst sieht der Launcher nur Medien.) */
+    // ── Files ───────────────────────────────────────────────────────────────
+    /** All files readable? (file access — otherwise the launcher only sees media.) */
     fun hasAllFiles() = Environment.isExternalStorageManager()
 
     fun files(c: Context, query: String, max: Int = 5): List<FileHit> {
         val q = query.trim()
         if (q.length < 2) return emptyList()
         val uri = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        // keine Fotos/Videos (eigener Abschnitt), keine Ordner, keine versteckten/Cache-Dateien
+        // no photos/videos (own section), no folders, no hidden/cache files
         val sel = "${f.DISPLAY_NAME} LIKE ? AND ${f.MEDIA_TYPE} NOT IN (${f.MEDIA_TYPE_IMAGE}, ${f.MEDIA_TYPE_VIDEO}) AND ${f.MIME_TYPE} IS NOT NULL " +
             "AND ${f.RELATIVE_PATH} NOT LIKE 'Android/%' AND ${f.DISPLAY_NAME} NOT LIKE '.%'"
         val out = ArrayList<FileHit>()
@@ -113,8 +113,8 @@ object DeviceSearch {
         }
     }
 
-    // ── Einstellungen ─────────────────────────────────────────────────────────
-    /** Stichwort-Liste (de + en) → Android-Einstellungsseite. Name je Sprache aus den Strings. */
+    // ── Settings ─────────────────────────────────────────────────────────────
+    /** Keyword list (de + en) → Android settings page. Name per language from the strings. */
     private class Entry(val labelRes: Int, val action: String, val keys: List<String>)
 
     private val entries by lazy {

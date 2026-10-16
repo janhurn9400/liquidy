@@ -10,10 +10,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /**
- * Haptik — bewusst sparsam: nur wo iOS spürbar tickt (Kontextmenü geht auf, Bearbeiten-Modus beginnt),
- * NICHT z. B. beim Einrasten von Widget-Größen. Immer abschaltbar (Setup + Bearbeiten-Menü), weil viele Android-Handys
- * nur „matschige“ Vibrationsmotoren haben. Voreinstellung: an, wenn das Gerät präzise Klicks kann (Composition-Primitive),
- * sonst aus. Läuft über performHapticFeedback → respektiert auch die System-Einstellung „Haptisches Feedback“.
+ * Haptics — deliberately sparing: only where iOS ticks noticeably (context menu opens, edit mode starts),
+ * NOT e.g. when widget sizes snap. Always switchable off (setup + edit menu), because many Android phones
+ * only have "mushy" vibration motors. Default: on if the device can do precise clicks (composition primitives),
+ * otherwise off. Runs via performHapticFeedback → also respects the system setting "Haptic feedback".
  */
 object Haptics {
     private const val PREFS = "haptics"
@@ -29,12 +29,12 @@ object Haptics {
         c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("on", on).apply()
     }
 
-    /** Präziser Motor (kurze, knackige Klicks möglich) — Taptic-Engine-ähnlich. */
+    /** Precise motor (short, crisp clicks possible) — Taptic Engine-like. */
     fun hasPreciseMotor(c: Context): Boolean = runCatching {
         c.getSystemService(Vibrator::class.java)?.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_CLICK) == true
     }.getOrDefault(false)
 
-    /** Ein kurzer, fester Tick (Menü auf / Bearbeiten beginnt). */
+    /** A short, firm tick (menu opens / edit mode starts). */
     fun tick(view: View) {
         if (enabled) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
     }

@@ -50,7 +50,7 @@ import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** Eigene iOS-artige Widgets (kein Apple-Asset; Aufbau nach recording6/7). */
+/** Own iOS-like widgets (no Apple asset; structure after recording6/7). */
 object IosWidgetTypes {
     const val CLOCK = "ios:clock"
     const val CALENDAR = "ios:calendar"
@@ -61,16 +61,16 @@ object IosWidgetTypes {
     val all = listOf(CLOCK, CALENDAR, BATTERY, WEATHER, PHOTOS, REMINDERS)
 }
 
-/** Antippen eines eigenen Widgets öffnet die passende App (iOS: Kalender → Kalender, Uhr → Uhr, Batterien → nichts). */
+/** Tapping an own widget opens the matching app (iOS: Calendar → Calendar, Clock → Clock, Batteries → nothing). */
 fun openWidgetApp(context: Context, type: String, from: android.graphics.RectF? = null, widgetKey: String? = null) {
-    if (type == IosWidgetTypes.REMINDERS) { RemindersStore.sheetOpen = true; return } // eigene Liste statt fremder App
+    if (type == IosWidgetTypes.REMINDERS) { RemindersStore.sheetOpen = true; return } // own list instead of a third-party app
     val intent = when (type) {
         IosWidgetTypes.CALENDAR -> Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR)
         IosWidgetTypes.CLOCK -> Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS)
         IosWidgetTypes.PHOTOS -> Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY)
         else -> return
     }
-    // mit Magisk-Modul: App wächst aus dem Widget (gleiche Karte wie beim Icon, Start mit Widget-Ecken)
+    // with the Animation Module: the app grows out of the widget (same card as for the icon, starting with widget corners)
     val opts = from?.let { io.github.janhurn9400.liquidy.data.AppLaunchTransition.optionsFor(it,
         io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.value * io.github.janhurn9400.liquidy.design.UiScale.density(context), widgetKey) }
     widgetKey?.let { k ->
@@ -92,10 +92,10 @@ fun IosWidget(type: String, cols: Int, rows: Int = 2, modifier: Modifier = Modif
     }
 }
 
-// ── Uhr (Analog, weißes Ziffernblatt, rote Sekunde — „Clock · City“ im Picker, recording7 8,4 s) ────────────
+// ── Clock (analogue, white dial, red second hand — "Clock · City" in the picker, recording7 8.4 s) ────────────
 @Composable
 private fun ClockWidget(modifier: Modifier, city: io.github.janhurn9400.liquidy.data.WorldClock.City? = null) {
-    // Stadt gewählt → deren Zeitzone; nachts (18–6 Uhr dort) dunkles Ziffernblatt wie bei iOS, Stadtkürzel im Zifferblatt
+    // City chosen → its time zone; at night (18–6 h there) a dark dial like on iOS, city abbreviation on the dial
     val zone = city?.zoneId ?: java.time.ZoneId.systemDefault()
     val now by produceState(LocalTime.now(zone), zone) { while (true) { value = LocalTime.now(zone); delay(1000L - System.currentTimeMillis() % 1000) } }
     val night = city != null && (now.hour < CLOCK_DAY_FROM || now.hour >= CLOCK_NIGHT_FROM)
@@ -135,7 +135,7 @@ private fun ClockWidget(modifier: Modifier, city: io.github.janhurn9400.liquidy.
     }
 }
 
-// ── Kalender (schwarz, roter Wochentag, große Zahl, nächste Termine mit Farbbalken — recording6 0,2 s) ─────────
+// ── Calendar (black, red weekday, large number, next events with colour bars — recording6 0.2 s) ─────────
 private data class CalEvent(val title: String, val time: String, val color: Int)
 
 @Composable
@@ -181,8 +181,8 @@ private fun EventList(events: List<CalEvent>, max: Int, modifier: Modifier = Mod
 
 private fun Color.lighten() = Color(red + (1 - red) * 0.35f, green + (1 - green) * 0.35f, blue + (1 - blue) * 0.35f, alpha)
 
-/** Termine heute + morgen (nur mit Kalender-Berechtigung; ohne sie bleibt die Liste leer). */
-/** Kalender des Geräts (Id, Name, Farbe) für die Widget-Einstellung „Kalender“. */
+/** Events today + tomorrow (only with calendar permission; without it the list stays empty). */
+/** The device's calendars (id, name, colour) for the widget setting "Calendars". */
 internal fun deviceCalendars(context: Context): List<Triple<Long, String, Int>> {
     if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) return emptyList()
     val out = ArrayList<Triple<Long, String, Int>>()
@@ -195,7 +195,7 @@ internal fun deviceCalendars(context: Context): List<Triple<Long, String, Int>> 
     return out
 }
 
-/** [config] = ausgewählte Kalender-Ids, kommagetrennt; null = alle. */
+/** [config] = selected calendar ids, comma-separated; null = all. */
 private suspend fun loadEvents(context: Context, config: String? = null): List<CalEvent> = withContext(Dispatchers.IO) {
     if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) return@withContext emptyList()
     val now = System.currentTimeMillis()
@@ -226,13 +226,13 @@ private object ContentUrisCompat {
     }
 }
 
-// ── Batterien (Ring + Prozent, iOS „Batteries“) ────────────────────────────────────────────────
+// ── Batteries (ring + percent, iOS "Batteries") ────────────────────────────────────────────────
 @Composable
 private fun BatteryWidget(modifier: Modifier) {
     val context = LocalContext.current
     val level by produceState(batteryLevel(context)) { while (true) { value = batteryLevel(context); delay(60_000) } }
     Box(modifier, contentAlignment = Alignment.Center) {
-        // Getöntes Glas wie iOS „Batteries“ (recording8 12,5 s: innen ≈ 35 % der Hintergrundhelligkeit, Farbe bleibt)
+        // Tinted glass like iOS "Batteries" (recording8 12.5 s: inside ≈ 35 % of the background brightness, colour stays)
         if (io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current != null) io.github.janhurn9400.liquidy.glass.LiquidGlass(
             shape = io.github.janhurn9400.liquidy.glass.glassRect(io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.dp),
             modifier = Modifier.fillMaxSize(), blur = WIDGET_GLASS_BLUR.dp, blackTint = WIDGET_GLASS_DARK, whiteTint = 0f,
@@ -256,11 +256,11 @@ private fun batteryLevel(context: Context): Int {
 }
 
 private val RED = Color(0xFFFF3B30)
-private const val WIDGET_PAD = 16f   // [GESCHÄTZT] Innenabstand iOS-Widgets
+private const val WIDGET_PAD = 16f   // [ESTIMATED] padding of iOS widgets
 private const val MEDIUM_DATE_W = 110f
 private const val CLOCK_PAD = 10f
-private const val CLOCK_DAY_FROM = 6     // iOS: Ziffernblatt hell ab 6 Uhr …
-private const val CLOCK_NIGHT_FROM = 18  // … dunkel ab 18 Uhr (Ortszeit der Stadt) [GESCHÄTZT]
+private const val CLOCK_DAY_FROM = 6     // iOS: light dial from 6 h …
+private const val CLOCK_NIGHT_FROM = 18  // … dark from 18 h (local time of the city) [ESTIMATED]
 private const val BATTERY_PAD = 30f
 private const val WIDGET_GLASS_BLUR = 24f
-private const val WIDGET_GLASS_DARK = 0.22f // Duo [Referenz 10_today/01_home]: durchscheinendes Glas, nicht deckend
+private const val WIDGET_GLASS_DARK = 0.22f // Duo [reference 10_today/01_home]: translucent glass, not opaque

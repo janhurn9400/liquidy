@@ -9,16 +9,16 @@ import android.os.UserHandle
 import android.util.Log
 
 /**
- * Handshake mit der Gesten-Navigation (AOSP Launcher3 GestureNavContract, seit Android 11 QPR1):
- * Wischt der Nutzer in einer App nach Hause, kommt ein HOME-Intent mit [EXTRA_GESTURE_CONTRACT]. Wir antworten mit der
- * Bildschirmposition des passenden Icons → das System lässt das App-Fenster in dieses Icon fliegen.
- * Die Flugkurve bestimmt das System; wir liefern nur das Ziel (+ optional eine Icon-Surface zum Überblenden).
+ * Handshake with gesture navigation (AOSP Launcher3 GestureNavContract, since Android 11 QPR1):
+ * when the user swipes home in an app, a HOME intent arrives with [EXTRA_GESTURE_CONTRACT]. We answer with the
+ * screen position of the matching icon → the system lets the app window fly into this icon.
+ * The system determines the flight curve; we only provide the target (+ optionally an icon surface to crossfade into).
  */
 class GestureNavContract(val component: ComponentName, val user: UserHandle, private val reply: Message) {
 
     /**
-     * @param surface Icon-Fläche, in die das System das Fenster am Ende überblendet (sonst blendet es nur aus).
-     * @param onFinish läuft, wenn das System die Animation beendet hat (Original-Icon wieder zeigen, Fläche entfernen).
+     * @param surface icon surface the system crossfades the window into at the end (otherwise it only fades out).
+     * @param onFinish runs when the system has finished the animation (show the original icon again, remove the surface).
      */
     fun sendEndPosition(position: RectF, surface: android.view.SurfaceControl? = null, onFinish: (() -> Unit)? = null) {
         val result = Bundle().apply {
@@ -29,7 +29,7 @@ class GestureNavContract(val component: ComponentName, val user: UserHandle, pri
             })
         }
         val msg = Message.obtain().apply { copyFrom(reply); data = result }
-        runCatching { reply.replyTo.send(msg) }.onFailure { Log.w(TAG, "Icon-Position nicht gesendet", it) }
+        runCatching { reply.replyTo.send(msg) }.onFailure { Log.w(TAG, "Icon position not sent", it) }
     }
 
     companion object {
@@ -40,7 +40,7 @@ class GestureNavContract(val component: ComponentName, val user: UserHandle, pri
         const val EXTRA_REMOTE_CALLBACK = "android.intent.extra.REMOTE_CALLBACK"
         const val EXTRA_ON_FINISH_CALLBACK = "gesture_nav_contract_finish_callback"
 
-        /** Liest (und entfernt) den Vertrag aus dem Intent; null, wenn keiner da ist. */
+        /** Reads (and removes) the contract from the intent; null if there is none. */
         @Suppress("DEPRECATION")
         fun fromIntent(intent: Intent): GestureNavContract? {
             val extras = intent.getBundleExtra(EXTRA_GESTURE_CONTRACT) ?: return null

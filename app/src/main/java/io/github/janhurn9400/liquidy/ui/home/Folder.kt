@@ -48,7 +48,7 @@ import io.github.janhurn9400.liquidy.motion.Motion
 import io.github.janhurn9400.liquidy.ui.Inter
 import kotlin.math.roundToInt
 
-/** Ordner-Icon (T-FOLDER-ICON): Glas-Squircle mit 3×3 Mini-Icons. */
+/** Folder icon (T-FOLDER-ICON): glass squircle with 3×3 mini icons. */
 @Composable
 fun FolderIconView(
     id: String,
@@ -61,14 +61,14 @@ fun FolderIconView(
     clockSeconds: () -> Float,
     mergeHint: Boolean,
     modifier: Modifier = Modifier,
-    /** Gezogenes Icon (liegt über der Glasquelle): bricht live die Icons darunter statt nur das Wallpaper. */
+    /** Dragged icon (lies above the glass source): refracts the icons below live instead of only the wallpaper. */
     liveBackdrop: Boolean = false,
-    /** App, die gerade in den Ordner fliegt: ihr Mini-Platz bleibt leer, bis sie gelandet ist (M-MERGE-DROP). */
+    /** App flying into the folder right now: its mini slot stays empty until it has landed (M-MERGE-DROP). */
     hiddenApp: String? = null,
 ) {
     val phases = androidx.compose.runtime.remember(id) { jigglePhases(id) }
     val density = androidx.compose.ui.platform.LocalDensity.current.density
-    // Ordner-Hinweis: Name blendet aus, solange ein Icon darüber gehalten wird [GEMESSEN Nutzer-iPhone 10-14, 10,62 s]
+    // Folder hint: the name fades out while an icon is held over it [MEASURED user iPhone 10-14, 10.62 s]
     val labelShown = androidx.compose.runtime.remember(id) { Animatable(1f) }
     androidx.compose.runtime.LaunchedEffect(mergeHint) { labelShown.animateTo(if (mergeHint) 0f else 1f, Motion.mergeHint.spec()) }
     IconCell(
@@ -84,12 +84,12 @@ fun FolderIconView(
         clipIcon = false,
         modifier = modifier,
     ) {
-        // Ordner-Hinweis [GEMESSEN Nutzer-iPhone 10-14]: das Ordner-Glas selbst wächst auf T-MERGE.scale und dunkelt ab,
-        // die Mini-Icons bleiben stehen
+        // Folder hint [MEASURED user iPhone 10-14]: the folder glass itself grows to T-MERGE.scale and darkens,
+        // the mini icons stay put
         val hint = androidx.compose.runtime.remember(id) { Animatable(0f) }
         androidx.compose.runtime.LaunchedEffect(mergeHint) { hint.animateTo(if (mergeHint) 1f else 0f, Motion.mergeHint.spec()) }
-        // Dasselbe Liquid Glass wie das Dock (Linse, Licht, Tönung) — Quelle nur das Wallpaper, weil das Icon selbst
-        // in der aufgenommenen Icon-Ebene liegt; beim Ziehen liegt es darüber → echte Quelle (Wallpaper + Icons)
+        // The same Liquid Glass as the dock (lens, light, tint) — source is only the wallpaper, because the icon itself
+        // lies in the recorded icon layer; while dragging it lies above → real source (wallpaper + icons)
         val wb = io.github.janhurn9400.liquidy.glass.LocalWallpaperBlur.current
         val live = io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current
         val backdrop = androidx.compose.runtime.remember(wallpaper, wb, liveBackdrop, live) {
@@ -97,7 +97,7 @@ fun FolderIconView(
         }
         androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop provides backdrop) {
             androidx.compose.foundation.layout.Box(Modifier.size(DesignTokens.iconSize.dp).graphicsLayer {
-                // Wackeln lesen → Glas zeichnet in jedem Frame neu (Hintergrund bleibt stehen)
+                // Read the jiggle → glass redraws every frame (background stays still)
                 jiggleValues(jiggle(), clockSeconds(), phases, density)
             }) {
                 io.github.janhurn9400.liquidy.glass.LiquidGlass(
@@ -105,22 +105,22 @@ fun FolderIconView(
                     blackTint = DesignTokens.glassTint.value + DesignTokens.folderMergeDark.value * hint.value,
                     modifier = Modifier.mergeGrow { 1f + (DesignTokens.folderMergeScale.value - 1f) * hint.value },
                 )
-                // Schlüssel mitgeben (Mehrfach-Icons haben eigene Schlüssel) — der fliegende Platz bleibt leer
+                // Pass the key (multiple icons have their own keys) — the flying slot stays empty
                 MiniGrid(folder.apps.filter { apps[it] != null }.map { k -> if (k == hiddenApp) null else apps[k] })
             }
         }
     }
 }
 
-/** 3×3 Mini-Icons, Maße gemessen (Innenrand 10 pt, Mini 13 pt, Abstand 16 pt). */
+/** 3×3 mini icons, measured dimensions (inset 10 pt, mini 13 pt, gap 16 pt). */
 @Composable
 private fun MiniGrid(apps: List<AppEntry?>) {
     val k = DesignTokens.folderMiniScale
     val mini = DesignTokens.folderMiniSize.dp * k
-    // Mini-Icons haben dieselben Eckenproportionen wie große Icons
+    // Mini icons have the same corner proportions as large icons
     val miniShape = ContinuousRoundedShape(DesignTokens.iconCorner.dp * (DesignTokens.folderMiniSize.value * k / DesignTokens.iconSize.value))
     apps.take(DesignTokens.FOLDER_COLUMNS * DesignTokens.FOLDER_ROWS).forEachIndexed { i, app ->
-        if (app == null) return@forEachIndexed // fliegt gerade hinein bzw. unbekannt: Platz bleibt frei
+        if (app == null) return@forEachIndexed // flying in right now or unknown: the slot stays free
         val col = i % DesignTokens.FOLDER_COLUMNS
         val row = i / DesignTokens.FOLDER_COLUMNS
         StyledAppIcon(
@@ -137,8 +137,8 @@ private fun MiniGrid(apps: List<AppEntry?>) {
 }
 
 /**
- * App über App gehalten: hinter dem Ziel erscheint das Ordner-Glas (wie beim Ordner-Hinweis: wächst auf T-MERGE.scale,
- * abgedunkelt) — sieht aus wie der Ordner, der gleich entsteht.
+ * App held over app: behind the target the folder glass appears (like the folder hint: grows to T-MERGE.scale,
+ * darkened) — looks like the folder that is about to be created.
  */
 @Composable
 fun MergeHintBackdrop(active: Boolean, wallpaper: ImageBitmap) {
@@ -156,8 +156,8 @@ fun MergeHintBackdrop(active: Boolean, wallpaper: ImageBitmap) {
     }
 }
 
-/** Glas auf [scale] × Icongröße um die Mitte — über die echte Größe (Layout), nicht graphicsLayer: sonst würde der gebrochene
- *  Hintergrund mitvergrößert (docs/GLASS.md). */
+/** Glass at [scale] × icon size around the centre — via the real size (layout), not graphicsLayer: otherwise the refracted
+ *  background would be enlarged too (docs/GLASS.md). */
 private fun Modifier.mergeGrow(scale: () -> Float): Modifier = this.layout { m, c ->
     val base = c.maxWidth
     val px = (base * scale()).roundToInt().coerceAtLeast(1)
@@ -165,26 +165,26 @@ private fun Modifier.mergeGrow(scale: () -> Float): Modifier = this.layout { m, 
     layout(base, base) { p.place((base - px) / 2, (base - px) / 2) }
 }
 
-// ── Geöffneter Ordner ───────────────────────────────────────────────────────────
+// ── Open folder ───────────────────────────────────────────────────────────
 
-/** Geometrie des offenen Ordners in Bildschirm-px (Panel-Rechteck, Icon-Positionen, Titel). */
+/** Geometry of the open folder in screen px (panel rect, icon positions, title). */
 class FolderGeometry(
     private val density: Float,
     private val width: Float,
     private val height: Float,
     private val home: HomeGeometry? = null,
-    /** x des Ordner-Icons (px): aufgeklappt öffnet der Ordner über der Hälfte, in der er liegt. */
+    /** x of the folder icon (px): unfolded the folder opens above the half it's in. */
     private val iconX: Float? = null,
 ) {
     private fun px(v: Float) = v * density
-    /** Duo aufgeklappt [GEMESSEN 19:02 (Video 1), 4,1 s]: 290 × 345 pt, mittig über dem Raster seiner Hälfte, oben 160 pt. */
+    /** Duo unfolded [MEASURED 19:02 (video 1), 4.1 s]: 290 × 345 pt, centred above the grid of its half, top 160 pt. */
     private val duoOpen get() = home?.unfolded == true
     val panel: Rect
         get() {
             if (duoOpen) {
                 val w = px(DUO_FOLDER_W); val h = px(DUO_FOLDER_H)
                 val cx = home!!.duoFolderCenterX(iconX ?: width)
-                // Oberkante wie am Duo (160 pt), aber nie so tief, dass das Panel unten hinausragt; seitlich im Bild halten
+                // Top like on the Duo (160 pt), but never so low that the panel sticks out at the bottom; keep it in view sideways
                 val top = minOf(px(DUO_FOLDER_TOP), height - h - px(DUO_FOLDER_MIN_BOTTOM)).coerceAtLeast(px(DUO_FOLDER_MIN_TOP))
                 val left = (cx - w / 2).coerceIn(px(8f), width - w - px(8f))
                 return Rect(Offset(left, top), Size(w, h))
@@ -194,7 +194,7 @@ class FolderGeometry(
             return Rect(Offset((width - w) / 2, (height - h) / 2), Size(w, h))
         }
 
-    /** Icon-Oberkante-links im Panel (panel-lokal). */
+    /** Icon top-left in the panel (panel-local). */
     fun slot(i: Int): Offset {
         val col = i % DesignTokens.FOLDER_COLUMNS
         val row = i / DesignTokens.FOLDER_COLUMNS
@@ -205,29 +205,29 @@ class FolderGeometry(
         )
     }
 
-    /** Umbenennen-Kapsel im Bearbeiten-Modus: so breit wie das Panel, 19 pt darüber, 59 pt hoch [GEMESSEN Video 1, 4,1 s]. */
+    /** Rename capsule in edit mode: as wide as the panel, 19 pt above it, 59 pt tall [MEASURED video 1, 4.1 s]. */
     val titleRect: Rect get() = Rect(Offset(panel.left, panel.top - px(NAME_GAP + NAME_H)), Size(panel.width, px(NAME_H)))
 
-    /** Bereich rechts im Umbenennen-Feld, der zum ×-Knopf gehört (px): Rand + Knopf + etwas Spielraum. */
+    /** Area on the right of the rename field that belongs to the × button (px): margin + button + some slack. */
     val nameClearZone: Float get() = px(NAME_CLEAR_END + NAME_CLEAR + NAME_CLEAR_SLOP)
 
-    /** Titel links: gleicher Abstand zur Panel-Kante wie beim iPhone (74,33 − 47,83 pt). */
+    /** Title left: same distance to the panel edge as on the iPhone (74.33 − 47.83 pt). */
     val titleLeft: Float get() = panel.left + px(DesignTokens.folderTitleX.value - (402f - DesignTokens.folderPanelWidth.value) / 2)
 
     /**
-     * Rechteck von Glas + Inhalt bei Fortschritt p: vom Ordner-Icon-Quadrat zum Panel (Breite/Höhe je für sich) — bei p → 0
-     * deckt es sich exakt mit dem Ordner-Icon, sonst sieht man beim (langsam auslaufenden) Schließen die Überblendung.
+     * Rect of glass + content at progress p: from the folder icon square to the panel (width/height separately) — at p → 0
+     * it matches the folder icon exactly, otherwise you'd see the crossfade during the (slowly settling) close.
      */
     fun rect(p: Float, iconTopLeft: Offset, iconScale: Float = 1f): Rect {
         val icon = px(DesignTokens.iconSize.value)
-        // sichtbares Ordner-Icon (im Duo-Dock kleiner, um die Mitte) — HomeGeometry.dockIconScale
+        // visible folder icon (smaller in the Duo dock, around the centre) — HomeGeometry.dockIconScale
         val s = icon * iconScale; val o = (icon - s) / 2
         val l0 = iconTopLeft.x + o; val t0 = iconTopLeft.y + o
         fun l(a: Float, b: Float) = a + (b - a) * p
         return Rect(l(l0, panel.left), l(t0, panel.top), l(l0 + s, panel.right), l(t0 + s, panel.bottom))
     }
 
-    /** Mitte des App-Icons [i] (Index auf der Seite) relativ zu [rect] bei p: Mini-Platz im Ordner-Icon → Panel-Platz. */
+    /** Centre of app icon [i] (index on the page) relative to [rect] at p: mini slot in the folder icon → panel slot. */
     fun iconCenter(i: Int, p: Float, iconScale: Float = 1f): Offset {
         val col = i % DesignTokens.FOLDER_COLUMNS; val row = i / DesignTokens.FOLDER_COLUMNS
         val mk = DesignTokens.folderMiniScale
@@ -239,7 +239,7 @@ class FolderGeometry(
         return mini + (full - mini) * p
     }
 
-    /** Größe der App-Icons relativ zur vollen Größe bei p: Mini-Icon → volles Icon. */
+    /** Size of the app icons relative to full size at p: mini icon → full icon. */
     fun iconScale(p: Float, folderIconScale: Float = 1f): Float {
         val k = DesignTokens.folderMiniSize.value * DesignTokens.folderMiniScale / DesignTokens.iconSize.value * folderIconScale
         return k + (1f - k) * p
@@ -259,9 +259,9 @@ fun FolderOverlay(
     val panel = geo.panel
     val apps = folder.apps.mapNotNull { model.apps[it] }
 
-    // Bearbeiten-Modus: Titel als Glas-Kapsel mit Textfeld + Löschknopf (Umbenennen) [Video 1, 4,1 s]
+    // Edit mode: title as a glass capsule with text field + clear button (rename) [video 1, 4.1 s]
     if (model.editing) FolderNameField(model, open, geo, density, folder.name)
-    // Titel: groß, fett, weiß, linksbündig über dem Panel; blendet mit dem Fortschritt ein
+    // Title: large, bold, white, left-aligned above the panel; fades in with progress
     else Layout(
         content = {
             BasicText(
@@ -282,12 +282,12 @@ fun FolderOverlay(
         }
     }
 
-    // Glas: NICHT per graphicsLayer skalieren — sonst wird das gebrochene Hintergrundbild mitvergrößert und das Wallpaper
-    // scheint mitzuwachsen. Stattdessen echte Größe/Position je Frame (Layout-Phase), das Glas zeigt immer, was dahinter liegt.
-    // Eckradius wächst mit: Ordner-Icon-Ecke → Panel-Ecke (Größe ändert sich im selben Bild mit, Kyant übernimmt die Form
-    // bei jeder Größenänderung — der Fallstrick „Form in der Form“ trat nur bei gleichbleibender Größe auf)
+    // Glass: do NOT scale via graphicsLayer — otherwise the refracted background image is enlarged too and the wallpaper
+    // seems to grow along. Instead real size/position per frame (layout phase), the glass always shows what lies behind.
+    // Corner radius grows along: folder icon corner → panel corner (the size changes in the same frame, Kyant takes over the shape
+    // on every size change — the pitfall "shape within the shape" only occurred at constant size)
     val pr = open.progress.value.coerceIn(0f, 1f)
-    val iconCorner = DesignTokens.iconCorner.value * open.iconScale // Ordner im Duo-Dock: kleiner (dockIconScale)
+    val iconCorner = DesignTokens.iconCorner.value * open.iconScale // folder in the Duo dock: smaller (dockIconScale)
     val corner = iconCorner + (DesignTokens.folderPanelCorner.value - iconCorner) * pr
     fun Modifier.atRect() = this.layout { m, _ ->
         val r = geo.rect(open.progress.value, open.iconTopLeft, open.iconScale)
@@ -298,20 +298,20 @@ fun FolderOverlay(
         LiquidGlass(
             shape = glassRect(Dp(corner)),
             modifier = Modifier.matchParentSize(),
-            // Glas-Werte gleiten mit dem Fortschritt zum Ordner-Icon-Glas (LiquidGlass-Standard) — klein sieht das Panel
-            // genauso aus wie das Icon, der Tausch am Ende des Schließens ist unsichtbar
+            // Glass values glide with progress to the folder icon glass (LiquidGlass default) — small, the panel looks
+            // exactly like the icon, the swap at the end of closing is invisible
             thickness = 1f + (DesignTokens.glassThicknessLarge.value - 1f) * pr,
             blur = (DesignTokens.glassBlur.value + (DesignTokens.folderPanelBlur.value - DesignTokens.glassBlur.value) * pr).dp,
             whiteTint = DesignTokens.glassWhiteTint.value + (DesignTokens.folderPanelTint.value - DesignTokens.glassWhiteTint.value) * pr,
-            // klares Glas (IMG_3130: innen = außen): Quelle ist nicht abgedunkelt → dieselbe Abdunkelung als Tönung
+            // clear glass (IMG_3130: inside = outside): the source is not dimmed → the same dimming as tint
             blackTint = DesignTokens.glassTint.value + (DesignTokens.folderBgDim.value - DesignTokens.glassTint.value) * pr,
         )
     }
 
-    // Icons: aus dem Ordner-Icon heraus skaliert (M-FOLDER, Fortschritt 0…1)
-    // Ordnerseiten: Icons werden am Panelrand abgeschnitten [GEMESSEN Nutzer-iPhone 10-14, 17 s]
+    // Icons: scaled out of the folder icon (M-FOLDER, progress 0…1)
+    // Folder pages: icons are clipped at the panel edge [MEASURED user iPhone 10-14, 17 s]
     Box(Modifier.atRect().graphicsLayer { alpha = model.folderVisible(open); clip = true }) {
-        // Seitenpunkte unten im Panel: je 9 Apps eine Seite, im Bearbeiten-Modus eine leere Seite mehr (iOS) [Video 1, 4,1 s]
+        // Page dots at the bottom of the panel: one page per 9 apps, in edit mode one more empty page (iOS) [video 1, 4.1 s]
         val perPage = DesignTokens.FOLDER_COLUMNS * DesignTokens.FOLDER_ROWS
         val pageCount = (apps.size + perPage - 1) / perPage + (if (model.editing) 1 else 0)
         if (pageCount > 1) androidx.compose.foundation.Canvas(Modifier.matchParentSize().graphicsLayer { alpha = open.progress.value.coerceIn(0f, 1f) }) {
@@ -325,7 +325,7 @@ fun FolderOverlay(
             }
         }
         val iconPx = DesignTokens.iconSize.value * density
-        // Umsortieren: Reihenfolge ohne das gezogene Icon, an seinem Einfügeplatz eine Lücke — die anderen weichen aus
+        // Reordering: order without the dragged icon, a gap at its insertion slot — the others make way
         val fd = model.folderDrag
         val order = folder.apps.filter { model.apps[it] != null }.let { keys ->
             if (fd == null || fd.hoverIndex < 0) keys else (keys - fd.key).toMutableList().apply { add(fd.hoverIndex.coerceIn(0, size), fd.key) }
@@ -333,14 +333,14 @@ fun FolderOverlay(
         apps.forEachIndexed { i0, app -> androidx.compose.runtime.key(app.key) {
             val i = order.indexOf(app.key).takeIf { it >= 0 } ?: i0
             val pageOfIcon = i / perPage
-            // Ausweichen federt (M-REFLOW); beim Öffnen/Schließen ohne Ziehen steht das Icon genau auf seinem Platz
+            // Reflow springs (M-REFLOW); when opening/closing without dragging the icon stands exactly on its slot
             val slotAnim = androidx.compose.runtime.remember(app.key) { Animatable(geo.slot(i % perPage), Offset.VectorConverter) }
             androidx.compose.runtime.LaunchedEffect(i, fd != null) {
                 if (fd != null) slotAnim.animateTo(geo.slot(i % perPage), Motion.reflow.spec()) else slotAnim.snapTo(geo.slot(i % perPage))
             }
-            // angehoben (wird im Ordner gezogen) → hängt als Kopie am Finger
+            // lifted (being dragged in the folder) → hangs on the finger as a copy
             val hidden = model.folderDrag?.key == app.key ||
-                // App wächst gerade daraus bzw. fliegt hinein → Platz leer (wie auf dem Homescreen)
+                // App is growing out of it or flying into it → slot empty (like on the home screen)
                 model.flyingKey == app.key || io.github.janhurn9400.liquidy.data.AppLaunchTransition.launchingKey.value == app.key
             if (!hidden) AppIconView(
                 app = app,
@@ -348,20 +348,20 @@ fun FolderOverlay(
                 wallpaper = wallpaper,
                 pressAlpha = { if (model.pressedKey == app.key) model.pressAlpha.value else 0f },
                 jiggle = { model.jiggleAmount.value },
-                clockSeconds = clockSeconds, // dieselbe Uhr wie der Homescreen — sonst stehen die Icons nur schräg still
+                clockSeconds = clockSeconds, // the same clock as the home screen — otherwise the icons just stand still at an angle
                 badgeScale = { model.badgeScale.value },
-                showBadge = model.editing || model.badgeScale.value > 0f, // Bearbeiten: Minus wie auf dem Homescreen
-                badgeOnGlass = true, // Milchglas aus dem, was hinter dem Ordner liegt
-                labelAlpha = { (open.progress.value / LABEL_FADE_UNTIL).coerceIn(0f, 1f) }, // Mini-Icons haben keine Namen
+                showBadge = model.editing || model.badgeScale.value > 0f, // editing: minus like on the home screen
+                badgeOnGlass = true, // frosted glass from what lies behind the folder
+                labelAlpha = { (open.progress.value / LABEL_FADE_UNTIL).coerceIn(0f, 1f) }, // mini icons have no names
                 modifier = Modifier
-                    // volle Zellengröße, auch wenn der Behälter beim Schrumpfen schmaler ist als eine Zelle — sonst zwängt
-                    // Compose die Zelle hinein und verschiebt sie um die halbe Differenz (App rutschte aus dem Glas)
+                    // full cell size, even if the container is narrower than a cell while shrinking — otherwise
+                    // Compose squeezes the cell in and shifts it by half the difference (the app slid out of the glass)
                     .wrapContentSize(androidx.compose.ui.Alignment.TopStart, unbounded = true)
                     .offset {
                         val pr = open.progress.value
                         val c = if (model.folderDrag != null) slotAnim.value + Offset(iconPx / 2, iconPx / 2)
                             else geo.iconCenter(i % perPage, pr, open.iconScale)
-                        // Seite verschoben um ganze (aktuelle) Breiten (Blättern liest den Wert erst im Layout)
+                        // page shifted by whole (current) widths (paging reads the value only in layout)
                         val dx = (pageOfIcon - model.folderPage.value) * geo.rect(pr, open.iconTopLeft, open.iconScale).width
                         IntOffset(cellOffsetX(c.x - iconPx / 2 + dx, density).roundToInt(), (c.y - iconPx / 2).roundToInt())
                     }
@@ -375,14 +375,14 @@ fun FolderOverlay(
     }
 }
 
-/** App, die im offenen Ordner gezogen wird: am Finger, leicht angehoben (wie das Ziehen auf dem Homescreen). */
+/** App being dragged in the open folder: on the finger, slightly lifted (like dragging on the home screen). */
 @Composable
 fun FolderDragCopy(model: HomeModel, density: Float, wallpaper: ImageBitmap) {
     val fd = model.folderDrag ?: return
     val app = model.apps[fd.key] ?: return
     val lift = androidx.compose.runtime.remember(fd) { Animatable(1f) }
     androidx.compose.runtime.LaunchedEffect(fd) { lift.animateTo(DesignTokens.dragScale.value, Motion.dragLift.spec()) }
-    // Losgelassen: von der Fingerlage in den Platz fliegen (M-DROP), Anhebung geht zurück, dann echtes Icon zeigen
+    // Released: fly from the finger position into the slot (M-DROP), the lift goes back, then show the real icon
     val land = androidx.compose.runtime.remember(fd) { Animatable(Offset.Zero, Offset.VectorConverter) }
     val target = fd.landingAt
     androidx.compose.runtime.LaunchedEffect(target) {
@@ -402,27 +402,27 @@ fun FolderDragCopy(model: HomeModel, density: Float, wallpaper: ImageBitmap) {
     }
 }
 
-private const val LABEL_FADE_UNTIL = 0.35f // App-Namen im Panel sind unter diesem Fortschritt ausgeblendet
+private const val LABEL_FADE_UNTIL = 0.35f // app names in the panel are hidden below this progress
 private const val DUO_FOLDER_W = 290f
 private const val DUO_FOLDER_H = 345f
 private const val DUO_FOLDER_TOP = 160f
 private const val DUO_FOLDER_MIN_BOTTOM = 40f
-private const val DUO_FOLDER_MIN_TOP = 100f // Platz für Titel/Umbenennen-Kapsel darüber
-private const val DUO_FOLDER_GRID_LEFT = 26f // Icon-Oberkante-links (erste Mitte 56 pt vom Rand)
-private const val DUO_FOLDER_GRID_TOP = 24f  // erste Reihe Mitte 54 pt unter der Oberkante
+private const val DUO_FOLDER_MIN_TOP = 100f // space for title/rename capsule above
+private const val DUO_FOLDER_GRID_LEFT = 26f // icon top-left (first centre 56 pt from the edge)
+private const val DUO_FOLDER_GRID_TOP = 24f  // first row centre 54 pt below the top
 private const val NAME_H = 59f
 private const val FOLDER_DOT_D = 7f
 private const val FOLDER_DOT_PITCH = 15f
-private const val FOLDER_DOT_FROM_BOTTOM = 17f // [GEMESSEN] Punkte 488 pt bei Panel-Unterkante 506
+private const val FOLDER_DOT_FROM_BOTTOM = 17f // [MEASURED] dots at 488 pt with panel bottom at 506
 private const val NAME_TINT = 0.22f
 private const val NAME_GAP = 19f
 private const val NAME_FONT = 26f
 private const val NAME_CLEAR = 24f
-private const val NAME_CLEAR_END = 14f   // rechter Innenrand der Kapsel (wie das padding unten)
+private const val NAME_CLEAR_END = 14f   // right inner margin of the capsule (like the padding below)
 private const val NAME_CLEAR_SLOP = 12f
-private const val NAME_PAD_START = 20f   // linker Innenrand der Kapsel bis zum Text
+private const val NAME_PAD_START = 20f   // left inner margin of the capsule up to the text
 
-/** Umbenennen-Feld: Glas-Kapsel über dem Panel, links der Name (fett), rechts ein runder Löschknopf. */
+/** Rename field: glass capsule above the panel, the name (bold) on the left, a round clear button on the right. */
 @androidx.compose.runtime.Composable
 private fun FolderNameField(model: HomeModel, open: OpenFolder, geo: FolderGeometry, density: Float, name: String) {
     val r = geo.titleRect
@@ -432,18 +432,18 @@ private fun FolderNameField(model: HomeModel, open: OpenFolder, geo: FolderGeome
             .size(Dp(r.width / density), Dp(r.height / density))
             .graphicsLayer { alpha = open.progress.value.coerceIn(0f, 1f) }
     ) {
-        // hell-milchig wie im Original (nicht dunkel/verzerrt): stark verwischt, aufgehellt, ohne Farbsaum
+        // light and milky like the original (not dark/distorted): strongly blurred, brightened, without colour fringes
         LiquidGlass(shape = io.github.janhurn9400.liquidy.glass.glassCapsule(), modifier = Modifier.matchParentSize(),
             blur = DesignTokens.folderPanelBlur.dp, whiteTint = NAME_TINT, blackTint = 0f)
         androidx.compose.foundation.layout.Row(
             Modifier.matchParentSize().padding(start = NAME_PAD_START.dp, end = NAME_CLEAR_END.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
-            // Fokus kommt von der Gesten-Arena (sie liegt darüber): Tippen aufs Feld → folderRenaming
+            // Focus comes from the gesture arena (it lies above): tapping the field → folderRenaming
             val focus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
             val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
             val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-            // eigener Text-Zustand mit Cursor; ändert sich der Name von außen (×-Knopf), Cursor ans Ende
+            // own text state with cursor; if the name changes from outside (× button), cursor to the end
             var field by androidx.compose.runtime.remember(open.id) {
                 androidx.compose.runtime.mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(name, androidx.compose.ui.text.TextRange(name.length)))
             }
@@ -451,7 +451,7 @@ private fun FolderNameField(model: HomeModel, open: OpenFolder, geo: FolderGeome
             val textLayout = androidx.compose.runtime.remember { arrayOfNulls<androidx.compose.ui.text.TextLayoutResult>(1) }
             androidx.compose.runtime.LaunchedEffect(model.folderRenaming, model.folderRenameTap) {
                 if (!model.folderRenaming) { focusManager.clearFocus(); keyboard?.hide(); return@LaunchedEffect }
-                // Cursor dorthin, wo getippt wurde (Text beginnt nach dem linken Innenrand der Kapsel); hinter dem Text → Ende
+                // Cursor where tapped (the text starts after the capsule's left inner margin); behind the text → end
                 val tap = model.folderRenameTap
                 val layout = textLayout[0]
                 if (tap != null && layout != null) {

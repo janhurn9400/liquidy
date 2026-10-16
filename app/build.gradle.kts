@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.janhurn9400.liquidy"
-        // 33: RenderEffect-Blur (31) + AGSL RuntimeShader (33), siehe docs/ARCHITECTURE.md
+        // 33: RenderEffect blur (31) + AGSL RuntimeShader (33), see docs/ARCHITECTURE.md
         minSdk = 33
         targetSdk = 36
         versionCode = 8
@@ -32,14 +32,14 @@ android {
 }
 
 dependencies {
-    compileOnly(project(":hiddenapi")) // interne Animations-Klassen, nur mit Magisk-Modul genutzt
+    compileOnly(project(":hiddenapi")) // internal animation classes, only used with the Animation Module
     implementation(libs.core.ktx)
     implementation(libs.activity.compose)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.foundation)
-    // nur fürs Debug-Panel (Slider), nicht für den Homescreen selbst
+    // only for the debug panel (sliders), not for the home screen itself
     implementation(libs.compose.material3)
     implementation(libs.backdrop)
     implementation(libs.kyant.shapes)

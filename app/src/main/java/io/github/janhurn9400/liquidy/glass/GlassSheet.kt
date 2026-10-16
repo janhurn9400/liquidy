@@ -44,21 +44,21 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * Wiederverwendbares Milchglas-Blatt von unten (Auswahllisten, Einstellungen von Widgets usw.):
- * gleitet mit M-WPE-SHEET herein und hinaus (unterbrechbar), dunkles Milchglas ohne Brechung, Kopf mit runder
- * ×-Taste und Titel. Der Aufrufer liest [GlassSheetState.progress], um z. B. Inhalte dahinter zurückweichen zu lassen.
+ * Reusable frosted-glass sheet from below (selection lists, widget settings etc.):
+ * slides in and out with M-WPE-SHEET (interruptible), dark frosted glass without refraction, header with a round
+ * × button and title. The caller reads [GlassSheetState.progress], e.g. to let content behind it recede.
  *
  * ```
  * val sheet = rememberGlassSheetState()
  * …  onClick = { sheet.open() }
- * GlassSheet(sheet, title = "Album") { Zeilen … }   // in einem BoxWithConstraints
+ * GlassSheet(sheet, title = "Album") { rows … }   // inside a BoxWithConstraints
  * ```
  */
 @Stable
 class GlassSheetState internal constructor(private val scope: CoroutineScope) {
-    /** 0 = zu, 1 = offen. */
+    /** 0 = closed, 1 = open. */
     val progress = Animatable(0f)
-    /** Wird gezeigt (auch während des Hinausgleitens). */
+    /** Is shown (also while sliding out). */
     var visible by mutableStateOf(false)
         private set
 
@@ -67,7 +67,7 @@ class GlassSheetState internal constructor(private val scope: CoroutineScope) {
         scope.launch { progress.animateTo(1f, Motion.wpeSheet.spec()) }
     }
 
-    /** Gleitet hinaus; [then] läuft danach (z. B. Auswahl übernehmen, ohne dass das Blatt hart verschwindet). */
+    /** Slides out; [then] runs afterwards (e.g. apply a selection without the sheet disappearing abruptly). */
     fun close(then: () -> Unit = {}) {
         scope.launch {
             progress.animateTo(0f, Motion.wpeSheet.spec(visibilityThreshold = 0.001f))
@@ -84,8 +84,8 @@ fun rememberGlassSheetState(): GlassSheetState {
 }
 
 /**
- * Das Blatt selbst, unten mittig im umgebenden [BoxWithConstraintsScope]: höchstens [maxWidthDp] breit, [heightShare] der
- * Höhe hoch. [content] ist der Bereich unter dem Kopf (scrollt selbst, falls nötig).
+ * The sheet itself, bottom centre in the surrounding [BoxWithConstraintsScope]: at most [maxWidthDp] wide, [heightShare] of the
+ * height tall. [content] is the area below the header (scrolls itself if needed).
  */
 @Composable
 fun BoxWithConstraintsScope.GlassSheet(
@@ -94,8 +94,8 @@ fun BoxWithConstraintsScope.GlassSheet(
     maxWidthDp: Float = SHEET_MAX_W,
     heightShare: Float = SHEET_H_SHARE,
     onClose: () -> Unit = { state.close() },
-    /** Schwebt unten über dem Inhalt (z. B. Glas-Suchfeld): der Inhalt läuft darunter durch und wird von ihm gebrochen.
-     *  Der Inhalt sollte am Ende [GlassSheetBottomBarSpace] Platz lassen, damit die letzte Zeile frei gescrollt werden kann. */
+    /** Floats at the bottom above the content (e.g. glass search field): the content runs under it and is refracted by it.
+     *  The content should leave [GlassSheetBottomBarSpace] at the end so the last row can be scrolled clear. */
     bottomBar: (@Composable BoxScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -104,13 +104,13 @@ fun BoxWithConstraintsScope.GlassSheet(
     val h = maxHeight.value * heightShare
     Box(
         Modifier.align(Alignment.BottomCenter)
-            // reicht um die Ecke unter den Bildschirmrand → unten keine runden Ecken sichtbar
+            // reaches around the corner below the screen edge → no round corners visible at the bottom
             .offset(y = SHEET_CORNER.dp).width(minOf(maxWidthDp, maxWidth.value).dp).height((h + SHEET_CORNER).dp)
             .graphicsLayer { translationY = (1f - state.progress.value) * size.height }
-            .clickable(noRipple, null) { }, // Tipps im Blatt nicht an den Hintergrund durchreichen
+            .clickable(noRipple, null) { }, // don't pass taps in the sheet through to the background
     ) {
-        // Milchglas (iOS-Auswahlblätter: durchgehende graue Fläche, keine Brechung) [Nutzer am iPhone 10-15].
-        // Fläche UND Inhalt sind Glasquelle für [bottomBar]: das Suchfeld bricht die Zeilen, die unter ihm durchlaufen
+        // Frosted glass (iOS selection sheets: continuous grey area, no refraction) [user on the iPhone 10-15].
+        // Area AND content are the glass source for [bottomBar]: the search field refracts the rows running under it
         val surface = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
         Box(Modifier.matchParentSize().layerBackdrop(surface)) {
             LiquidGlass(shape = glassRect(SHEET_CORNER.dp), modifier = Modifier.matchParentSize(),
@@ -137,15 +137,15 @@ fun BoxWithConstraintsScope.GlassSheet(
     }
 }
 
-/** Platz am Ende des Blatt-Inhalts für eine schwebende [GlassSheet]-bottomBar (Suchfeld 44 + Ränder). */
+/** Space at the end of the sheet content for a floating [GlassSheet] bottomBar (search field 44 + margins). */
 val GlassSheetBottomBarSpace = 76.dp
 
-/** Hintergrund von Knöpfen/Feldern auf dem Glasblatt. */
+/** Background of buttons/fields on the glass sheet. */
 val SheetRowColor = Color.White.copy(alpha = 0.12f)
 
 private const val SHEET_CORNER = 38f
-private const val SHEET_BLUR = 40f   // kräftig verwischt: nur Farben scheinen durch
-private const val SHEET_DARK = 0.6f   // grau und fast deckend: klar als Fenster erkennbar [Nutzer 10-15]
+private const val SHEET_BLUR = 40f   // strongly blurred: only colours shine through
+private const val SHEET_DARK = 0.6f   // grey and almost opaque: clearly recognisable as a window [user 10-15]
 private const val SHEET_GREY = 0.16f
 private const val SHEET_MAX_W = 461f
 private const val SHEET_H_SHARE = 0.86f

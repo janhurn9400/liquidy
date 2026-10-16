@@ -9,9 +9,9 @@ import io.github.janhurn9400.liquidy.motion.Motion
 import java.util.Locale
 
 /**
- * Ein live-justierbarer Wert. Die Defaults stehen ausschließlich in Motion.kt / DesignTokens.kt;
- * das Debug-Panel überschreibt nur den Laufzeitwert. Gelesen wird über [value] (Compose-State),
- * dadurch rekomponiert/re-animiert die UI sofort beim Verschieben eines Sliders.
+ * A live-adjustable value. The defaults live exclusively in Motion.kt / DesignTokens.kt;
+ * the debug panel only overrides the runtime value. It's read via [value] (Compose state),
+ * so the UI recomposes/re-animates immediately when a slider is moved.
  */
 class Tunable(
     val id: String,
@@ -33,11 +33,11 @@ object Tunables {
     val all: List<Tunable> get() = registry.values.toList()
 
     fun register(t: Tunable): Tunable {
-        check(registry.put(t.id, t) == null) { "Tunable doppelt registriert: ${t.id}" }
+        check(registry.put(t.id, t) == null) { "Tunable registered twice: ${t.id}" }
         return t
     }
 
-    /** Erzwingt die Registrierung aller Werte und lädt gespeicherte Overrides. */
+    /** Forces registration of all values and loads saved overrides. */
     fun init(context: Context) {
         Motion.touch()
         DesignTokens.touch()
@@ -60,10 +60,10 @@ object Tunables {
         save(context)
     }
 
-    /** Geänderte Werte als Text — wird in Motion.kt / DesignTokens.kt als neue Defaults übernommen. */
+    /** Changed values as text — taken over into Motion.kt / DesignTokens.kt as new defaults. */
     fun export(): String {
         val changed = registry.values.filter { it.isChanged }
-        if (changed.isEmpty()) return "Keine Änderungen gegenüber den Defaults."
+        if (changed.isEmpty()) return "No changes compared to the defaults."
         return changed.joinToString("\n") {
             String.format(Locale.US, "%s = %.3f %s  (Default %.3f)", it.id, it.value, it.unit, it.default)
         }

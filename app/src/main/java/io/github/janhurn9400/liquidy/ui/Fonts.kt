@@ -7,7 +7,7 @@ import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import io.github.janhurn9400.liquidy.R
 
-/** Inter (SIL OFL, docs/Inter-OFL.txt) als freier Ersatz für SF Pro. Variable Font, Achse wght. */
+/** Inter (SIL OFL, docs/Inter-OFL.txt) as a free substitute for SF Pro. Variable font, axis wght. */
 @OptIn(ExperimentalTextApi::class)
 val Inter = FontFamily(
     listOf(400, 500, 600, 700).map { w ->

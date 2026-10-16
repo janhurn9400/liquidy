@@ -10,9 +10,9 @@ import androidx.compose.ui.unit.LayoutDirection
 import kotlin.math.min
 
 /**
- * Apples „continuous corner“-Rechteck (G2-stetige Ecke), RESEARCH §2.7.
- * Bézier-Konstanten nach Liam Rosenfeld / UIBezierPath-Reverse-Engineering;
- * die Ecke beginnt 1,52866 × r von der Kante.
+ * Apple's "continuous corner" rectangle (G2-continuous corner), RESEARCH §2.7.
+ * Bézier constants after Liam Rosenfeld / UIBezierPath reverse engineering;
+ * the corner starts 1.52866 × r from the edge.
  */
 class ContinuousRoundedShape(private val cornerRadius: Dp) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
@@ -21,14 +21,14 @@ class ContinuousRoundedShape(private val cornerRadius: Dp) : Shape {
 
 private const val EXTENT = 1.52866483f
 
-// Ecke oben links, vom linken Rand (0, EXTENT) zum oberen Rand (EXTENT, 0), in Einheiten von r.
-// Je Segment: cp1x, cp1y, cp2x, cp2y, endx, endy
+// Top-left corner, from the left edge (0, EXTENT) to the top edge (EXTENT, 0), in units of r.
+// Per segment: cp1x, cp1y, cp2x, cp2y, endx, endy
 private val FORWARD = floatArrayOf(
     0f, 1.08849323f, 0f, 0.86840701f, 0.07491100f, 0.63149399f,
     0.16905956f, 0.37282401f, 0.37282401f, 0.16905956f, 0.63149399f, 0.07491100f,
     0.86840701f, 0f, 1.08849323f, 0f, EXTENT, 0f,
 )
-// Dieselbe Ecke rückwärts (vom oberen zum linken Rand)
+// The same corner backwards (from the top to the left edge)
 private val REVERSED = floatArrayOf(
     1.08849323f, 0f, 0.86840701f, 0f, 0.63149399f, 0.07491100f,
     0.37282401f, 0.16905956f, 0.16905956f, 0.37282401f, 0.07491100f, 0.63149399f,
@@ -56,13 +56,13 @@ fun continuousRoundedRectPath(w: Float, h: Float, radius: Float): Path {
     val e = EXTENT * r
     path.moveTo(e, 0f)
     path.lineTo(w - e, 0f)
-    corner(w, 0f, -1f, 1f, REVERSED)   // oben rechts
+    corner(w, 0f, -1f, 1f, REVERSED)   // top right
     path.lineTo(w, h - e)
-    corner(w, h, -1f, -1f, FORWARD)    // unten rechts
+    corner(w, h, -1f, -1f, FORWARD)    // bottom right
     path.lineTo(e, h)
-    corner(0f, h, 1f, -1f, REVERSED)   // unten links
+    corner(0f, h, 1f, -1f, REVERSED)   // bottom left
     path.lineTo(0f, e)
-    corner(0f, 0f, 1f, 1f, FORWARD)    // oben links
+    corner(0f, 0f, 1f, 1f, FORWARD)    // top left
     path.close()
     return path
 }

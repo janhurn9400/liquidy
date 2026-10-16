@@ -20,20 +20,20 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 
 /**
- * Icon-Pakete im verbreiteten ADW/Nova-Format (praktisch alle Pakete aus dem Play Store oder als APK):
- * Das Paket meldet sich über eine der [ACTIONS] und liefert `appfilter.xml` (res/xml oder assets) mit
- * `<item component="ComponentInfo{paket/klasse}" drawable="name"/>`. Für Apps ohne eigenes Symbol gibt es optional
- * `<iconback>`, `<iconmask>`, `<iconupon>` und `<scale>` — dann wird das Original-Icon so eingepasst (wie Nova).
- * `<calendar component=… prefix="cal_"/>`: Kalender-Icon mit Tageszahl (prefix + 1…31).
+ * Icon packs in the common ADW/Nova format (practically all packs from the Play Store or as an APK):
+ * the pack registers via one of the [ACTIONS] and provides `appfilter.xml` (res/xml or assets) with
+ * `<item component="ComponentInfo{package/class}" drawable="name"/>`. For apps without their own icon there are optionally
+ * `<iconback>`, `<iconmask>`, `<iconupon>` and `<scale>` — then the original icon is fitted in like that (like Nova).
+ * `<calendar component=… prefix="cal_"/>`: calendar icon with the day number (prefix + 1…31).
  */
 object IconPacks {
     data class Pack(val packageName: String, val label: String)
 
-    /** Gewähltes Paket (null = System-Icons). Compose-State → Einstellungen zeichnen neu. */
+    /** Chosen pack (null = system icons). Compose state → settings redraw. */
     var selected by mutableStateOf<String?>(null)
         private set
 
-    /** Von [AppRepository] gesetzt: Icons neu laden, wenn das Paket wechselt. */
+    /** Set by [AppRepository]: reload icons when the pack changes. */
     var onChanged: (() -> Unit)? = null
 
     private val loaded = java.util.concurrent.ConcurrentHashMap<String, Loaded>()
@@ -41,9 +41,9 @@ object IconPacks {
     private class Loaded(
         val pkg: String,
         val res: Resources,
-        val items: Map<String, String>,       // "paket/klasse" → Drawable-Name
-        val byClass: Map<String, String>,     // voll qualifizierte Klasse → Drawable-Name (Ausweich-Treffer)
-        val calendars: Map<String, String>,   // "paket/klasse" → Präfix
+        val items: Map<String, String>,       // "package/class" → drawable name
+        val byClass: Map<String, String>,     // fully qualified class → drawable name (fallback match)
+        val calendars: Map<String, String>,   // "package/class" → prefix
         val backs: List<String>, val mask: String?, val upon: String?, val scale: Float,
     )
 
@@ -59,7 +59,7 @@ object IconPacks {
         onChanged?.invoke()
     }
 
-    /** Installierte Icon-Pakete, alphabetisch. */
+    /** Installed icon packs, alphabetical. */
     fun available(context: Context): List<Pack> {
         val pm = context.packageManager
         return ACTIONS.flatMap { a -> runCatching { pm.queryIntentActivities(Intent(a), PackageManager.GET_META_DATA) }.getOrDefault(emptyList()) }
@@ -72,27 +72,27 @@ object IconPacks {
     private fun installed(context: Context, pkg: String) = runCatching { context.packageManager.getApplicationInfo(pkg, 0) }.isSuccess
 
     /**
-     * Symbol aus dem gewählten Paket für [component], sonst null. [fallback] = Original-Icon: wird bei Paketen mit
-     * iconback/iconmask in deren Rahmen eingepasst (sonst bleibt es unverändert → null).
+     * Icon from the chosen pack for [component], otherwise null. [fallback] = original icon: for packs with
+     * iconback/iconmask it's fitted into their frame (otherwise it stays unchanged → null).
      */
     fun icon(context: Context, component: ComponentName, fallback: Drawable?, sizePx: Int): Drawable? =
         selected?.let { iconFrom(context, it, component, fallback, sizePx) }
 
-    /** Wie [icon], aber aus einem bestimmten Paket (Vorschau in den Einstellungen). */
+    /** Like [icon], but from a specific pack (preview in the settings). */
     fun iconFrom(context: Context, pkg: String, component: ComponentName, fallback: Drawable?, sizePx: Int): Drawable? {
         val l = loaded[pkg] ?: parse(context, pkg)?.also { loaded[pkg] = it } ?: return null
         val key = "${component.packageName}/${component.className}"
         l.calendars[key]?.let { prefix -> drawable(l, prefix + java.time.LocalDate.now().dayOfMonth)?.let { return it } }
         val name = l.items[key]
-            ?: l.items["${component.packageName}/${component.shortClassName}"] // manche Pakete schreiben die Klasse relativ („.Main“)
-            // gleiche Activity unter anderem Paketnamen (z. B. com.google.android.documentsui statt com.android.documentsui)
+            ?: l.items["${component.packageName}/${component.shortClassName}"] // some packs write the class relatively (".Main")
+            // the same activity under another package name (e.g. com.google.android.documentsui instead of com.android.documentsui)
             ?: l.byClass[component.className]
         name?.let { n -> drawable(l, n)?.let { return it } }
         if (fallback == null || (l.backs.isEmpty() && l.mask == null && l.upon == null)) return null
         return composeUnthemed(context, l, fallback, component, sizePx)
     }
 
-    @SuppressLint("DiscouragedApi") // Icon-Pakete sind nur über Namen erreichbar
+    @SuppressLint("DiscouragedApi") // icon packs are only reachable by name
     private fun drawable(l: Loaded, name: String): Drawable? {
         for (type in arrayOf("drawable", "mipmap")) {
             val id = l.res.getIdentifier(name, type, l.pkg)
@@ -101,7 +101,7 @@ object IconPacks {
         return null
     }
 
-    /** Fremdes Icon in Paket-Optik: Hintergrund (je App fest gewählt), Icon skaliert + maskiert, Überlagerung. */
+    /** Foreign icon in pack style: background (fixed per app), icon scaled + masked, overlay. */
     private fun composeUnthemed(context: Context, l: Loaded, icon: Drawable, component: ComponentName, sizePx: Int): Drawable {
         val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)

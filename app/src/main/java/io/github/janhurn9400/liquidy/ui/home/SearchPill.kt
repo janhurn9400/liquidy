@@ -61,11 +61,11 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.roundToInt
 
 /**
- * Glas-Kapsel über dem Dock (T-PILL), die zum Suchfeld morpht (M-SEARCH-MORPH, gemessen recording5):
- *  - Ruhe: „Search“; beim Wischen Page-Dots (M-PILL).
- *  - Beim Herunterziehen bleibt sie scharf (liegt NICHT in der verwischten Ebene) und wandert mit ¼ von h mit.
- *  - Ab h ≈ 94 pt morpht sie (noch während des Ziehens) in die Breite zum Suchfeld; unter ≈ 62 pt zurück.
- *  - Offen: das Feld bleibt auf seiner Höhe, bis die Tastatur es erreicht, dann reitet es auf ihr und dockt in voller Breite an.
+ * Glass capsule above the dock (T-PILL) that morphs into the search field (M-SEARCH-MORPH, measured recording5):
+ *  - Rest: "Search"; page dots while swiping (M-PILL).
+ *  - While pulling down it stays sharp (it does NOT lie in the blurred layer) and moves along with ¼ of h.
+ *  - From h ≈ 94 pt it morphs (still while dragging) in width into the search field; back below ≈ 62 pt.
+ *  - Open: the field stays at its height until the keyboard reaches it, then rides on it and docks at full width.
  */
 @Composable
 fun SearchPill(
@@ -77,13 +77,13 @@ fun SearchPill(
     forceDots: Boolean = false,
     dotCount: Int = pager.pageCount,
     /**
-     * Duo-Stil: in Ruhe ist die Pill der runde Lupenknopf ([duoButton], Bildschirm-px) in der rechten Spalte; beim Öffnen
-     * morpht sie in das Feld unten mittig ([duoFieldWidth] breit, Mitte bei [duoFieldCenterX]) [GEMESSEN] 21:28, 42 s.
+     * Duo style: at rest the pill is the round magnifier button ([duoButton], screen px) in the right column; on open
+     * it morphs into the field at the bottom centre ([duoFieldWidth] wide, centre at [duoFieldCenterX]) [MEASURED] 21:28, 42 s.
      */
     duoButton: Rect? = null,
     duoFieldWidth: Dp = 0.dp,
     duoFieldCenterX: Dp = 0.dp,
-    /** Duo: Mitte y des Felds ohne Tastatur (unten mittig, gemessen ≈ 636 pt aufgeklappt). */
+    /** Duo: centre y of the field without keyboard (bottom centre, measured ≈ 636 pt unfolded). */
     duoFieldRestY: Dp = 0.dp,
     onLaunch: (AppEntry, Rect) -> Unit,
 ) {
@@ -91,7 +91,7 @@ fun SearchPill(
     var showDots by remember { mutableStateOf(false) }
     val forceDotsState = androidx.compose.runtime.rememberUpdatedState(forceDots)
     LaunchedEffect(pager) {
-        // Bearbeitungsmodus: immer Dots [GEMESSEN] IMG_3124
+        // Edit mode: always dots [MEASURED] IMG_3124
         snapshotFlow { pager.isScrolling || forceDotsState.value }.collectLatest { scrolling ->
             if (scrolling) showDots = true
             else {
@@ -106,11 +106,11 @@ fun SearchPill(
         label = "pillDots",
     )
 
-    // ── Tastatur / Fokus (früher im SearchOverlay) ─────────────────────────────
+    // ── Keyboard / focus (formerly in SearchOverlay) ─────────────────────────────
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
-    // Tastatur wie iOS: lugt beim Morph heraus (App-gesteuert), fährt beim Loslassen ohne Startverzögerung hoch
+    // Keyboard like iOS: peeks out on morph (app-driven), comes up on release without a start delay
     val view = androidx.compose.ui.platform.LocalView.current
     val kbScope = androidx.compose.runtime.rememberCoroutineScope()
     val driver = remember(view) { io.github.janhurn9400.liquidy.ui.search.KeyboardDriver(view, kbScope) }
@@ -122,7 +122,7 @@ fun SearchPill(
                 if (driver.active) driver.animateTo(null, Motion.searchKeyboard, finish = true) else keyboard?.show()
             }
             model.searchMorphOn -> {
-                focus.requestFocus() // bindet die Tastatur, ohne sie zu zeigen (showKeyboardOnFocus = false)
+                focus.requestFocus() // binds the keyboard without showing it (showKeyboardOnFocus = false)
                 driver.start()
                 driver.animateTo(with(densityForKb) { Motion.searchKeyboardPeek.value.dp.toPx() }, Motion.searchKeyboard)
             }
@@ -133,30 +133,30 @@ fun SearchPill(
         }
     }
 
-    // ── Geometrie ───────────────────────────────────────────────────────────
+    // ── Geometry ───────────────────────────────────────────────────────────
     val density = LocalDensity.current
     val m = model.searchMorph.value.coerceIn(0f, 1.05f)
     val h = model.searchProgress.value
-    val pages = dotCount // App-Mediathek bekommt keinen Punkt
+    val pages = dotCount // the App Library gets no dot
     val pillWidth = maxOf(DesignTokens.pillWidth.dp, DesignTokens.dotPitch.dp * (pages + 1))
     val pillHeight = DesignTokens.pillHeight.dp
     val fieldHeight = DesignTokens.searchFieldHeight.dp
-    // Duo: Ruheposition = knapp unter dem Bildschirm; offen fährt es hoch (bis über die Tastatur bzw. bis zur Feldposition)
+    // Duo: rest position = just below the screen; open it moves up (above the keyboard or to the field position)
     val centerYClosed = if (duoButton != null) lerp(screenHeight + fieldHeight, duoFieldRestY, m.coerceIn(0f, 1f))
         else y + pillHeight / 2 + (Motion.searchPillFollow.value * (if (model.searchOpen) model.searchReleaseH else h)).dp
 
-    // Morph wächst direkt auf die volle Feldbreite (gemessen ≈ 386 pt)
-    // Duo (Aufnahme 21:28, 41,1–41,4 s): KEIN Morph — die Lupe ist ein eigener Knopf (DuoSearchButton), das Feld hat von
-    // Anfang an Feldgröße, liegt mittig und gleitet von unterhalb des Bildschirms herein. iPhone: Morph aus der Pill.
+    // The morph grows directly to the full field width (measured ≈ 386 pt)
+    // Duo (recording 21:28, 41.1–41.4 s): NO morph — the magnifier is its own button (DuoSearchButton), the field has field
+    // size from the start, is centred and slides in from below the screen. iPhone: morph from the pill.
     val duo = duoButton != null
     val width = if (duo) duoFieldWidth else lerp(pillWidth, screenWidth - DesignTokens.searchFieldSide.dp * 2, m.coerceIn(0f, 1f))
     val height = if (duo) fieldHeight else lerp(pillHeight, fieldHeight, m.coerceIn(0f, 1f))
     val centerX = if (duo) duoFieldCenterX else screenWidth / 2
     val restTop = centerYClosed - height / 2
     val open = model.searchOpen || model.query.isNotEmpty()
-    // Offen: Feld bleibt stehen, bis die Tastaturkante es erreicht, und klebt dann direkt über ihr.
-    // Die Tastaturhöhe wird erst in der Layout-Phase gelesen (Modifier.offset-Lambda) → gleicher Frame wie die
-    // Tastatur, kein Nachhinken (windowSoftInputMode=adjustResize liefert die Insets Frame für Frame).
+    // Open: the field stays until the keyboard edge reaches it, and then sticks directly above it.
+    // The keyboard height is read only in the layout phase (Modifier.offset lambda) → same frame as the
+    // keyboard, no lag (windowSoftInputMode=adjustResize delivers the insets frame by frame).
     val imeInsets = WindowInsets.ime
     val navInsets = WindowInsets.navigationBars
     val screenHeightPx = with(density) { screenHeight.toPx() }
@@ -166,7 +166,7 @@ fun SearchPill(
         screenHeightPx - maxOf(imeInsets.getBottom(this), navInsets.getBottom(this)) -
             (DesignTokens.searchFieldGap.dp + fieldHeight).toPx()
     }
-    // Nur beim Schließen gleitet das Feld mit M-SEARCH-CLOSE von seiner letzten Position zurück zur Pill.
+    // Only when closing does the field glide back from its last position to the pill with M-SEARCH-CLOSE.
     val closeAnim = remember { androidx.compose.animation.core.Animatable(restTopPx) }
     val closing = remember { booleanArrayOf(false) }
     LaunchedEffect(open) {
@@ -190,19 +190,19 @@ fun SearchPill(
     val pillContentAlpha = 1f - (fieldMix / Motion.searchMorphPillOut.value).coerceIn(0f, 1f)
     val fieldContentAlpha = ((fieldMix - Motion.searchMorphFieldIn.value) / (1f - Motion.searchMorphFieldIn.value)).coerceIn(0f, 1f)
 
-    if (duoButton != null && fieldMix < 0.001f && !model.searchOpen) return // Duo: Feld nur während der Suche
+    if (duoButton != null && fieldMix < 0.001f && !model.searchOpen) return // Duo: field only during search
     LiquidGlass(
         shape = glassCapsule(),
         thickness = DesignTokens.pillHeight.value / DesignTokens.dockHeight.value,
-        // Suchfeld: klares Glas (recording5). Die Glas-Quelle ist nicht abgedunkelt, die Pill liegt aber über der
-        // Such-Abdunkelung → dieselbe Abdunkelung als Tönung, sonst wirkt das Feld hell statt dunkel-klar.
+        // Search field: clear glass (recording5). The glass source isn't dimmed, but the pill lies above the
+        // search dimming → the same dimming as tint, otherwise the field looks light instead of dark-clear.
         whiteTint = DesignTokens.glassWhiteTint.value + (DesignTokens.searchFieldTint.value - DesignTokens.glassWhiteTint.value) * fieldMix,
         blackTint = (DesignTokens.glassTint.value + model.searchDim()).coerceAtMost(1f),
         modifier = Modifier
             .offset { androidx.compose.ui.unit.IntOffset((centerX - width / 2).roundToPx(), topPx().roundToInt()) }
             .size(width, height),
     ) {
-        // Pill-Inhalt: „Search“ bzw. Dots
+        // Pill content: "Search" or dots
         val pillAlpha = if (duoButton != null) 0f else pillContentAlpha
         if (pillAlpha > 0.01f) {
             Row(
@@ -235,7 +235,7 @@ fun SearchPill(
                 }
             }
         }
-        // Suchfeld-Inhalt: Lupe, Eingabe, Platzhalter (wächst aus der Pill heraus)
+        // Search field content: magnifier, input, placeholder (grows out of the pill)
         if (fieldMix > 0.01f || model.searchOpen || duoButton != null) {
             Row(
                 Modifier.fillMaxSize().padding(horizontal = DesignTokens.searchFieldPadding.dp).graphicsLayer { alpha = if (duoButton != null) 1f else fieldContentAlpha },
@@ -255,10 +255,10 @@ fun SearchPill(
                         singleLine = true,
                         textStyle = style,
                         cursorBrush = SolidColor(Color.White),
-                        // Fokus ohne automatisches Öffnen — die Tastatur steuert der KeyboardDriver
+                        // Focus without opening automatically — the KeyboardDriver controls the keyboard
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, showKeyboardOnFocus = false),
                         keyboardActions = KeyboardActions(onSearch = {
-                            // iOS: Eingabe öffnet den besten Treffer — eine App, deren Name so beginnt, sonst die Websuche
+                            // iOS: input opens the best match — an app whose name starts like that, otherwise the web search
                             val app = model.searchResults(1).firstOrNull()?.takeIf { it.label.startsWith(model.query.trim(), ignoreCase = true) }
                             if (app != null) onLaunch(app, Rect.Zero)
                             else if (model.query.isNotBlank()) io.github.janhurn9400.liquidy.data.UniversalSearch.searchWeb(context, model.query)
@@ -273,12 +273,12 @@ fun SearchPill(
     }
 }
 
-private const val DUO_LUPE = 19f // Lupe im runden Duo-Knopf (pt)
-private const val PILL_ICON_GAP = 0.5f // Lupe → „Search“ = halbe Lupenbreite [GEMESSEN] IMG_3123 (≈ 5 pt)
+private const val DUO_LUPE = 19f // magnifier in the round Duo button (pt)
+private const val PILL_ICON_GAP = 0.5f // magnifier → "Search" = half the magnifier width [MEASURED] IMG_3123 (≈ 5 pt)
 
 /**
- * Mikrofon wie im iOS-Suchfeld (kein SF Symbol), Kontur in einheitlicher Strichstärke:
- * umrandete Kapsel, U-Bügel als ein durchgehender Pfad, Stiel und waagrechter Fuß. Proportionen nach IMG_3131 [GEMESSEN grob].
+ * Microphone like in the iOS search field (no SF Symbol), outline with uniform stroke width:
+ * outlined capsule, U-bracket as one continuous path, stem and horizontal foot. Proportions after IMG_3131 [MEASURED roughly].
  */
 @Composable
 private fun MicGlyph(size: Dp, color: Color) {
@@ -286,11 +286,11 @@ private fun MicGlyph(size: Dp, color: Color) {
         val h = this.size.height
         val cx = this.size.width / 2
         val stroke = Stroke(width = h * 0.07f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
-        // Kapsel
+        // capsule
         val capW = h * 0.30f
         drawRoundRect(color, topLeft = Offset(cx - capW / 2, h * 0.05f), size = androidx.compose.ui.geometry.Size(capW, h * 0.52f),
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(capW / 2), style = stroke)
-        // U-Bügel: senkrecht runter, Halbkreis, senkrecht rauf — ein Pfad, keine Stoßkanten
+        // U-bracket: straight down, semicircle, straight up — one path, no seams
         val r = h * 0.27f
         val armTop = h * 0.36f
         val arcCenterY = h * 0.50f
@@ -301,17 +301,17 @@ private fun MicGlyph(size: Dp, color: Color) {
             lineTo(cx + r, armTop)
         }
         drawPath(u, color, style = stroke)
-        // Stiel + Fuß
+        // Stem + foot
         drawLine(color, Offset(cx, arcCenterY + r), Offset(cx, h * 0.93f), stroke.width, StrokeCap.Round)
         drawLine(color, Offset(cx - h * 0.19f, h * 0.93f), Offset(cx + h * 0.19f, h * 0.93f), stroke.width, StrokeCap.Round)
     }
 }
 
-/** Lupe als Vektor (kein SF Symbol). Proportionen [GESCHÄTZT] nach IMG_3123. */
+/** Magnifier as a vector (no SF Symbol). Proportions [ESTIMATED] after IMG_3123. */
 @Composable
 internal fun MagnifierGlyph(size: Dp, color: Color) {
     Canvas(Modifier.size(size)) {
-        val stroke = this.size.width * 0.12f // iOS-Lupe ist schlank (IMG_3131)
+        val stroke = this.size.width * 0.12f // the iOS magnifier is slim (IMG_3131)
         val r = this.size.width * 0.33f
         val c = Offset(r + stroke / 2, r + stroke / 2)
         drawCircle(color, radius = r, center = c, style = Stroke(stroke))

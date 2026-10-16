@@ -36,16 +36,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
- * Fotos (klein 2×2, groß 4×4) nach den iPhone-Screenshots 10-11 16:39 (docs/reference/widgets/08–10): ein Foto aus der
- * Galerie randlos im Widget, ohne Beschriftung darin; wechselt stündlich. Ohne Galerie-Zugriff ein Hinweis.
+ * Photos (small 2×2, large 4×4) after the iPhone screenshots 10-11 16:39 (docs/reference/widgets/08–10): a photo from the
+ * gallery borderless in the widget, without a caption inside; changes hourly. Without gallery access a hint.
  */
 @Composable
 internal fun PhotoWidget(modifier: Modifier, album: String? = null) {
     val context = LocalContext.current
     BoxWithConstraints(modifier.background(Color(0xFF2C2C2E))) {
         val px = with(LocalDensity.current) { maxOf(maxWidth, maxHeight).toPx().toInt().coerceIn(64, 1600) }
-        // Zustand je Widget-Instanz zwischengespeichert: Kopien (Kontextmenü, Ziehen, Flug) starten mit dem fertigen Foto
-        // statt leer — vorher blitzte dort für ein Bild der „kein Zugriff“-Hinweis auf (Nutzer 10-15)
+        // State cached per widget instance: copies (context menu, dragging, flight) start with the finished photo
+        // instead of empty — before, the "no access" hint flashed there for one frame (user 10-15)
         val cacheKey = "$album|$px"
         val state by produceState(PhotoCache[cacheKey] ?: PhotoState.Loading, px, album) {
             while (true) {
@@ -56,7 +56,7 @@ internal fun PhotoWidget(modifier: Modifier, album: String? = null) {
         }
         val s = state
         if (s is PhotoState.Photo) Image(s.bitmap, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        // Laden: nur die Fläche (kein Text, der sonst kurz aufblitzt); Hinweis nur, wenn wirklich kein Zugriff bzw. keine Fotos
+        // Loading: only the surface (no text that would otherwise flash briefly); hint only if there's really no access or no photos
         else if (s != PhotoState.Loading) Box(Modifier.fillMaxSize().padding(14.dp), contentAlignment = Alignment.BottomStart) {
             BasicText(stringResource(if (s == PhotoState.NoAccess) R.string.photos_no_access else R.string.photos_none),
                 style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f)))
@@ -71,14 +71,14 @@ private sealed interface PhotoState {
     class Photo(val bitmap: ImageBitmap) : PhotoState
 }
 
-/** Zuletzt geladenes Ergebnis je Album/Größe (prozessweit). */
+/** Last loaded result per album/size (process-wide). */
 private val PhotoCache = java.util.concurrent.ConcurrentHashMap<String, PhotoState>()
 
 private fun hasAccess(context: Context) =
     ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
 
-/** Ein Foto aus der Kamera-Galerie (bevorzugt DCIM), je Stunde [slot] ein anderes, aber stabil innerhalb der Stunde. */
+/** A photo from the camera gallery (preferably DCIM), a different one per hour [slot], but stable within the hour. */
 private fun loadPhoto(context: Context, px: Int, slot: Long, album: String? = null): PhotoState {
     if (!hasAccess(context)) return PhotoState.NoAccess
     val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
@@ -104,7 +104,7 @@ private fun loadPhoto(context: Context, px: Int, slot: Long, album: String? = nu
 
 private const val HOUR_MS = 3_600_000L
 
-/** Alben (Ordner) mit Anzahl, für die Widget-Einstellung „Album“. */
+/** Albums (folders) with count, for the widget setting "Album". */
 internal fun photoAlbums(context: Context): List<Pair<String, Int>> {
     if (!hasAccess(context)) return emptyList()
     val counts = LinkedHashMap<String, Int>()

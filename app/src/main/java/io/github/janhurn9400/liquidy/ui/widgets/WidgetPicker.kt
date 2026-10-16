@@ -73,19 +73,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
-/** Eintrag im Picker: eigenes iOS-Widget oder Android-Anbieter. */
+/** Entry in the picker: own iOS widget or Android provider. */
 internal class PickerEntry(
-    val title: String,      // App-/Widget-Name (fett)
-    val subtitle: String,   // Beschreibung (grau)
+    val title: String,      // app/widget name (bold)
+    val subtitle: String,   // description (grey)
     val cols: Int, val rows: Int,
     val iosType: String? = null,
     val provider: AppWidgetProviderInfo? = null,
 )
 
 /**
- * Widget-Picker (recording8 26–29 s): dunkles Glasblatt ab y ≈ 123 pt, Griff, „Search Widgets“-Glaskapsel,
- * Widgets in Originalgröße (klein 2 nebeneinander, breit eine Zeile), darunter App-Name fett + Widget-Name grau.
- * Antippen → Hinzufügen-Blatt (30 s) mit großer Vorschau und blauem „Add Widget“.
+ * Widget picker (recording8 26–29 s): dark glass sheet from y ≈ 123 pt, grabber, "Search Widgets" glass capsule,
+ * widgets at original size (small 2 side by side, wide one row), below them the app name bold + widget name grey.
+ * Tap → add sheet (30 s) with a large preview and a blue "Add Widget".
  */
 @Composable
 fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
@@ -94,7 +94,7 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     val appear = remember { Animatable(0f) }
     var detail by remember { mutableStateOf<PickerEntry?>(null) }
-    var detailOut by remember { mutableStateOf(false) } // Detail-Blatt gleitet mit dem Picker hinaus
+    var detailOut by remember { mutableStateOf(false) } // the detail sheet slides out with the picker
     var query by remember { mutableStateOf("") }
     LaunchedEffect(Unit) { appear.animateTo(1f, Motion.wpeSheet.spec()) }
     fun close() = scope.launch { appear.animateTo(0f, Motion.wpeSheet.spec()); onClose() }
@@ -124,7 +124,7 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
     }
     val q = query.trim().lowercase()
     val shown = entries.filter { q.isEmpty() || it.title.lowercase().contains(q) || it.subtitle.lowercase().contains(q) }
-    // Zeilen: zwei kleine nebeneinander, breite allein
+    // Rows: two small ones side by side, wide ones alone
     val rows = buildList {
         var pendingSmall: PickerEntry? = null
         shown.forEach { e ->
@@ -135,10 +135,10 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
         pendingSmall?.let { add(listOf(it)) }
     }
 
-    // Duo-Stil (auf- und zugeklappt): helles Blatt mit App-Liste + Detailblatt mit Größen-Karussell [Aufnahme 10:40, 31–46 s]
+    // Duo style (unfolded and folded): light sheet with app list + detail sheet with size carousel [recording 10:40, 31–46 s]
     if (io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle) {
         DuoWidgetPicker(
-            // nach App getrennt: eigene iOS-Widgets und eine Android-App gleichen Namens (z. B. „Clock“) nicht mischen
+            // separated by app: don't mix own iOS widgets and an Android app of the same name (e.g. "Clock")
             groups = shown.groupBy { it.title to it.provider?.provider?.packageName }.entries.map { it.key.first to it.value }.sortedBy { it.first.lowercase() },
             query = query, onQuery = { query = it }, appear = { appear.value }, close = { close() },
             onAdd = { e, finished ->
@@ -155,7 +155,7 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
         val screenH = constraints.maxHeight / density
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = appear.value }.background(Color.Black.copy(alpha = DIM))
             .pointerInput(Unit) { detectTapGestures { close() } })
-        // Breites Display (Duo aufgeklappt): Blatt mittig in iPhone-Breite statt bildschirmbreit [GESCHÄTZT — keine Aufnahme]
+        // Wide display (Duo unfolded): sheet centred at iPhone width instead of screen-wide [ESTIMATED — no recording]
         val screenW = constraints.maxWidth / density
         val sheetW = if (screenW > screenH && io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle) WIDE_SHEET_W.coerceAtMost(screenW) else screenW
         Box(
@@ -177,9 +177,9 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
                     }
                 }
             }
-            // Griff + Suchfeld (Glas, bleibt oben stehen)
+            // Grabber + search field (glass, stays at the top)
             Box(Modifier.offset(y = HANDLE_Y.dp).align(Alignment.TopCenter).size(HANDLE_W.dp, 5.dp).clip(CircleShape).background(Color(0x66FFFFFF)))
-            // Suchfeld: halbtransparentes helles Grau auf dem Blatt (iOS: Feld 57 vs. Blatt 32 Helligkeit), kein Glas-Rand
+            // Search field: semi-transparent light grey on the sheet (iOS: field 57 vs. sheet 32 brightness), no glass rim
             Box(
                 modifier = Modifier.offset(y = SEARCH_Y.dp).padding(horizontal = SIDE.dp).fillMaxWidth().height(SEARCH_H.dp)
                     .clip(CircleShape).background(Color.White.copy(alpha = SEARCH_FILL)),
@@ -198,7 +198,7 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
         detail?.let { e ->
             AddWidgetSheet(e, out = detailOut, onClose = { detail = null }) {
                 val p = e.provider
-                if (p == null) { onAdd(WidgetSpec(e.iosType!!, e.cols, e.rows)); scope.launch { kotlinx.coroutines.delay(250); detailOut = true; close() } } // Blatt bleibt, bis das Widget sich gehoben hat
+                if (p == null) { onAdd(WidgetSpec(e.iosType!!, e.cols, e.rows)); scope.launch { kotlinx.coroutines.delay(250); detailOut = true; close() } } // the sheet stays until the widget has lifted off
                 else (context as? Activity)?.let { act ->
                     host?.add(act, p, e.cols to e.rows) { spec -> if (spec != null) { onAdd(spec); close() } }
                 }
@@ -223,7 +223,7 @@ private fun PickerCard(e: PickerEntry, onClick: () -> Unit) {
     }
 }
 
-/** Vorschau: iOS-Widgets live, Android: Vorschaubild des Anbieters bzw. App-Icon auf dunkler Fläche. */
+/** Preview: iOS widgets live, Android: the provider's preview image or the app icon on a dark area. */
 @Composable
 private fun WidgetPreview(e: PickerEntry, modifier: Modifier) = WidgetPreviewBox(e, modifier)
 
@@ -246,7 +246,7 @@ internal fun WidgetPreviewBox(e: PickerEntry, modifier: Modifier) {
     }
 }
 
-/** Hinzufügen-Blatt (recording8 30 s): App-Kopf, Titel, Beschreibung, Vorschau in Originalgröße, blaues „Add Widget“. */
+/** Add sheet (recording8 30 s): app header, title, description, preview at original size, blue "Add Widget". */
 @Composable
 private fun AddWidgetSheet(e: PickerEntry, out: Boolean = false, onClose: () -> Unit, onAdd: () -> Unit) {
     androidx.compose.runtime.DisposableEffect(Unit) { PickerLaunch.added = false; onDispose { } }
@@ -255,7 +255,7 @@ private fun AddWidgetSheet(e: PickerEntry, out: Boolean = false, onClose: () -> 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current.density
         val screenH = constraints.maxHeight / density
-        // Breites Display (Duo aufgeklappt): mittig in iPhone-Breite; Blatt so hoch, dass der Knopf auf den Bildschirm passt
+        // Wide display (Duo unfolded): centred at iPhone width; the sheet tall enough that the button fits on screen
         val screenW = constraints.maxWidth / density
         val wide = screenW > screenH && io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle
         val sheetW = if (wide) WIDE_SHEET_W.coerceAtMost(screenW) else screenW
@@ -282,7 +282,7 @@ private fun AddWidgetSheet(e: PickerEntry, out: Boolean = false, onClose: () -> 
                 BasicText(e.title, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, color = Color(0x8CFFFFFF)))
                 Spacer(Modifier.height(140.dp))
                 val w = if (e.cols >= 4) DesignTokens.widgetWide.value else DesignTokens.widgetSmall.value
-                // Position merken (Abflugpunkt der fliegenden Kopie); nach „Hinzufügen“ ist die Vorschau weg — die Kopie hebt daraus ab
+                // Remember the position (departure point of the flying copy); after "Add" the preview is gone — the copy lifts off from it
                 WidgetPreview(e, Modifier.size(w.dp, DesignTokens.widgetSmall.dp)
                     .onGloballyPositioned { c -> PickerLaunch.previewCenter = c.boundsInRoot().center }
                     .graphicsLayer { alpha = if (PickerLaunch.added) 0f else 1f })
@@ -299,13 +299,13 @@ private fun AddWidgetSheet(e: PickerEntry, out: Boolean = false, onClose: () -> 
     }
 }
 
-// Maße [GEMESSEN grob] recording8 26,5 / 30,5 s
+// Dimensions [MEASURED roughly] recording8 26.5 / 30.5 s
 private const val SHEET_TOP = 123f
 private const val SHEET_CORNER = 38f
 private const val SHEET_BLUR = 24f
 private const val SHEET_DARK = 0.62f
-private const val SHEET_LIFT = 0.12f  // Blatt nie schwärzer als ≈ 32 (iOS), auch über schwarzen Widgets
-private const val SEARCH_FILL = 0.11f // Feld ≈ 57 auf Blatt ≈ 32 [GEMESSEN] recording8 26,5 s
+private const val SHEET_LIFT = 0.12f  // the sheet never blacker than ≈ 32 (iOS), even over black widgets
+private const val SEARCH_FILL = 0.11f // field ≈ 57 on sheet ≈ 32 [MEASURED] recording8 26.5 s
 private const val ADD_DARK = 0.7f
 private const val DIM = 0.25f
 private const val HANDLE_Y = 9f
@@ -321,11 +321,11 @@ private const val ADD_TOP = 134f
 private const val ADD_BUTTON_Y = 767f
 private val BLUE = Color(0xFF0A84FF)
 
-private const val WIDE_SHEET_W = 470f // pt, ≈ iPhone-Breite + Rand
+private const val WIDE_SHEET_W = 470f // pt, ≈ iPhone width + margin
 private const val ADD_BOTTOM_ROOM = 34f
-private const val ADD_TOP_WIDE = 40f // Platz unter dem Knopf (Gestenleiste)
+private const val ADD_TOP_WIDE = 40f // space below the button (gesture bar)
 
-/** Abflugpunkt des Widget-Flugs: Mitte der Vorschau im Detail-Blatt (Root-Koordinaten = Bildschirm). */
+/** Departure point of the widget flight: centre of the preview in the detail sheet (root coordinates = screen). */
 object PickerLaunch {
     var previewCenter: Offset? = null
     var added by androidx.compose.runtime.mutableStateOf(false)

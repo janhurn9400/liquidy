@@ -12,17 +12,17 @@ import io.github.janhurn9400.liquidy.ui.widgets.IosWidgetTypes
 import java.util.Calendar
 
 /**
- * Intelligentes Drehen für Widget-Stapel (iOS „Smart Rotate“): bewertet, welches Widget im Stapel gerade am nützlichsten
- * ist — bald ein Termin → Kalender, Akku knapp oder lädt → Batterien, morgens/Regen → Wetter, sonst die App, die man um
- * diese Zeit oft öffnet (aus [ranked], den App-Vorschlägen). Liefert null, wenn nichts deutlich besser ist als das Gezeigte.
+ * Smart Rotate for widget stacks (iOS "Smart Rotate"): scores which widget in the stack is most useful right now
+ * — an event soon → calendar, battery low or charging → batteries, morning/rain → weather, otherwise the app you often
+ * open at this time (from [ranked], the app suggestions). Returns null if nothing is clearly better than what's shown.
  */
 object SmartRotate {
-    /** Index des empfohlenen Widgets oder null (aktuelles behalten). Blockiert kurz (Kalender) — nicht im UI-Thread. */
+    /** Index of the recommended widget or null (keep the current one). Blocks briefly (calendar) — not on the UI thread. */
     fun pick(context: Context, stack: List<WidgetSpec>, current: Int, ranked: List<String>): Int? {
         if (stack.size < 2) return null
         val scores = stack.map { score(context, it, ranked) }
         val best = scores.indices.maxBy { scores[it] }
-        // nur wechseln, wenn das beste klar vorne liegt (sonst springt der Stapel unruhig hin und her)
+        // only switch if the best one is clearly ahead (otherwise the stack jumps back and forth restlessly)
         return best.takeIf { it != current && scores[it] >= MIN_SCORE && scores[it] > scores.getOrElse(current) { 0f } + MARGIN }
     }
 
@@ -39,7 +39,7 @@ object SmartRotate {
             IosWidgetTypes.PHOTOS -> if (hour in 19..22) 3f else 1f
             IosWidgetTypes.CLOCK -> 1f
             else -> {
-                // Android-Widget: wie gefragt ist seine App gerade (Rang in den App-Vorschlägen)
+                // Android widget: how in-demand its app is right now (rank in the app suggestions)
                 val pkg = w.provider?.substringBefore('/') ?: return 0f
                 val i = ranked.indexOfFirst { it.startsWith("$pkg/") }
                 if (i < 0) 0f else 7f - i.coerceAtMost(6)
@@ -54,7 +54,7 @@ object SmartRotate {
         return level to (status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL)
     }
 
-    /** Minuten bis zum nächsten (nicht ganztägigen) Termin in den nächsten 3 h, null ohne Termin/Berechtigung. */
+    /** Minutes until the next (non-all-day) event in the next 3 h, null without an event/permission. */
     private fun minutesToNextEvent(context: Context): Long? {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) return null
         val now = System.currentTimeMillis()

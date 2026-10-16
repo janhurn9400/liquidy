@@ -1,16 +1,16 @@
 package io.github.janhurn9400.liquidy.tuning
 
-/** Nur fürs Testen im Emulator — keine iOS-Werte. */
+/** Only for testing in the emulator — no iOS values. */
 object DebugOptions {
-    // Der Emulator hat nur ~15 Apps (= 1 Seite). Verteilt die App-Liste beim (Neu-)Aufbau des Layouts auf 1 + n Seiten, um Paging zu testen.
-    // Änderung setzt das gespeicherte Layout zurück.
-    val demoPages = tunable("DBG.demoPages", "Demo: zusätzliche Seiten (setzt Layout zurück)", "Debug", 1f, 0f, 5f, "Seiten")
+    // The emulator has only ~15 apps (= 1 page). Spreads the app list over 1 + n pages when (re)building the layout, to test paging.
+    // Changing it resets the saved layout.
+    val demoPages = tunable("DBG.demoPages", "Demo: extra pages (resets layout)", "Debug", 1f, 0f, 5f, "pages")
 
-    // 0 = grauer Referenz-Wallpaper (wie Nutzer-iPhone), 1 = farbiger Test-Wallpaper (macht Glas-Brechung sichtbar)
-    val wallpaperStyle = tunable("DBG.wallpaper", "Wallpaper: 0 grau (Referenz) / 1 farbig (Glas-Test)", "Debug", 0f, 0f, 1f)
+    // 0 = grey reference wallpaper (like the user's iPhone), 1 = colourful test wallpaper (makes glass refraction visible)
+    val wallpaperStyle = tunable("DBG.wallpaper", "Wallpaper: 0 grey (reference) / 1 colourful (glass test)", "Debug", 0f, 0f, 1f)
 
-    // 1 = eigene Wallpaper-Kopie immer (scharf) über Androids Bild legen — prüft, ob unser Zuschnitt deckungsgleich ist
-    val wallpaperCopy = tunable("DBG.wallpaperCopy", "Wallpaper-Kopie immer zeigen (Zuschnitt prüfen)", "Debug", 0f, 0f, 1f)
+    // 1 = always lay our own wallpaper copy (sharp) over Android's image — checks whether our crop is congruent
+    val wallpaperCopy = tunable("DBG.wallpaperCopy", "Always show wallpaper copy (check crop)", "Debug", 0f, 0f, 1f)
 
     fun touch() = Unit
 }

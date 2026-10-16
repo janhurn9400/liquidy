@@ -32,8 +32,8 @@ import io.github.janhurn9400.liquidy.ui.widgets.IosWidget
 import io.github.janhurn9400.liquidy.ui.widgets.widgetLabel
 
 /**
- * Widget auf einer Homescreen-Seite. Positioniert wie eine Icon-Zelle (cellOffsetX), zeichnet sich selbst
- * um [DesignTokens.widgetOverhang] nach links versetzt; Label darunter, Wackeln + Minus-Badge im Bearbeitungsmodus.
+ * Widget on a home page. Positioned like an icon cell (cellOffsetX), draws itself
+ * shifted left by [DesignTokens.widgetOverhang]; label below, jiggle + minus badge in edit mode.
  */
 @Composable
 fun WidgetCell(
@@ -48,11 +48,11 @@ fun WidgetCell(
     showBadge: Boolean,
     pressAlpha: () -> Float,
     showLabel: Boolean = true,
-    /** Laufende Größenänderung (Live-Rahmen + Unschärfe), sonst null. */
+    /** Ongoing resize (live rect + blur), otherwise null. */
     resize: io.github.janhurn9400.liquidy.ui.home.WidgetResize? = null,
-    /** Fläche ausblenden (App fliegt gerade hinein, das Bild des Widgets steht an seiner Stelle) — Name bleibt. */
+    /** Hide the surface (an app is flying into it right now, the widget's image stands in its place) — the name stays. */
     hideBody: Boolean = false,
-    /** Für Widget-Stapel (Position/Rahmen); null = nur das erste Widget zeigen. */
+    /** For widget stacks (position/rim); null = only show the first widget. */
     stackModel: HomeModel? = null,
 ) {
     val size = geo.widgetSize(spec.cols, spec.rows)
@@ -65,7 +65,7 @@ fun WidgetCell(
             Box(
                 Modifier
                     .layout { m, _ ->
-                        // Live-Rahmen beim Größe ändern (folgt dem Finger, rastet mit Feder ein), sonst feste Größe
+                        // Live rect while resizing (follows the finger, snaps in with a spring), otherwise a fixed size
                         val w = (resize?.w?.value ?: size.width).toInt().coerceAtLeast(1)
                         val h = (resize?.h?.value ?: size.height).toInt().coerceAtLeast(1)
                         val p = m.measure(Constraints.fixed(w, h))
@@ -80,7 +80,7 @@ fun WidgetCell(
                     }
             ) {
                 Box(Modifier.fillMaxSize().graphicsLayer {
-                    // Inhalt beim Größe ändern unscharf (recording8: sofort beim Anfassen, scharf nach dem Einrasten)
+                    // Content blurred while resizing (recording8: immediately on touch, sharp after snapping)
                     val b = (resize?.blur?.value ?: 0f) * DesignTokens.widgetResizeBlur.value * density
                     renderEffect = if (b > 0.5f) androidx.compose.ui.graphics.BlurEffect(b, b, androidx.compose.ui.graphics.TileMode.Clamp) else null
                 }) {
@@ -95,7 +95,7 @@ fun WidgetCell(
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             if (showBadge) MinusBadge(wallpaper, Modifier.graphicsLayer { val s = badgeScale(); scaleX = s; scaleY = s })
-            // am Bildschirmrand: Griff von der Android-Zurück-Geste ausnehmen (sonst fängt das System das Ziehen ab)
+            // at the screen edge: exclude the handle from the Android back gesture (otherwise the system intercepts the drag)
             if (showBadge) ResizeHandle(Modifier.systemGestureExclusion().graphicsLayer { alpha = badgeScale().coerceIn(0f, 1f) })
             if (spec.type == STACK && stackModel != null) StackDots(key, spec.stack.size, stackModel, Modifier)
         },
@@ -107,7 +107,7 @@ fun WidgetCell(
         val dots = if (hasDots) ms.last().measure(Constraints.fixed((STACK_DOTS_W * density).toInt(), w.height)) else null
         val badge = if (showBadge) ms[last - 2].measure(Constraints()) else null
         val handle = if (showBadge) ms[last - 1].measure(Constraints()) else null
-        // Zellen-Ursprung = Icon-Oberkante-links − (Label-Breite − Icon)/2 (cellOffsetX) → Widget-Kante daraus
+        // Cell origin = icon top-left − (label width − icon)/2 (cellOffsetX) → widget edge from that
         val x0 = ((DesignTokens.labelWidth.value - DesignTokens.iconSize.value) / 2 * density + geo.widgetOffset.x).toInt()
         val y0 = geo.widgetOffset.y.toInt()
         val baseline = y0 + w.height + DesignTokens.widgetLabelGap.dp.roundToPx()
@@ -115,7 +115,7 @@ fun WidgetCell(
             w.place(x0, y0)
             l?.place(x0 + (w.width - l.width) / 2, baseline - l[FirstBaseline])
             dots?.place(x0 + w.width + (STACK_DOTS_GAP * density).toInt(), y0)
-            // Griff liegt in der unteren rechten Ecke, folgt dem Live-Rahmen
+            // The handle sits in the bottom-right corner, follows the live rect
             val out = ((HANDLE_THICK / 2 - HANDLE_INSET) * density).toInt()
             handle?.place(x0 + w.width - handle.width + out, y0 + w.height - handle.height + out)
             badge?.place(
@@ -126,7 +126,7 @@ fun WidgetCell(
     }
 }
 
-/** Glas in Widgets sieht nur das Wallpaper (das Widget liegt selbst in der aufgenommenen Icon-Ebene). */
+/** Glass in widgets only sees the wallpaper (the widget itself lies in the recorded icon layer). */
 @Composable
 internal fun WithWallpaperGlass(wallpaper: ImageBitmap, content: @Composable () -> Unit) {
     val wb = io.github.janhurn9400.liquidy.glass.LocalWallpaperBlur.current
@@ -135,17 +135,17 @@ internal fun WithWallpaperGlass(wallpaper: ImageBitmap, content: @Composable () 
 }
 
 /**
- * Größengriff wie iOS (recording8 39,55 s, Ausschnitt 2×): dicke gebogene Glas-„Bohne“ (≈ 13 pt) entlang der unteren
- * rechten Ecke, Mittellinie ≈ 3 pt innerhalb der Widget-Kante, Schenkel je ≈ 31 pt; klar, mit heller Lichtkante.
+ * Resize handle like iOS (recording8 39.55 s, crop 2×): a thick curved glass "bean" (≈ 13 pt) along the bottom-right
+ * corner, centre line ≈ 3 pt inside the widget edge, legs ≈ 31 pt each; clear, with a light edge.
  */
 @Composable
 internal fun ResizeHandle(modifier: Modifier) {
     val side = handleBox().dp
     androidx.compose.foundation.Canvas(modifier.size(side)) {
         val t = HANDLE_THICK.dp.toPx()
-        val rad = HANDLE_RADIUS.dp.toPx() // engere Rundung als das Widget (Schenkel ≈ 26 pt ab der Kante)
+        val rad = HANDLE_RADIUS.dp.toPx() // tighter rounding than the widget (legs ≈ 26 pt from the edge)
         val ext = HANDLE_EXT.dp.toPx()
-        // Mittellinie: Kante (rechts/unten) liegt bei size − outset
+        // Centre line: the edge (right/bottom) lies at size − outset
         val outset = t / 2 - HANDLE_INSET.dp.toPx()
         val right = size.width - outset - HANDLE_INSET.dp.toPx()
         val bottom = size.height - outset - HANDLE_INSET.dp.toPx()
@@ -159,11 +159,11 @@ internal fun ResizeHandle(modifier: Modifier) {
         android.graphics.Paint().apply { style = android.graphics.Paint.Style.STROKE; strokeWidth = t; strokeCap = android.graphics.Paint.Cap.ROUND }
             .getFillPath(center, outline)
         val shape = outline.asComposePath()
-        // Glaskörper: leicht aufgehellt, oben-links heller (Licht), unten-rechts etwas dunkler
+        // Glass body: slightly brightened, lighter top left (light), a little darker bottom right
         drawPath(shape, androidx.compose.ui.graphics.Brush.linearGradient(
             listOf(Color.White.copy(alpha = HANDLE_FILL_TOP), Color.White.copy(alpha = HANDLE_FILL_BOTTOM)),
             androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, size.height)))
-        // Lichtkante
+        // light edge
         drawPath(shape, androidx.compose.ui.graphics.Brush.linearGradient(
             listOf(Color.White.copy(alpha = HANDLE_RIM), Color.White.copy(alpha = HANDLE_RIM * 0.25f), Color.White.copy(alpha = HANDLE_RIM * 0.7f)),
             androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, size.height)),
@@ -171,18 +171,18 @@ internal fun ResizeHandle(modifier: Modifier) {
     }
 }
 
-/** Wie weit der Griff über die Widget-Ecke hinausragt (pt). */
+/** How far the handle reaches beyond the widget corner (pt). */
 internal fun handleOutset() = HANDLE_THICK / 2 - HANDLE_INSET
 
-/** Kantenlänge der Griff-Fläche (pt). */
+/** Edge length of the handle area (pt). */
 internal fun handleBox() = HANDLE_RADIUS + HANDLE_EXT + HANDLE_THICK + HANDLE_INSET
 
 private const val HANDLE_THICK = 13f   // pt
-private const val HANDLE_EXT = 2f      // gerade Stücke über die Rundung hinaus
-private const val HANDLE_RADIUS = 15f  // Rundung der Mittellinie → Schenkel 15 + 2 + 6,5 + 3 ≈ 26 pt [GEMESSEN]
-private const val HANDLE_INSET = 3f    // Mittellinie innerhalb der Kante
+private const val HANDLE_EXT = 2f      // straight pieces beyond the rounding
+private const val HANDLE_RADIUS = 15f  // rounding of the centre line → legs 15 + 2 + 6.5 + 3 ≈ 26 pt [MEASURED]
+private const val HANDLE_INSET = 3f    // centre line inside the edge
 private const val HANDLE_FILL_TOP = 0.16f
 private const val HANDLE_FILL_BOTTOM = 0.05f
 private const val HANDLE_RIM = 0.85f
 private const val HANDLE_RIM_W = 1.2f
-private const val WIDGET_JIGGLE = 0.35f // große Flächen wackeln sichtbar weniger [GESCHÄTZT] recording8 31 s
+private const val WIDGET_JIGGLE = 0.35f // large areas jiggle visibly less [ESTIMATED] recording8 31 s

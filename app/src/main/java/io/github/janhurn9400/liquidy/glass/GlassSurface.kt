@@ -34,11 +34,11 @@ import io.github.janhurn9400.liquidy.design.DesignTokens
 import kotlin.math.roundToInt
 
 /**
- * Liquid-Glass-Fläche, Stufe 1 (RESEARCH §2.8):
- *  - tastet den eigenen Wallpaper an der eigenen Bildschirmposition ab und blurt ihn (RenderEffect),
- *  - Tönung (abdunkeln/aufhellen),
- *  - Rand: heller Lichtsaum oben/unten, dunkler Rand seitlich (iOS 27, gemessen an Pill & Dock).
- * Refraktion (AGSL) folgt als Stufe 2.
+ * Liquid Glass surface, stage 1 (RESEARCH §2.8):
+ *  - samples our own wallpaper at its own screen position and blurs it (RenderEffect),
+ *  - tint (darken/brighten),
+ *  - rim: light rim top/bottom, dark rim at the sides (iOS 27, measured on pill & dock).
+ * Refraction (AGSL) follows as stage 2.
  */
 @Composable
 fun GlassSurface(
@@ -49,14 +49,14 @@ fun GlassSurface(
     tint: Float = DesignTokens.glassTint.value,
     whiteTint: Float = DesignTokens.glassWhiteTint.value,
     /**
-     * Transformation, die das umgebende Element gerade per graphicsLayer erfährt (Drehung °, Versatz x/y px; Drehpunkt =
-     * Mitte dieser Fläche). Wird beim Zeichnen des Wallpaper-Ausschnitts zurückgenommen → der Hintergrund steht still,
-     * nur das Glas bewegt sich (sonst wackelt beim Bearbeiten das Wallpaper im Ordner-Icon mit).
+     * Transformation the surrounding element currently gets via graphicsLayer (rotation °, offset x/y px; pivot =
+     * centre of this surface). It's undone when drawing the wallpaper crop → the background stands still,
+     * only the glass moves (otherwise the wallpaper in the folder icon would jiggle along in edit mode).
      */
     counterTransform: (() -> Triple<Float, Float, Float>)? = null,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
-    var origin by remember { mutableStateOf(Offset.Zero) } // nur Auslöser fürs Neuzeichnen bei Positionsänderung
+    var origin by remember { mutableStateOf(Offset.Zero) } // only a trigger for redrawing on position change
     val coords = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     Box(modifier.onGloballyPositioned { origin = it.positionInRoot() }) {
         Box(Modifier.matchParentSize().clip(shape)) {
@@ -70,10 +70,10 @@ fun GlassSurface(
                         renderEffect = if (r > 0.5f) BlurEffect(r, r, TileMode.Clamp) else null
                     }
             ) {
-                origin // lesen → Neuzeichnen bei Positionsänderung
-                counterTransform?.invoke() // lesen → Neuzeichnen in jedem Wackel-Frame
-                // Aktuelle Umrechnung Bildschirm → diese Fläche (inkl. Drehung/Versatz aller graphicsLayer darüber):
-                // der Wallpaper wird damit gezeichnet und steht dadurch exakt still, egal wie das Element sich bewegt.
+                origin // read → redraw on position change
+                counterTransform?.invoke() // read → redraw on every jiggle frame
+                // Current mapping screen → this surface (incl. rotation/offset of all graphicsLayers above):
+                // the wallpaper is drawn with it and so stands exactly still, however the element moves.
                 val c = coords[0]
                 val m = androidx.compose.ui.graphics.Matrix()
                 if (c != null && c.isAttached) c.transformFrom(c.findRootCoordinates(), m)
@@ -95,7 +95,7 @@ fun GlassRim(shape: Shape, modifier: Modifier, lightAlpha: Float = DesignTokens.
         if (w <= 0f) return@Canvas
         val light = Color.White.copy(alpha = lightAlpha)
         val dark = Color.Black.copy(alpha = DesignTokens.glassRimShadow.value)
-        // vertikaler Verlauf: oben/unten Lichtsaum, in der Mitte (= Seitenkanten) dunkel
+        // vertical gradient: light rim at the top/bottom, dark in the middle (= side edges)
         val brush = Brush.verticalGradient(
             0f to light, 0.3f to dark, 0.7f to dark, 1f to light,
         )

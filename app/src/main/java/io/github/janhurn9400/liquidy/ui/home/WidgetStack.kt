@@ -22,28 +22,28 @@ import kotlin.math.ceil
 import kotlin.math.floor
 
 /**
- * Widget-Stapel wie iOS (Bildschirmaufnahme 10-08 09:56): Widgets liegen vertikal übereinander und werden durchgewischt.
- * Beim Wischen sitzt der Inhalt verkleinert in einem Liquid-Glass-Rahmen (dicke Glaskante bricht das Wallpaper),
- * das nächste Widget gleitet von unten herein; danach blendet der Rahmen aus. Rechts daneben senkrechte Punkte
- * (weiß = aktuelles Widget). Zeichnet nur den Inhalt — Größe/Clip/Beschriftung macht WidgetCell.
+ * Widget stack like iOS (screen recording 10-08 09:56): widgets lie vertically on top of each other and are swiped through.
+ * While swiping the content sits shrunk in a Liquid Glass rim (a thick glass edge refracts the wallpaper),
+ * the next widget slides in from below; afterwards the rim fades out. To the right vertical dots
+ * (white = current widget). Draws only the content — size/clip/label are done by WidgetCell.
  */
 @Composable
 fun WidgetStackContent(key: String, spec: WidgetSpec, model: HomeModel, wallpaper: ImageBitmap) {
     val pos = model.stackPosition(key)
-    val active = model.stackActivity(key)   // Wischen: Inhalt verkleinert
-    val rim = model.stackRimAlpha(key)      // Glasrand sichtbar
+    val active = model.stackActivity(key)   // swiping: content shrunk
+    val rim = model.stackRimAlpha(key)      // glass rim visible
     Box(Modifier.fillMaxSize()) {
-        // Glasrand: erscheint beim Anfassen, steht während des Aufwachsens und blendet erst danach aus
+        // Glass rim: appears on touch, stays during the regrowth and only fades out afterwards
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = rim.value }) {
-            // Quelle = nur das Wallpaper (das Widget liegt selbst in der Homescreen-Glasquelle → sonst Rekursion)
+            // Source = only the wallpaper (the widget itself lies in the home glass source → recursion otherwise)
             WithWallpaperGlass(wallpaper) {
                 LiquidGlass(glassRect(DesignTokens.widgetCorner.dp), Modifier.fillMaxSize(), thickness = 2.5f, whiteTint = 0f, blackTint = 0f)
             }
         }
         Box(
             Modifier.fillMaxSize().graphicsLayer {
-                // Inhalt beim Wischen verkleinert im Rahmen (≈ 12 pt Rand, Bild 880)
-                // Abstand zum Rand: beim Wischen ≈ 24 pt (inkl. Schrumpfen), aufgewachsen bleibt ≈ 3,3 pt Glasrand sichtbar
+                // Content shrunk in the rim while swiping (≈ 12 pt margin, frame 880)
+                // Distance to the rim: ≈ 24 pt while swiping (incl. shrinking), regrown ≈ 3.3 pt of glass rim stays visible
                 val inset = (STACK_INSET_DP * active.value + STACK_RIM_DP * rim.value) * density
                 val s = 1f - 2f * inset / size.width
                 scaleX = s; scaleY = 1f - 2f * inset / size.height
@@ -69,7 +69,7 @@ fun WidgetStackContent(key: String, spec: WidgetSpec, model: HomeModel, wallpape
     }
 }
 
-/** Senkrechte Punkte rechts neben dem Stapel (außerhalb des Widgets, Bild 880). */
+/** Vertical dots to the right of the stack (outside the widget, frame 880). */
 @Composable
 fun StackDots(key: String, count: Int, model: HomeModel, modifier: Modifier) {
     val pos = model.stackPosition(key)
@@ -87,10 +87,10 @@ fun StackDots(key: String, count: Int, model: HomeModel, modifier: Modifier) {
 @Composable
 private inline fun key(k: Any, crossinline content: @Composable () -> Unit) = androidx.compose.runtime.key(k) { content() }
 
-internal const val STACK_DOTS_GAP = 6f   // pt vom rechten Widget-Rand
+internal const val STACK_DOTS_GAP = 6f   // pt from the right widget edge
 internal const val STACK_DOTS_W = 8f
-private const val STACK_RIM_DP = 3.3f   // Bild 892: Rand außen 626, Inhalt 636 px (3×)
-private const val STACK_INSET_DP = 14f  // im Rahmen verkleinert, wächst nach dem Einrasten in ≈ 0,4 s auf (Bild 865–889)
-private const val STACK_DEPTH = 0.35f    // herein-/hinausgleitende Widgets schrumpfen deutlich (Bild 861: ≈ 0,65×)
+private const val STACK_RIM_DP = 3.3f   // frame 892: rim outside 626, content 636 px (3×)
+private const val STACK_INSET_DP = 14f  // shrunk in the rim, regrows in ≈ 0.4 s after settling (frame 865–889)
+private const val STACK_DEPTH = 0.35f    // widgets sliding in/out shrink clearly (frame 861: ≈ 0.65×)
 private const val DOT_D = 6f
 private const val DOT_PITCH = 11f

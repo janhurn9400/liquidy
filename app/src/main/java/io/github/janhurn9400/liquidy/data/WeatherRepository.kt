@@ -20,7 +20,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** Wetter für die Wetter-Widgets: Open-Meteo (frei, ohne Schlüssel), Ort = letzter bekannter Standort (grob). */
+/** Weather for the weather widgets: Open-Meteo (free, no key), location = last known location (coarse). */
 object WeatherRepository {
     data class Hour(val time: LocalDateTime, val temp: Int, val code: Int, val day: Boolean, val event: Event? = null)
     enum class Event { SUNRISE, SUNSET }
@@ -36,8 +36,8 @@ object WeatherRepository {
         data class Ready(val w: Weather) : State
     }
 
-    /** Fester Ort (Widget-Einstellung „Ort“); null = aktueller Standort. Als Text gespeichert: „lat;lon;Name“. */
-    /** [timezone] nur aus der Suche (IANA, z. B. Europe/Vienna) — nicht gespeichert. */
+    /** Fixed location (widget setting "Location"); null = current location. Saved as text: "lat;lon;name". */
+    /** [timezone] only from the search (IANA, e.g. Europe/Vienna) — not saved. */
     data class Place(val lat: Double, val lon: Double, val name: String, val region: String = "", val timezone: String = "") {
         fun encode() = "$lat;$lon;$name"
         val key get() = "%.3f,%.3f".format(java.util.Locale.ROOT, lat, lon)
@@ -48,10 +48,10 @@ object WeatherRepository {
     }
 
     private val _places = MutableStateFlow<Map<String, State>>(emptyMap())
-    /** Wetter je festem Ort (Schlüssel [Place.key]). */
+    /** Weather per fixed location (key [Place.key]). */
     val places: StateFlow<Map<String, State>> = _places
 
-    /** Lädt das Wetter für einen festen Ort neu (wenn älter als [maxAgeMs]). */
+    /** Reloads the weather for a fixed location (if older than [maxAgeMs]). */
     suspend fun refreshPlace(place: Place, maxAgeMs: Long = 30 * 60_000L) {
         val cur = _places.value[place.key]
         if (cur is State.Ready && System.currentTimeMillis() - cur.w.fetched < maxAgeMs) return
@@ -60,7 +60,7 @@ object WeatherRepository {
         else if (cur == null) _places.value = _places.value + (place.key to State.Loading)
     }
 
-    /** Orte suchen (Open-Meteo-Geocoding, Gerätesprache). Blockiert — im IO-Thread aufrufen. */
+    /** Search places (Open-Meteo geocoding, device language). Blocks — call on the IO thread. */
     fun searchPlaces(query: String, max: Int = 8): List<Place> {
         val q = query.trim()
         if (q.length < 2) return emptyList()
@@ -78,7 +78,7 @@ object WeatherRepository {
         }.getOrDefault(emptyList())
     }
 
-    /** Zuletzt gewählte Orte („Deine Orte“), neueste zuerst. */
+    /** Recently chosen places ("Your Locations"), newest first. */
     fun savedPlaces(context: Context): List<Place> =
         context.getSharedPreferences("weather", Context.MODE_PRIVATE).getString(SAVED, null)?.split('\n')?.mapNotNull { Place.decode(it) } ?: emptyList()
 
@@ -103,7 +103,7 @@ object WeatherRepository {
     fun hasLocationPermission(context: Context) =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-    /** Lädt neu, wenn älter als [maxAgeMs] (Standard 30 min). Fehler → letzter Stand bleibt. */
+    /** Reloads if older than [maxAgeMs] (default 30 min). Error → the last state stays. */
     suspend fun refresh(context: Context, maxAgeMs: Long = 30 * 60_000L) = lock.withLock {
         val cur = _state.value
         if (cur is State.Ready && System.currentTimeMillis() - cur.w.fetched < maxAgeMs) return@withLock
@@ -150,14 +150,14 @@ object WeatherRepository {
         val d = o.getJSONObject("daily"); val dt = d.getJSONArray("time"); val dcode = d.getJSONArray("weather_code")
         val dmax = d.getJSONArray("temperature_2m_max"); val dmin = d.getJSONArray("temperature_2m_min")
         val rise = d.getJSONArray("sunrise"); val set = d.getJSONArray("sunset")
-        // Zeiten kommen in Ortszeit (timezone=auto) — „jetzt“ ebenfalls in Ortszeit, sonst stimmen Stunden bei fernen Orten nicht
+        // Times come in local time (timezone=auto) — "now" in local time as well, otherwise hours are wrong for distant places
         val now = o.optInt("utc_offset_seconds", Int.MIN_VALUE).let { off ->
             if (off == Int.MIN_VALUE) LocalDateTime.now() else LocalDateTime.now(java.time.ZoneOffset.UTC).plusSeconds(off.toLong())
         }
         val nextHour = now.withMinute(0).withSecond(0).withNano(0).plusHours(1)
         val hours = (0 until ht.length()).map { Hour(LocalDateTime.parse(ht.getString(it), iso), Math.round(htemp.getDouble(it)).toInt(), hcode.getInt(it), hday.getInt(it) == 1) }
             .filter { !it.time.isBefore(nextHour) }.take(8).toMutableList()
-        // Sonnenauf-/-untergang zwischen den Stunden einfügen (iOS: „18:21“ mit Symbol)
+        // Insert sunrise/sunset between the hours (iOS: "18:21" with a glyph)
         val events = (0 until dt.length()).flatMap { i ->
             listOf(LocalDateTime.parse(rise.getString(i), iso) to Event.SUNRISE, LocalDateTime.parse(set.getString(i), iso) to Event.SUNSET)
         }.filter { it.first.isAfter(now) && hours.isNotEmpty() && it.first.isBefore(hours.last().time) }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- System-App darf die internen Animations-Schnittstellen (RemoteTransition) nutzen — ApplicationInfo.isAllowedToUseHiddenApis -->
+<!-- The system app may use the internal animation interfaces (RemoteTransition) — ApplicationInfo.isAllowedToUseHiddenApis -->
 <config>
     <hidden-api-whitelisted-app package="io.github.janhurn9400.liquidy"/>
 </config>

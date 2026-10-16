@@ -16,20 +16,20 @@ import java.net.URLEncoder
 import java.util.Locale
 
 /**
- * Globale Suche (Stufe 1): Web-Vorschläge (Google, abschaltbar), Kontakte, Rechner. Apps sucht weiterhin HomeModel.
- * Alles außer den Web-Vorschlägen bleibt auf dem Gerät.
+ * Global search (stage 1): web suggestions (Google, can be turned off), contacts, calculator. Apps are still searched by HomeModel.
+ * Everything except the web suggestions stays on the device.
  */
 object UniversalSearch {
     data class Contact(val id: Long, val lookup: String, val name: String, val number: String?, val photo: Uri?)
 
-    /** Einstellung „Websuche-Vorschläge“ (Standard an; prefs „search“/„web“). */
+    /** Setting "Web search suggestions" (default on; prefs "search"/"web"). */
     object WebSuggestions {
         var enabled by androidx.compose.runtime.mutableStateOf(true)
         fun load(c: Context) { enabled = c.getSharedPreferences("search", Context.MODE_PRIVATE).getBoolean("web", true) }
         fun set(c: Context, on: Boolean) { enabled = on; c.getSharedPreferences("search", Context.MODE_PRIVATE).edit().putBoolean("web", on).apply() }
     }
 
-    /** Vorschläge der Google-Suche zum getippten Text (blockierend, im IO-Thread aufrufen). */
+    /** Google search suggestions for the typed text (blocking, call on the IO thread). */
     fun webSuggestions(query: String, max: Int = 4): List<String> {
         val q = query.trim()
         if (q.isEmpty() || !WebSuggestions.enabled) return emptyList()
@@ -74,19 +74,19 @@ object UniversalSearch {
     fun openContact(c: Context, k: Contact) = start(c, Intent(Intent.ACTION_VIEW, ContactsContract.Contacts.getLookupUri(k.id, k.lookup)))
     fun call(c: Context, number: String) = start(c, Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null)))
 
-    /** Im Standard-Browser mit Google suchen. */
+    /** Search with Google in the default browser. */
     fun searchWeb(c: Context, text: String) =
         start(c, Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + URLEncoder.encode(text.trim(), "UTF-8"))))
 
-    /** Paket des Standard-Browsers (für das Symbol in der Zeile). */
+    /** Package of the default browser (for the glyph in the row). */
     fun browserPackage(c: Context): String? =
         c.packageManager.resolveActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")), PackageManager.MATCH_DEFAULT_ONLY)
             ?.activityInfo?.packageName?.takeIf { it != "android" }
 
     private fun start(c: Context, i: Intent) { runCatching { c.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
 
-    // ── Rechner ───────────────────────────────────────────────────────────────
-    /** „12*7“, „(3+4)/2“, „2^10“, „15 % von 80“ → Ergebnis-Text; null, wenn es keine Rechnung ist. */
+    // ── Calculator ───────────────────────────────────────────────────────────────
+    /** "12*7", "(3+4)/2", "2^10", "15 % of 80" → result text; null if it isn't a calculation. */
     fun calculate(input: String): String? {
         var s = input.trim().replace('×', '*').replace('÷', '/').replace(',', '.').replace(" ", "")
         if (s.isEmpty() || s.none { it in "+-*/^%" } || s.any { !(it.isDigit() || it in "+-*/^%().") }) return null

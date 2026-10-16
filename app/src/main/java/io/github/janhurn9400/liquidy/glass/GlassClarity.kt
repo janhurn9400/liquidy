@@ -7,13 +7,13 @@ import androidx.compose.runtime.setValue
 import io.github.janhurn9400.liquidy.design.DesignTokens
 
 /**
- * iOS-Einstellung Liquid Glass „Klar ↔ Getönt“ (Einstellungen › Darstellung › Liquid Glass, RESEARCH Glas-Regler).
- * [amount] 0 = klar (bisheriges, gemessenes Glas) … 1 = getönt (milchig, keine sichtbare Brechung mehr).
+ * iOS setting Liquid Glass "Clear ↔ Tinted" (Settings › Appearance › Liquid Glass, RESEARCH glass slider).
+ * [amount] 0 = clear (the previous, measured glass) … 1 = tinted (milky, no visible refraction anymore).
  *
- * Gemessen am Nutzer-iPhone 10-14 (Dock + Suchfeld, drei Reglerstellungen, T-GLASS.frost*):
- * - Unschärfe im Glas: klar σ ≈ 0,4 pt, Mitte ≈ 1,3 pt, getönt ≥ 4 pt (völlig glatt) — Farbe des Docks bleibt fast gleich.
- * - Getönt: keine Brechung mehr (Ränder nur weichgezeichnet, nichts verbogen) und ein neutral-grauer Schleier — helles Glas
- *   etwas dunkler, dunkles (Suchfeld) heller, Farben blasser. Bis zur Mitte sieht es aus wie klar.
+ * Measured on the user's iPhone 10-14 (dock + search field, three slider positions, T-GLASS.frost*):
+ * - Blur in the glass: clear σ ≈ 0.4 pt, middle ≈ 1.3 pt, tinted ≥ 4 pt (completely smooth) — the dock colour stays almost the same.
+ * - Tinted: no refraction anymore (edges only softened, nothing bent) and a neutral grey veil — light glass
+ *   a bit darker, dark (search field) lighter, colours paler. Up to the middle it looks like clear.
  */
 object GlassClarity {
     private const val PREFS = "glass"
@@ -31,12 +31,12 @@ object GlassClarity {
         c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putFloat(KEY, amount).apply()
     }
 
-    /** Mindest-Unschärfe (dp) für [t]: 0 → keine, Mitte → T-GLASS.frostMid, getönt → T-GLASS.frostTinted. */
+    /** Minimum blur (dp) for [t]: 0 → none, middle → T-GLASS.frostMid, tinted → T-GLASS.frostTinted. */
     fun frostBlurDp(t: Float = amount): Float {
         val mid = DesignTokens.glassFrostMid.value; val full = DesignTokens.glassFrostTinted.value
         return if (t <= 0.5f) mid * (t / 0.5f) else mid + (full - mid) * ((t - 0.5f) / 0.5f)
     }
 
-    /** Anteil „getönt“ für die Tönung (0 bis zur Mitte, dann bis 1) — Mitte sieht am iPhone noch aus wie klar. */
+    /** Share "tinted" for the tint (0 up to the middle, then up to 1) — the middle still looks like clear on the iPhone. */
     fun tintShare(t: Float = amount): Float = ((t - 0.5f) / 0.5f).coerceIn(0f, 1f)
 }

@@ -24,17 +24,17 @@ import io.github.janhurn9400.liquidy.ui.Inter
 import kotlin.math.roundToInt
 
 /**
- * iPhone-Duo-Statusanzeige [GEMESSEN Aufnahme 19:18 (aufgeklappt) / 19:07 (zugeklappt)]: keine Leiste, sondern über
- * der Dock-Spalte die Uhrzeit (Mitte 39 pt unter der Oberkante), 36 pt darunter ein offener Ring (Ø 40 pt, Lücke unten;
- * hier = Akkustand) mit WLAN-Symbol, darunter 4 Punkte (hier = Mobilfunk). Liegt eine Kamera-Aussparung über der Spalte
- * (zugeklappt), rückt alles darunter (Uhr 26 pt unter ihre Unterkante). Alles relativ zur Displaybreite/Aussparung.
+ * iPhone Duo status display [MEASURED recording 19:18 (unfolded) / 19:07 (folded)]: no bar, but above
+ * the dock column the time (centre 39 pt below the top), 36 pt below it an open ring (Ø 40 pt, gap at the bottom;
+ * here = battery level) with a Wi-Fi glyph, below it 4 dots (here = cellular). If a camera cutout lies above the column
+ * (folded), everything below moves down (clock 26 pt below its bottom edge). Everything relative to the display width/cutout.
  */
 @Composable
 fun DuoStatusSymbols(info: StatusInfo, columnCenterX: Float, density: Float, color: Color) {
     val view = LocalView.current
-    // Kamera-Loch/Notch (manche Foldables) nur, wenn es wirklich über der Uhr liegt (Uhrbreite ≈ 2 × CLOCK_HALF_W)
-    // Lage aus der echten Ausschnitt-Form (Pfad), nicht aus den Begrenzungsrechtecken: die sind auf manchen Geräten grob
-    // (Emulator: Loch mittig über der rechten Hälfte, Rechteck aber oben rechts in der Ecke gemeldet)
+    // Camera hole/notch (some foldables) only if it really lies above the clock (clock width ≈ 2 × CLOCK_HALF_W)
+    // Position from the real cutout shape (path), not from the bounding rects: on some devices they're coarse
+    // (emulator: hole centred above the right half, but the rect reported in the top-right corner)
     val cutout = view.rootWindowInsets?.displayCutout
     val areas = cutout?.cutoutPath?.let { path ->
         val b = android.graphics.RectF(); path.computeBounds(b, true)
@@ -67,8 +67,8 @@ fun DuoStatusSymbols(info: StatusInfo, columnCenterX: Float, density: Float, col
 }
 
 /**
- * Statusleiste im iOS-Stil für normale Handys: Uhrzeit links (Mitte bei 19 % der Breite), rechts Mobilfunk-Balken,
- * WLAN-Fächer, Akku-Kapsel (Mitte bei 81 %). Senkrecht in der Mitte der Android-Statusleistenhöhe [height].
+ * iOS-style status bar for normal phones: time on the left (centre at 19 % of the width), on the right cellular bars,
+ * Wi-Fi fan, battery capsule (centre at 81 %). Vertically centred in the Android status bar height [height].
  */
 @Composable
 fun IosStatusBar(info: StatusInfo, height: Float, density: Float, color: Color) {
@@ -98,7 +98,7 @@ fun IosStatusBar(info: StatusInfo, height: Float, density: Float, color: Color) 
                 x += cellW + gap
             }
             if (wifiW > 0) { wifi(Offset(x + wifiW / 2, cy + 4.5f * u), 8.5f * u, info.wifi + 1, color, dimNone = false); x += wifiW + gap }
-            // Akku: Umriss halbtransparent, Füllung nach Stand (laden grün, niedrig rot), Kappe rechts
+            // Battery: outline semi-transparent, fill by level (charging green, low red), cap on the right
             drawRoundRect(color.copy(alpha = 0.4f), Offset(x, cy - bh / 2), Size(bw, bh), CornerRadius(4f * u), style = Stroke(1f * u))
             val fill = if (info.charging) CHARGE_GREEN else if (info.battery < 0.2f) LOW_RED else color
             drawRoundRect(fill, Offset(x + 2f * u, cy - bh / 2 + 2f * u), Size((bw - 4f * u) * info.battery.coerceAtLeast(0.05f), bh - 4f * u), CornerRadius(2.5f * u))
@@ -107,7 +107,7 @@ fun IosStatusBar(info: StatusInfo, height: Float, density: Float, color: Color) 
     }
 }
 
-/** WLAN-Fächer: Punkt + 2 Bögen, [bars] 0…4 (0 = alles blass). Mittelpunkt [c] = Fußpunkt des Fächers. */
+/** Wi-Fi fan: dot + 2 arcs, [bars] 0…4 (0 = all pale). Centre [c] = base point of the fan. */
 private fun DrawScope.wifi(c: Offset, r: Float, bars: Int, color: Color, dimNone: Boolean) {
     val sw = r * 0.2f
     drawCircle(color.copy(alpha = if (bars >= 1 && !dimNone) 1f else 0.3f), sw * 0.75f, Offset(c.x, c.y - sw * 0.6f))
@@ -126,13 +126,13 @@ private fun DrawScope.airplane(c: Offset, r: Float, color: Color) {
 }
 
 private const val CLOCK_Y = 39f
-private const val CLOCK_BELOW_CUTOUT = 15f // Uhr-Mitte unter dem Kamera-Loch (Abstand wie oben zum Rand)
+private const val CLOCK_BELOW_CUTOUT = 15f // clock centre below the camera hole (same gap as at the top to the edge)
 private const val CLOCK_HALF_W = 22f
 private const val CLOCK_HALF_H = 9f
 private const val RING_BELOW = 36f
 private const val RING_R = 19f
 private const val RING_STROKE = 3f
-private const val RING_START = 140f   // Lücke unten (90° = unten), ≈ 100° offen
+private const val RING_START = 140f   // gap at the bottom (90° = bottom), ≈ 100° open
 private const val RING_SWEEP = 260f
 private const val DOTS_BELOW = 19f
 private const val DOT_PITCH = 7f

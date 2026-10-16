@@ -5,10 +5,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Persistentes Homescreen-Layout. Seiten und Dock enthalten Item-IDs:
- *  - App-Key (siehe AppEntry.key) oder
- *  - Ordner-ID ("folder:…"), deren Inhalt in [folders] steht (Phase 3).
- * [hidden] = vom Homescreen entfernte Apps (landen in der App-Mediathek, Phase 4).
+ * Persistent home layout. Pages and dock contain item IDs:
+ *  - app key (see AppEntry.key) or
+ *  - folder ID ("folder:…"), whose content is in [folders] (phase 3).
+ * [hidden] = apps removed from the home screen (end up in the App Library, phase 4).
  */
 data class SavedLayout(
     val pages: List<List<String>>,
@@ -16,27 +16,27 @@ data class SavedLayout(
     val folders: Map<String, SavedFolder>,
     val hidden: Set<String>,
     val widgets: Map<String, WidgetSpec> = emptyMap(),
-    /** Widgets der Heute-Ansicht (Reihenfolge); null = noch nie gespeichert → Standard-Widgets. */
+    /** Widgets of the Today view (order); null = never saved → default widgets. */
     val today: List<String>? = null,
-    /** In der Seitenübersicht ausgeblendete Seiten: Position in der Gesamtreihenfolge + Inhalt. */
+    /** Pages hidden in the page overview: position in the overall order + content. */
     val hiddenPages: List<HiddenPage> = emptyList(),
 )
 
-/** Ausgeblendete Homescreen-Seite (iOS „Seiten bearbeiten“): [pos] = Platz in der Übersicht (sichtbare + ausgeblendete). */
+/** Hidden home page (iOS "Edit Pages"): [pos] = slot in the overview (visible + hidden). */
 data class HiddenPage(val pos: Int, val items: List<String>)
 
 /**
- * Widget auf einer Seite: [type] = „ios:clock“ / „ios:calendar“ / „ios:battery“ oder „android“ ([appWidgetId] + [provider]).
- * Größe in Rasterzellen wie iOS: klein 2×2, mittel 4×2, groß 4×4.
+ * Widget on a page: [type] = "ios:clock" / "ios:calendar" / "ios:battery" or "android" ([appWidgetId] + [provider]).
+ * Size in grid cells like iOS: small 2×2, medium 4×2, large 4×4.
  */
 data class WidgetSpec(
     val type: String, val cols: Int, val rows: Int, val appWidgetId: Int = -1, val provider: String? = null,
-    /** Widget-Stapel (type = „stack“): enthaltene Widgets, gleiche Größe, von oben nach unten. */
+    /** Widget stack (type = "stack"): contained widgets, same size, from top to bottom. */
     val stack: List<WidgetSpec> = emptyList(),
-    /** Stapel-Optionen (iOS „Intelligentes Drehen“ / „Widget-Vorschläge“). */
+    /** Stack options (iOS "Smart Rotate" / "Widget Suggestions"). */
     val smartRotate: Boolean = true,
     val suggestions: Boolean = true,
-    /** Widget-Einstellung (z. B. Wetter: fester Ort „lat;lon;Name“); null = Standard. */
+    /** Widget setting (e.g. weather: fixed location "lat;lon;name"); null = default. */
     val config: String? = null,
 )
 
@@ -102,7 +102,7 @@ class LayoutStore(context: Context) {
 
     private fun specFrom(wo: JSONObject): WidgetSpec = WidgetSpec(
         wo.getString("type"), wo.getInt("cols"),
-        // alte Stände konnten hoch-schmal (2×4) speichern — gibt es bei iOS nicht → klein
+        // old states could save tall-narrow (2×4) — doesn't exist on iOS → small
         wo.getInt("rows").let { r -> if (wo.getInt("cols") < 4 && r > 2) 2 else r }, wo.optInt("id", -1), wo.optString("provider").ifEmpty { null },
         stack = wo.optJSONArray("stack")?.let { a -> List(a.length()) { specFrom(a.getJSONObject(it)) } } ?: emptyList(),
         smartRotate = wo.optBoolean("rotate", true), suggestions = wo.optBoolean("suggest", true),

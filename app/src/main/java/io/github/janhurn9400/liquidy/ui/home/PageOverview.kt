@@ -53,24 +53,24 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
- * Seitenübersicht wie iOS 26/27 („Seiten bearbeiten“, Bildschirmaufnahme 10-08 09:55, ausgewertet):
- * 3 × n Karten aus dickem Liquid Glass (starke Brechung) mit der verkleinerten Seite (ohne Dock/Beschriftung, ≈ 0,24×),
- * darunter ein runder Glaskreis — Haken = sichtbar, leer = ausgeblendet; ausgeblendete Seiten haben ein Minus zum Löschen.
- * Öffnen: Icons verschwinden sofort, die aktuelle Seite schrumpft als Karte in ihren Platz, die anderen blenden danach ein.
- * Schließen: gewählte Karte zoomt wieder auf Vollbild. Tippen auf eine sichtbare Karte → diese Seite, „Fertig“ → zurück.
+ * Page overview like iOS 26/27 ("Edit Pages", screen recording 10-08 09:55, analysed):
+ * 3 × n cards of thick Liquid Glass (strong refraction) with the shrunk page (without dock/labels, ≈ 0.24×),
+ * below them a round glass circle — checkmark = visible, empty = hidden; hidden pages have a minus to delete them.
+ * Open: icons disappear immediately, the current page shrinks as a card into its slot, the others fade in afterwards.
+ * Close: the chosen card zooms back to full screen. Tap on a visible card → that page, "Done" → back.
  */
 @Composable
 fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: ImageBitmap, w: Float, h: Float, onPage: (Int) -> Unit) {
-    // Zurück-Geste: Übersicht schließen (zurück in den Bearbeiten-Modus) — sonst endete der Bearbeiten-Modus darunter und
-    // die Übersicht blieb mit ✓ über der Uhr stehen
+    // Back gesture: close the overview (back into edit mode) — otherwise edit mode ended below it and
+    // the overview stayed with ✓ above the clock
     androidx.activity.compose.BackHandler(enabled = model.pagesOverviewOpen) { model.closePagesOverview(onPage = onPage) }
     val pages = model.overviewPages()
     val n = pages.size
     val duo = geo.duo
-    // iPhone: 3 Spalten, Maße auf 402 pt skaliert. Duo [GEMESSEN Video 3, 9 s]: 2 Spalten, Karten 205 × 313 pt
-    // (46,8 % der Höhe), 22 pt Abstand, Reihen 395 pt, erste Karte oben 82 pt, Inhalt × 0,492; scrollbar.
+    // iPhone: 3 columns, dimensions scaled to 402 pt. Duo [MEASURED video 3, 9 s]: 2 columns, cards 205 × 313 pt
+    // (46.8 % of the height), 22 pt gap, rows 395 pt, first card top 82 pt, content × 0.492; scrollable.
     val cols = if (duo) 2 else 3
-    val pt = { v: Float -> v * density * (w / density / REF_W) } // pt → px, skaliert auf die Bildschirmbreite (iPhone)
+    val pt = { v: Float -> v * density * (w / density / REF_W) } // pt → px, scaled to the screen width (iPhone)
     val cardH = if (duo) h * DUO_CARD_H_SHARE else pt(CARD_H)
     val cardW = if (duo) minOf(cardH * DUO_CARD_W / DUO_CARD_H, (w - 3 * DUO_GAP * density) / 2) else pt(CARD_W)
     val cardHf = if (duo) cardW * DUO_CARD_H / DUO_CARD_W else cardH
@@ -83,23 +83,23 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
     val blockH = (rows - 1) * rowPitch + cardHf + circleGap + circleD / 2
     val top = if (duo) h * DUO_TOP_SHARE else (h * BLOCK_CENTER - blockH / 2).coerceAtLeast(pt(70f))
     val left = (w - ((cols - 1) * colPitch + cardW)) / 2
-    // Duo: senkrecht scrollen, wenn mehr Reihen als Platz
+    // Duo: scroll vertically if there are more rows than space
     val maxScroll = if (duo) (top + blockH + h * 0.06f - h).coerceAtLeast(0f) else 0f
     val scroll = remember { Animatable(0f) }
     val scrollScope = rememberCoroutineScope()
     fun gridRect(i: Int) = Rect(Offset(left + (i % cols) * colPitch, top + (i / cols) * rowPitch - scroll.value), Size(cardW, cardHf))
-    // Seitenausschnitt der Karte (Seitenkoordinaten, px) und dessen Bildschirm-Rechteck in Originalgröße
+    // Page region of the card (page coordinates, px) and its screen rect at original size
     val regionW = if (duo) cardW / DUO_CONTENT_SCALE else w
     val regionH = regionW * cardHf / cardW
     val regionLeft = if (duo) geo.duoFolderCenterX(0f) - regionW / 2 else 0f
     val regionTop = if (duo) (DUO_ROW0_TOP - DUO_REGION_ABOVE) * density
-        else (DesignTokens.gridTop.value - REGION_ABOVE_GRID) * density // Ausschnitt-Oberkante in px
-    // Bildschirmfläche einer Seite in Originalgröße: linke Hälfte bzw. (Duo aufgeklappt) rechte Hälfte
+        else (DesignTokens.gridTop.value - REGION_ABOVE_GRID) * density // region top in px
+    // Screen area of a page at original size: left half or (Duo unfolded) right half
     val full = Rect(Offset(regionLeft, regionTop), Size(regionW, regionH))
     val fullRight = full.translate(geo.pageShift(1f), 0f)
     val p = { model.pagesOverview.value }
 
-    // Umsortieren: lange drücken hebt die Karte an, sie folgt dem Finger, die anderen weichen federnd aus
+    // Reordering: long press lifts the card, it follows the finger, the others make way springily
     var drag by remember { mutableStateOf<CardDrag?>(null) }
     fun slotOf(i: Int): Int {
         val d = drag ?: return i
@@ -114,7 +114,7 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
                 if (drag != null) return@detectVerticalDragGestures
                 ch.consume(); scrollScope.launch { scroll.snapTo((scroll.value - dy).coerceIn(0f, maxScroll)) }
             }
-        } else Modifier).pointerInput(pages) { // Schlüssel = Inhalt: Ein-/Ausblenden und Umsortieren ändern n nicht
+        } else Modifier).pointerInput(pages) { // key = content: showing/hiding and reordering don't change n
             detectDragGesturesAfterLongPress(
                 onDragStart = { pos ->
                     val i = (0 until n).firstOrNull { gridRect(it).contains(pos) } ?: return@detectDragGesturesAfterLongPress
@@ -142,8 +142,8 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
     ) {
         val ids = remember(pages) { val seen = HashMap<String, Int>(); pages.map { pg -> val k = pg.items.joinToString(","); k + "#" + (seen.merge(k, 1, Int::plus)) } }
         pages.forEachIndexed { i, page -> key(ids[i]) {
-            // „Fokus“ = Karten der beim Öffnen/Schließen sichtbaren Seiten (Duo aufgeklappt: links UND rechts) — sie wachsen
-            // aus bzw. in ihre Bildschirmhälfte, statt nur einzublenden
+            // "Focus" = cards of the pages visible on open/close (Duo unfolded: left AND right) — they grow
+            // out of or into their screen half instead of just fading in
             val vis = model.overviewVisibleIndex(i)
             val half: Rect? = when {
                 vis == null -> null
@@ -160,14 +160,14 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
                 androidx.compose.runtime.snapshotFlow { drag?.let { gridRect(it.from).topLeft + it.offset } }.collect { it?.let { o -> pos.snapTo(o) } }
             }
             val g = Rect(pos.value, Size(cardW, cardHf))
-            // Zustand je Karte: Fokus-Karte wächst/schrumpft mit p; die anderen blenden verzögert ein
+            // State per card: the focus card grows/shrinks with p; the others fade in delayed
             fun rect(): Rect = if (half != null) lerpRect(half, g, p()) else g
             if (half != null && vis != null) model.overviewZoom[vis] = { rect() to half }
-            // Fokus-Karte ↔ echter Homescreen [GEMESSEN Duo 19:05:45]: Karte blendet erst aus, wenn der Homescreen darunter schon
-            // voll da ist (HomeScreen.overviewHide) — so gibt es weder harten Schnitt noch ein halbdunkles Zwischenbild
+            // Focus card ↔ real home screen [MEASURED Duo 19:05:45]: the card only fades out once the home screen below is already
+            // fully there (HomeScreen.overviewHide) — so there's neither a hard cut nor a half-dark in-between frame
             fun appear(): Float = if (focus) ((p() - FOCUS_FADE_END) / (FOCUS_FADE_START - FOCUS_FADE_END)).coerceIn(0f, 1f) else ((p() - OTHERS_FROM) / (1f - OTHERS_FROM)).coerceIn(0f, 1f)
-            // Fokus-Karte: Glas erst, wenn sie deutlich kleiner ist — beim Vollbild darf die Linse nichts vergrößern
-            // (sonst bricht sie die zurückkehrenden echten Icons riesig auf)
+            // Focus card: glass only once it's clearly smaller — at full screen the lens must not magnify anything
+            // (otherwise it refracts the returning real icons hugely)
             fun glass(): Float = if (focus) ((p() - FOCUS_GLASS_FROM) / (1f - FOCUS_GLASS_FROM)).coerceIn(0f, 1f) else p().coerceIn(0f, 1f)
             Box(
                 Modifier
@@ -179,13 +179,13 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
                     }
                     .size(Dp(g.width / density), Dp(g.height / density))
                     .graphicsLayer {
-                        // Größe über Skalierung (Fokus-Karte ist beim Öffnen bildschirmgroß)
+                        // Size via scaling (the focus card is screen-sized on open)
                         val r = rect(); scaleX = r.width / g.width; scaleY = r.height / g.height
                         transformOrigin = TransformOrigin(0f, 0f)
                     }
             ) {
                 PageCardGlass(Modifier.fillMaxSize(), corner = cardCorner / density, strength = { glass() })
-                // Seite verkleinert (ohne Beschriftung, Android-Widgets als Platzhalter)
+                // Page shrunk (without labels, Android widgets as placeholders)
                 Box(
                     Modifier.fillMaxSize().clip(RoundedRectangle(Dp(cardCorner / density)))
                         .wrapContentSize(Alignment.TopStart, unbounded = true)
@@ -193,7 +193,7 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
                         .graphicsLayer { val s = g.width / regionW; scaleX = s; scaleY = s; transformOrigin = TransformOrigin(0f, 0f) }
                 ) { PageThumbnail(model, geo, page.items, wallpaper, density, regionTop, regionLeft) }
             }
-            // Auswahlkreis + Minus (blenden mit den Karten ein)
+            // Selection circle + minus (fade in with the cards)
             val circleA = { ((p() - CIRCLES_FROM) / (1f - CIRCLES_FROM)).coerceIn(0f, 1f) }
             Box(
                 Modifier
@@ -215,11 +215,11 @@ fun PageOverview(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper:
     }
 }
 
-/** Dickes Liquid Glass der Karten (starke Brechung über die ganze Fläche, wie im Video); [strength] 0…1 blendet es aus. */
+/** Thick Liquid Glass of the cards (strong refraction over the whole area, like in the video); [strength] 0…1 fades it out. */
 @Composable
 private fun PageCardGlass(modifier: Modifier, corner: Float, strength: () -> Float) {
-    // Ohne Stärke gar nicht zeichnen: die Glasfläche malt sonst das (skaliert falsch abgebildete) Hintergrundbild mit,
-    // in dem beim Schließen die echten Icons wieder auftauchen → riesige Geisterbilder
+    // Don't draw at all without strength: the glass surface would otherwise paint the (wrongly scaled) background image,
+    // in which the real icons reappear when closing → huge ghost images
     val on by androidx.compose.runtime.remember { androidx.compose.runtime.derivedStateOf { strength() > 0.01f } }
     if (!on) return
     val backdrop = LocalGlassBackdrop.current
@@ -244,10 +244,10 @@ private fun PageCardGlass(modifier: Modifier, corner: Float, strength: () -> Flo
     )
 }
 
-/** Inhalt einer Seite in Originalgröße (wird außen skaliert): Icons ohne Beschriftung, Ordner, Widgets. */
+/** Content of a page at original size (scaled outside): icons without labels, folders, widgets. */
 @Composable
 private fun PageThumbnail(model: HomeModel, geo: HomeGeometry, items: List<String>, wallpaper: ImageBitmap, density: Float, regionTop: Float, regionLeft: Float = 0f) {
-    // Lücken (freie Platzierung) bestimmen die Zellen, werden aber nicht gezeichnet
+    // Gaps (free placement) determine the cells, but aren't drawn
     val cells = GridPlacement.placeReal(items, model::sizeOf)
     Box(Modifier.fillMaxSize()) {
         GridPlacement.stripGaps(items).forEachIndexed { slot, key ->
@@ -262,9 +262,9 @@ private fun PageThumbnail(model: HomeModel, geo: HomeGeometry, items: List<Strin
                         .size(Dp(r.width / density), Dp(r.height / density))
                         .clip(io.github.janhurn9400.liquidy.glass.glassRect(DesignTokens.widgetCorner.dp))
                 ) {
-                    // Stapel: das gerade oben liegende Widget (sonst dunkle Fläche, die am Ende ins echte Widget umspringt)
+                    // Stack: the widget currently on top (otherwise a dark area that jumps into the real widget at the end)
                     val shown = model.shownWidget(key) ?: spec
-                    // Android-Widgets haben nur eine Ansicht (läuft schon auf der echten Seite) → Platzhalter
+                    // Android widgets have only one view (already running on the real page) → placeholder
                     if (shown.type == "android") Box(Modifier.fillMaxSize().background(Color(0xFF1C1C1E)))
                     else WithWallpaperGlass(wallpaper) { IosWidget(shown.type, shown.cols, shown.rows, Modifier.fillMaxSize(), shown.config) }
                 }
@@ -290,7 +290,7 @@ private fun lerpRect(a: Rect, b: Rect, t: Float) = Rect(
     a.right + (b.right - a.right) * t, a.bottom + (b.bottom - a.bottom) * t,
 )
 
-// Maße [GEMESSEN] Aufnahme 10-08 09:55 Bild 460 (3×, iPhone 402 pt breit)
+// Dimensions [MEASURED] recording 10-08 09:55 frame 460 (3×, iPhone 402 pt wide)
 private const val REF_W = 402f
 private const val DUO_CARD_W = 205f
 private const val DUO_CARD_H = 313f
@@ -299,26 +299,26 @@ private const val DUO_GAP = 22f
 private const val DUO_ROW_PITCH = 395f
 private const val DUO_TOP_SHARE = 0.1226f     // 82 / 669
 private const val DUO_CARD_CORNER = 28f
-private const val DUO_CIRCLE_GAP = 32f        // Kreismitte unter der Kartenunterkante (bei 313 pt Karte)
-private const val DUO_CONTENT_SCALE = 0.492f  // Icon 29,5 pt statt 60
-private const val DUO_ROW0_TOP = 53.6f        // Oberkante der ersten Icon-Reihe (Mitte 83,6 − 30)
-private const val DUO_REGION_ABOVE = 40.6f    // Ausschnitt beginnt so weit darüber (20 pt in der Karte)
+private const val DUO_CIRCLE_GAP = 32f        // circle centre below the card bottom (with a 313 pt card)
+private const val DUO_CONTENT_SCALE = 0.492f  // icon 29.5 pt instead of 60
+private const val DUO_ROW0_TOP = 53.6f        // top of the first icon row (centre 83.6 − 30)
+private const val DUO_REGION_ABOVE = 40.6f    // region starts this far above (20 pt in the card)
 private const val CARD_W = 96f
 private const val CARD_H = 165f
 private const val CARD_CORNER = 13f
 private const val COL_PITCH = 122f
 private const val ROW_PITCH = 246f
 private const val CIRCLE_D = 36f
-private const val CIRCLE_GAP = 30f       // Kreismitte unter der Kartenunterkante
-private const val BLOCK_CENTER = 0.553f  // Rastermitte bei 55 % der Höhe
-private const val REGION_ABOVE_GRID = 44f // Seitenausschnitt der Karte beginnt 44 pt über der ersten Reihe
-private const val OTHERS_FROM = 0.45f    // andere Karten erscheinen ab diesem Fortschritt
+private const val CIRCLE_GAP = 30f       // circle centre below the card bottom
+private const val BLOCK_CENTER = 0.553f  // grid centre at 55 % of the height
+private const val REGION_ABOVE_GRID = 44f // the card's page region starts 44 pt above the first row
+private const val OTHERS_FROM = 0.45f    // other cards appear from this progress
 private const val CIRCLES_FROM = 0.6f
 private const val DRAG_LIFT = 1.06f
 
 private data class CardDrag(val from: Int, val target: Int, val offset: Offset)
 private const val FOCUS_GLASS_FROM = 0.3f
 
-/** Fokus-Karte blendet zwischen diesen Fortschritten aus (Homescreen ist ab 0,15 voll da, Duo: Karte ≈ 260 ms weg). */
+/** The focus card fades out between these progress values (home screen fully there from 0.15, Duo: card gone after ≈ 260 ms). */
 private const val FOCUS_FADE_START = 0.15f
 private const val FOCUS_FADE_END = 0.02f
