@@ -146,11 +146,11 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
                     .offset { val p = if (dragged) r.topLeft else pos.value; IntOffset(p.x.roundToInt(), p.y.roundToInt()) }
                     .graphicsLayer {
                         if (dragged) {
-                            // dragged widget follows the finger (from its original slot), slightly lifted
+                            // dragged widget follows the finger (from its original slot), lifted like a dragged icon (T-DRAG.scale)
                             val from = (TodayLayout.place(model.today, model::sizeOf, geo, density).firstOrNull { it.first == key }?.second ?: r)
                             translationX = from.left - r.left + drag!!.offset.x
                             translationY = from.top - r.top + drag.offset.y
-                            scaleX = DRAG_LIFT; scaleY = DRAG_LIFT
+                            val lift = io.github.janhurn9400.liquidy.design.DesignTokens.dragScale.value; scaleX = lift; scaleY = lift
                         } else applyJiggle(model.jiggleAmount.value * WIDGET_JIGGLE_TODAY, clockSeconds(), phases)
                     }
                     // Duo unfolded: clipped at the top and bottom at the glass surface (even if it's hidden) — the
@@ -317,7 +317,6 @@ private const val DUO_TODAY_LABEL_GAP = 7f
 private const val DUO_TODAY_LABEL_ROOM = 24f // gap + label below the widget
 private const val DUO_TODAY_BLUR = 12f
 private const val DUO_TODAY_FADE = 60f // pt soft transition at the right page edge
-private const val DRAG_LIFT = 1.04f
 
 /** Index in the Today list where a dragged widget with centre [center] (content coordinates) belongs. */
 fun todayTargetIndex(model: HomeModel, key: String, center: androidx.compose.ui.geometry.Offset, geo: HomeGeometry, density: Float): Int {

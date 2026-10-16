@@ -109,7 +109,7 @@ object DesignTokens {
     val editButtonSide = dpToken("T-EDIT-BTN.x", "Edit button side", "Editing", 35.67f, 0f, 60f)
     val editGlyphSize = dpToken("T-EDIT-BTN.glyph", "Edit button glyph size", "Editing", 13.67f, 8f, 20f)
     val glyphColor = Color(0xFF493A36) // like T-LABEL-COLOR, measured on checkmark/brush
-    // T-DRAG — dragged icon. [ESTIMATED]
+    // T-DRAG — dragged icon or widget. [MEASURED] user iPhone 10-16, Today view: dragged small widget 182 vs. 163 pt ≈ 1.12×
     val dragScale = tunable("T-DRAG.scale", "Dragged icon – scale", "Editing", 1.12f, 1f, 1.5f, "×")
     val edgeZone = dpToken("T-EDGE", "Edge zone for page change", "Editing", 24f, 8f, 60f) // [ESTIMATED]
 
