@@ -42,7 +42,7 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun PhotoWidget(modifier: Modifier, album: String? = null) {
     val context = LocalContext.current
-    BoxWithConstraints(modifier.background(widgetBackground(Color(0xFF2C2C2E)))) {
+    BoxWithConstraints(modifier.background(Color(0xFF2C2C2E))) {
         val px = with(LocalDensity.current) { maxOf(maxWidth, maxHeight).toPx().toInt().coerceIn(64, 1600) }
         // State cached per widget instance: copies (context menu, dragging, flight) start with the finished photo
         // instead of empty — before, the "no access" hint flashed there for one frame (user 10-15)

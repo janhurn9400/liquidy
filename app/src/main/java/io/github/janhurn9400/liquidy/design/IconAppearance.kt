@@ -44,6 +44,16 @@ object IconAppearance {
     /** Tinted (Light variant): glyph colour — almost white with a hint of the hue. */
     fun tintGlyph(): Color = tint(DesignTokens.TINT_GLYPH_V, DesignTokens.TINT_GLYPH_S)
 
+    /**
+     * Tinted: maps brightness linearly from the plate colour (black) to the glyph colour (white), alpha unchanged —
+     * keeps the motif's inner shading (e.g. camera lens rings) instead of a flat silhouette. [gain] > 1 lets light
+     * but not white content already reach the glyph colour.
+     */
+    fun duotone(plate: Color, glyph: Color, gain: Float = 1f): FloatArray {
+        fun row(p: Float, q: Float) = floatArrayOf((q - p) * gain * 0.299f, (q - p) * gain * 0.587f, (q - p) * gain * 0.114f, 0f, p * 255f)
+        return row(plate.red, glyph.red) + row(plate.green, glyph.green) + row(plate.blue, glyph.blue) + floatArrayOf(0f, 0f, 0f, 1f, 0f)
+    }
+
     fun load(context: Context) {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         style = runCatching { IconStyle.valueOf(p.getString("style", null) ?: "") }.getOrDefault(IconStyle.Default)

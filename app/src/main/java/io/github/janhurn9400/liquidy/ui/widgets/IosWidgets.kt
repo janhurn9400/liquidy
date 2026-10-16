@@ -95,7 +95,8 @@ internal fun widgetBackground(normal: Color): Color = if (LocalWidgetTinted.curr
 @Composable
 fun IosWidget(type: String, cols: Int, rows: Int = 2, modifier: Modifier = Modifier, config: String? = null) {
     val ia = io.github.janhurn9400.liquidy.design.IconAppearance
-    if (ia.effective != io.github.janhurn9400.liquidy.design.IconStyle.Tinted || ia.dark) { IosWidgetContent(type, cols, rows, modifier, config); return }
+    // photos keep their real colours (a tint would falsify them); everything else gets the plate like the icons
+    if (ia.effective != io.github.janhurn9400.liquidy.design.IconStyle.Tinted || ia.dark || type == IosWidgetTypes.PHOTOS) { IosWidgetContent(type, cols, rows, modifier, config); return }
     val plate = ia.tintPlate(); val glyph = ia.tintGlyph()
     val effect = androidx.compose.runtime.remember(plate, glyph) { tintEffect(plate, glyph) }
     androidx.compose.runtime.CompositionLocalProvider(LocalWidgetTinted provides true) {
@@ -103,16 +104,10 @@ fun IosWidget(type: String, cols: Int, rows: Int = 2, modifier: Modifier = Modif
     }
 }
 
-/** Brightness → plate…glyph (linear, per channel): black = plate, light content = glyph colour. */
+/** Brightness → plate…glyph (black = plate, light content = glyph colour), see [IconAppearance.duotone]. */
 private fun tintEffect(plate: Color, glyph: Color): androidx.compose.ui.graphics.RenderEffect {
-    val g = io.github.janhurn9400.liquidy.design.DesignTokens.TINT_WIDGET_GAIN
-    fun row(p: Float, q: Float) = (q - p) * g // input and output are both 0…255
-    val m = android.graphics.ColorMatrix(floatArrayOf(
-        row(plate.red, glyph.red) * 0.299f, row(plate.red, glyph.red) * 0.587f, row(plate.red, glyph.red) * 0.114f, 0f, plate.red * 255f,
-        row(plate.green, glyph.green) * 0.299f, row(plate.green, glyph.green) * 0.587f, row(plate.green, glyph.green) * 0.114f, 0f, plate.green * 255f,
-        row(plate.blue, glyph.blue) * 0.299f, row(plate.blue, glyph.blue) * 0.587f, row(plate.blue, glyph.blue) * 0.114f, 0f, plate.blue * 255f,
-        0f, 0f, 0f, 1f, 0f,
-    ))
+    val m = android.graphics.ColorMatrix(io.github.janhurn9400.liquidy.design.IconAppearance.duotone(plate, glyph,
+        io.github.janhurn9400.liquidy.design.DesignTokens.TINT_WIDGET_GAIN))
     return android.graphics.RenderEffect.createColorFilterEffect(android.graphics.ColorMatrixColorFilter(m)).asComposeRenderEffect()
 }
 

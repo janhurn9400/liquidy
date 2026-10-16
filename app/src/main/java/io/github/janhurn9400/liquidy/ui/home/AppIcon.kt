@@ -128,7 +128,11 @@ fun StyledIcon(
         }
         else -> if (!dark) { // Tinted, Light: opaque plate + light glyph (iOS 27, T-TINT, measured 10-16)
             Box(modifier.background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(ia.tintPlate(top = true), ia.tintPlate(top = false))))) {
-                Image(layers.mono, app.label, Modifier.matchParentSize(), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(ia.tintGlyph()))
+                // the coloured motif mapped by brightness (not the flat silhouette): inner details stay visible like on iOS
+                val filter = androidx.compose.runtime.remember(ia.hue, ia.saturation) {
+                    androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix(ia.duotone(ia.tintPlate(), ia.tintGlyph())))
+                }
+                Image(layers.glyph, app.label, Modifier.matchParentSize(), colorFilter = filter)
             }
         } else { // Tinted, Dark
             val bg = ia.tint(TINT_DARK_BG_V, TINT_DARK_BG_S)
