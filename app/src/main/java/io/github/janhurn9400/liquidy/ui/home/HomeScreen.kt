@@ -1570,7 +1570,7 @@ private fun IconSlot(
             val p = toScreen(container, anim.pos.value, pager.position.value, pageShift)
             val sh = shockOffset(model, key, p + Offset(DesignTokens.iconSize.value * density / 2, DesignTokens.iconSize.value * density / 2), density)
             IntOffset((cellOffsetX(p.x, density) + sh.x).roundToInt(), (p.y + sh.y).roundToInt())
-        }
+        }.graphicsLayer { val s = anim.scale.value; scaleX = s; scaleY = s } // just dropped: springs back from the lifted size
     ) { content() }
 }
 

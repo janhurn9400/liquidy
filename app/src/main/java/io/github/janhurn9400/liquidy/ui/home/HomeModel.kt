@@ -44,6 +44,8 @@ class IconAnim(var container: Container, initial: Offset) {
     val pos: Animatable<Offset, AnimationVector2D> = Animatable(initial, Offset.VectorConverter)
     /** Spring for the next motion (e.g. M-DROP instead of M-REFLOW). */
     var nextSpring: IosSpring? = null
+    /** Scale after dropping: starts at the lifted size and springs back to 1 (M-DROP) instead of jumping. */
+    val scale = Animatable(1f)
 }
 
 @Stable
@@ -243,7 +245,15 @@ class HomeModel(
     fun beginTodayDrag(key: String) {
         if (key !in today) return
         todayDrag = TodayDrag(key, today.indexOf(key))
+        todayLiftKey = key
+        scope.launch { todayLift.animateTo(DesignTokens.dragScale.value, Motion.dragLift.spec()) }
     }
+
+    /** Lift of the dragged Today widget: grows when picked up (M-DRAG-LIFT), springs back on drop (M-DROP). */
+    val todayLift = Animatable(1f)
+    /** Widget [todayLift] applies to — stays set while it springs back after the drop. */
+    var todayLiftKey by mutableStateOf<String?>(null)
+        private set
 
     fun updateTodayDrag(offset: Offset, targetIndex: Int) {
         val d = todayDrag ?: return
@@ -258,7 +268,10 @@ class HomeModel(
         today = today - key
         pages = pages.toMutableList().also { if (it.isEmpty()) it += emptyList<String>(); it[0] = listOf(key) + it[0] }
         anims.remove(key)
+        todayLiftKey = null
         startDrag(key, pointer, cellTopLeftScreen)
+        val lifted = todayLift.value
+        drag?.let { d -> scope.launch { d.lift.snapTo(lifted); todayLift.snapTo(1f) } } // keep the size it already had
         save()
     }
 
@@ -266,6 +279,7 @@ class HomeModel(
         val d = todayDrag ?: return
         today = todayOrder()
         todayDrag = null
+        scope.launch { todayLift.animateTo(1f, Motion.drop.spec()); if (todayDrag == null) todayLiftKey = null }
         save()
     }
 
@@ -1106,6 +1120,8 @@ class HomeModel(
         val anim = anims.getOrPut(d.key) { IconAnim(container, local) }
         anim.container = container
         scope.launch { anim.pos.snapTo(local) }
+        val lifted = d.lift.value
+        scope.launch { anim.scale.snapTo(lifted); anim.scale.animateTo(1f, Motion.drop.spec()) }
         anim.nextSpring = Motion.drop
         // Badge grows in smoothly immediately on release (user 10-14: waiting for the end of the landing spring felt sluggish)
         badgeOwn[d.key]?.let { a -> scope.launch { a.animateTo(1f, Motion.badgeDrag.spec()); if (badgeOwn[d.key] === a && drag?.key != d.key) badgeOwn.remove(d.key) } }

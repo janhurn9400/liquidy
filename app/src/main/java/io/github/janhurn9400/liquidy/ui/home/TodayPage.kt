@@ -150,8 +150,12 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
                             val from = (TodayLayout.place(model.today, model::sizeOf, geo, density).firstOrNull { it.first == key }?.second ?: r)
                             translationX = from.left - r.left + drag!!.offset.x
                             translationY = from.top - r.top + drag.offset.y
-                            val lift = io.github.janhurn9400.liquidy.design.DesignTokens.dragScale.value; scaleX = lift; scaleY = lift
-                        } else applyJiggle(model.jiggleAmount.value * WIDGET_JIGGLE_TODAY, clockSeconds(), phases)
+                            val lift = model.todayLift.value; scaleX = lift; scaleY = lift
+                        } else {
+                            applyJiggle(model.jiggleAmount.value * WIDGET_JIGGLE_TODAY, clockSeconds(), phases)
+                            // just dropped: springs back from the lifted size
+                            if (model.todayLiftKey == key) { val l = model.todayLift.value; scaleX *= l; scaleY *= l }
+                        }
                     }
                     // Duo unfolded: clipped at the top and bottom at the glass surface (even if it's hidden) — the
                     // clip edge gets the widget corners again, not the shape of the surface [Duo, 14:57: 30.6 / 36.2 s]
