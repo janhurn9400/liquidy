@@ -112,33 +112,95 @@ object IconRenderer {
     }
 
     /**
-     * Many shortcut icons have no monochrome layer but a filled colour disc with a white motif in the foreground
-     * (e.g. Gmail "Compose") — as a silhouette that would just be a circle. If the area is mostly opaque, the
-     * dominant colour (= disc) is removed and only the motif that differs from it remains.
+     * Removes the background plate so only the motif remains (Dark/Clear/Tinted styles, shortcut glyphs).
+     * Plates are often gradients (icon packs: lighter at the top, darker at the bottom), so a single dominant colour
+     * isn't enough — that left half the plate standing and the tinted icon became a blob. Instead the plate is
+     * flood-filled from its outer edge with a small per-step colour tolerance (follows gradients, stops at the motif's
+     * contrast edge); enclosed plate-coloured holes (e.g. inside a ring) are then removed by comparing with the plate
+     * colour of the same row.
      */
     private fun knockOutPlate(bmp: Bitmap) {
         val w = bmp.width; val h = bmp.height
         val px = IntArray(w * h).also { bmp.getPixels(it, 0, w, 0, 0, w, h) }
-        // Histogram over coarsely quantised colours (4 bits per channel) instead of boxing lists — runs for every icon
-        val hist = IntArray(4096)
-        var opaque = 0
-        for (c in px) if ((c ushr 24) > 200) { opaque++; hist[((c shr 12) and 0xF00) or ((c shr 8) and 0xF0) or ((c shr 4) and 0xF)]++ }
+        val opaque = px.count { (it ushr 24) > 200 }
         if (opaque < px.size * PLATE_COVERAGE) return
-        val q = hist.indices.maxBy { hist[it] }
-        val plate = ((q and 0xF00) shl 12) or ((q and 0xF0) shl 8) or ((q and 0xF) shl 4)
+        fun solid(i: Int) = (px[i] ushr 24) > 200
+        fun dist2(a: Int, b: Int): Int {
+            val dr = ((a shr 16) and 0xFF) - ((b shr 16) and 0xFF)
+            val dg = ((a shr 8) and 0xFF) - ((b shr 8) and 0xFF)
+            val db = (a and 0xFF) - (b and 0xFF)
+            return dr * dr + dg * dg + db * db
+        }
+        val inset = (minOf(w, h) * PLATE_SEED_INSET).toInt()
+        // Icon-pack bitmaps are full squares: outside their rounded plate the corners have another colour. Clear those
+        // corners first (flood from the four corners), so the plate's row samples don't land in them.
+        val mid = px[inset * w + w / 2]
+        val corners = intArrayOf(0, w - 1, (h - 1) * w, h * w - 1)
+        if (corners.all { solid(it) } && corners.all { dist2(px[it], mid) >= PLATE_DISTANCE }) {
+            val outside = BooleanArray(px.size)
+            val q = ArrayDeque<Int>()
+            corners.forEach { outside[it] = true; q.add(it) }
+            while (q.isNotEmpty()) {
+                val i = q.removeFirst(); val x = i % w; val y = i / w
+                fun visit(j: Int) { if (!outside[j] && solid(j) && dist2(px[i], px[j]) < PLATE_STEP && dist2(px[j], mid) >= PLATE_DISTANCE) { outside[j] = true; q.add(j) } }
+                if (x > 0) visit(i - 1); if (x < w - 1) visit(i + 1); if (y > 0) visit(i - w); if (y < h - 1) visit(i + w)
+            }
+            for (i in px.indices) if (outside[i]) px[i] = 0
+        }
+        // expected plate colour per row: tracked from the middle row up and down, at each row taking the sample (a few
+        // columns near both edges) closest to the neighbouring row's colour — follows vertical gradients but ignores a
+        // light rim curving through the corners and motif pixels. Rows without an opaque plate get no expected colour.
+        val cols = intArrayOf(inset, inset * 2, inset * 3, w / 2, w - 1 - inset * 3, w - 1 - inset * 2, w - 1 - inset)
+        val rowPlate = IntArray(h) { NO_PLATE }
+        fun track(y: Int, prev: Int): Int {
+            var best = NO_PLATE; var bestD = Int.MAX_VALUE
+            for (x in cols) { val i = y * w + x; if (!solid(i)) continue; val d = if (prev == NO_PLATE) 0 else dist2(px[i], prev); if (d < bestD) { bestD = d; best = px[i] } }
+            return if (prev != NO_PLATE && bestD > PLATE_DISTANCE) prev else best
+        }
+        val midRow = h / 2
+        rowPlate[midRow] = (0 until w).firstOrNull { solid(midRow * w + it) }?.let { px[midRow * w + minOf(it + inset, w - 1)] } ?: NO_PLATE
+        for (y in midRow - 1 downTo 0) rowPlate[y] = track(y, rowPlate[y + 1])
+        for (y in midRow + 1 until h) rowPlate[y] = track(y, rowPlate[y - 1])
+        fun expected(i: Int) = rowPlate[i / w]
+        fun platey(i: Int) = solid(i) && expected(i).let { it != NO_PLATE && dist2(px[i], it) < PLATE_DISTANCE }
+        val plate = BooleanArray(px.size)
+        val queue = IntArray(px.size); var head = 0; var tail = 0
+        fun seed(i: Int) { if (i in px.indices && !plate[i] && platey(i)) { plate[i] = true; queue[tail++] = i } }
+        // seeds: a few pixels inside the plate's edge on every side (icon packs often draw a light rim at the very edge)
+        for (y in 0 until h) { seed(y * w + inset); seed(y * w + w - 1 - inset) }
+        for (x in 0 until w) { seed(inset * w + x); seed((h - 1 - inset) * w + x) }
+        while (head < tail) {
+            val i = queue[head++]; val x = i % w; val y = i / w
+            fun visit(j: Int) { if (!plate[j] && platey(j) && dist2(px[i], px[j]) < PLATE_STEP) { plate[j] = true; queue[tail++] = j } }
+            if (x > 0) visit(i - 1); if (x < w - 1) visit(i + 1); if (y > 0) visit(i - w); if (y < h - 1) visit(i + w)
+        }
+        // nearly everything is "plate" → low-contrast motif; leave the icon as it is rather than erase it
+        if (tail > opaque * PLATE_MAX_SHARE) return
+        // remove the plate, the rim outside the seeds, and enclosed holes of the plate colour (e.g. inside a ring)
         for (i in px.indices) {
-            val c = px[i]
-            if ((c ushr 24) == 0) continue
-            val dr = ((c shr 16) and 0xF0) - ((plate shr 16) and 0xF0)
-            val dg = ((c shr 8) and 0xF0) - ((plate shr 8) and 0xF0)
-            val db = (c and 0xF0) - (plate and 0xF0)
-            if (dr * dr + dg * dg + db * db < PLATE_DISTANCE) px[i] = 0
+            val x = i % w; val y = i / w
+            val band = inset * PLATE_RIM_BAND
+            val rim = rowPlate[y] != NO_PLATE && (x < band || y < band || x >= w - band || y >= h - band)
+            if (plate[i] || (rim && !solidMotif(px, i, w, plate, band)) || ((px[i] ushr 24) > 0 && expected(i).let { it != NO_PLATE && dist2(px[i], it) < PLATE_DISTANCE })) px[i] = 0
         }
         bmp.setPixels(px, 0, w, 0, 0, w, h)
     }
 
+    /** A rim pixel is kept only if the pixel just inside the rim band at the same row/column belongs to the motif (motif touching the edge). */
+    private fun solidMotif(px: IntArray, i: Int, w: Int, plate: BooleanArray, band: Int): Boolean {
+        val h = px.size / w; val x = i % w; val y = i / w
+        val cx = x.coerceIn(band, w - 1 - band); val cy = y.coerceIn(band, h - 1 - band)
+        val j = cy * w + cx
+        return (px[j] ushr 24) > 200 && !plate[j]
+    }
+
+    private const val NO_PLATE = 1 // marker: no expected plate colour (any value with alpha ≠ 0xFF works)
     private const val PLATE_COVERAGE = 0.4f   // share of opaque pixels from which a disc is assumed
-    private const val PLATE_DISTANCE = 48 * 48 // colour distance² up to which a pixel counts as part of the disc
+    private const val PLATE_DISTANCE = 40 * 40 // colour distance² to the row's plate colour for enclosed holes
+    private const val PLATE_STEP = 22 * 22     // colour distance² between neighbouring plate pixels (gradient steps)
+    private const val PLATE_SEED_INSET = 0.04f // second seed this far inside the edge (× size), past a light rim
+    private const val PLATE_RIM_BAND = 2       // rim band removed outside the motif (× seed inset; the rim curves into the corners)
+    private const val PLATE_MAX_SHARE = 0.995f // more than this share of the icon counted as plate → keep the icon
     private const val GLYPH_OVERSAMPLE = 4 // render the icon larger so the crop stays sharp
     private const val GLYPH_FILL = 0.92f   // the motif fills the box (glyphs in recording4 ≈ 16 pt in a 16.33 pt box)
     private const val ALPHA_MIN = 40
