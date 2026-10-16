@@ -32,7 +32,7 @@ Goal: an Android launcher (Kotlin + Compose, minSdk 33) that feels 1:1 like the 
   "Export" → clipboard + logcat tag `Tuning` (`adb logcat -s Tuning`).
 - Comparison: screenshots in `shots/` (gitignored), measurement scripts in `tools/measure/`, references in `docs/reference/iphone/` (local only, not in the repo).
 
-## Status (2026-10-16, v0.4.2 — first public release, public repo, GPL-3.0)
+## Status (2026-10-16, v0.4.2 released + unreleased work on main; public repo, GPL-3.0)
 - Phase 0: done. Phases 1–4 built, fine-tuning ongoing (the user does NOT tune values themselves — derive values from their videos, put emulator captures next to them frame by frame).
 - Phase 1: grid/labels/dock/pill ±1 px; pager M-PAGE verified (0.362 s / 0.904).
 - Phase 2: edit mode (long press, measured jiggle, badges, edit buttons, dragging + reflow, dock ↔ grid, edge page flip with peek incl. new page, delete dialog, persistent layout `LayoutStore`), context menu with native Android shortcuts.
@@ -54,7 +54,11 @@ Goal: an Android launcher (Kotlin + Compose, minSdk 33) that feels 1:1 like the 
 - Duo style (foldables/tablets) is the main target: two pages + dock column on the right. Dock glass springs with the app count (M-REFLOW); "More Apps in Dock" under 🍎 Quirks.
 - 🍎 Quirks settings category: the original's rules are on by default; options relax them (Widgets in Any Row, More Apps in Dock).
 - Settings: iOS-27-style category tiles, own app icon (placeholder, adaptive icon in res/drawable), close with Home/Back; permissions page explains each permission; Advanced › Report a Problem opens a GitHub issue prefilled with diagnostics.
-- Next: edit the Today view; app open/close (phase 6, iPhone video for M-HOME-RETURN and sharp/blur); icon style for folder icons/App Library; check widgets in "Tinted" on the iPhone; translate code comments to English.
+- Icon styles (10-16): Tinted Light = opaque plate + light glyph like iOS 27 (T-TINT, measured on the user's iPhone); glyphs are computed from the icon (plate removal at 4x supersampling, soft edges) — the user preferred this over the icon pack's `_mono` glyphs. Own widgets are tinted too (photo widget excluded). Tinted Dark not yet compared with the iPhone.
+- Today view editing matches the user's iPhone video (lift 1.12× = T-DRAG.scale, springs on lift/drop).
+- Report a Problem: GitHub issue or email (Diagnostics.REPORT_EMAIL is a PLACEHOLDER — replace before the next release), optional screen recording (BugRecorder, ≤ 1 min, Movies/Liquidy) attached by email or to the GitHub form.
+- Next: real email address; Maps-like icons without a plate in Tinted; Tinted Dark + closed folder icons in Tinted (need iPhone screenshots); Android widgets in Tinted; app icon is still a placeholder; test on a real foldable (120 Hz).
+- Testing caution: drag tests in the emulator change the user's layout — back up shared_prefs/layout.xml first and restore it afterwards.
 - FIXED RULE dock size: items in the Duo dock are smaller (48 instead of 60 pt). Every place that shows a dock item or starts from it (drawing, folder open/close, context menu, app launch/return, dragging, picking up, flying into a folder) uses `HomeGeometry.dockIconScale` or `iconRect(topLeft, inDock)` — never its own values.
 - Architecture: one central gesture arena in `ui/home/HomeScreen.kt`; geometry only in `HomeGeometry`/`FolderGeometry`/`LibraryGeometry`; layout state in `HomeModel`.
 - Lesson: ALWAYS analyse motion frame by frame against the reference (montage + tracking), not just single values — otherwise it looks "sloppy" (search rev. 1/2).
