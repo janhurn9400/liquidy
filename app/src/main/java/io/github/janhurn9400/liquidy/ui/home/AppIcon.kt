@@ -130,7 +130,8 @@ fun StyledIcon(
             Box(modifier.background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(ia.tintPlate(top = true), ia.tintPlate(top = false))))) {
                 // the coloured motif mapped by brightness (not the flat silhouette): inner details stay visible like on iOS
                 val filter = androidx.compose.runtime.remember(ia.hue, ia.saturation) {
-                    androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix(ia.duotone(ia.tintPlate(), ia.tintGlyph())))
+                    androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix(ia.duotone(ia.tintPlate(), ia.tintGlyph(),
+                        io.github.janhurn9400.liquidy.design.DesignTokens.TINT_ICON_GAIN, io.github.janhurn9400.liquidy.design.DesignTokens.TINT_ICON_FLOOR)))
                 }
                 Image(layers.glyph, app.label, Modifier.matchParentSize(), colorFilter = filter)
             }

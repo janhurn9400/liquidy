@@ -181,7 +181,17 @@ object IconRenderer {
             val x = i % w; val y = i / w
             val band = inset * PLATE_RIM_BAND
             val rim = rowPlate[y] != NO_PLATE && (x < band || y < band || x >= w - band || y >= h - band)
-            if (plate[i] || (rim && !solidMotif(px, i, w, plate, band)) || ((px[i] ushr 24) > 0 && expected(i).let { it != NO_PLATE && dist2(px[i], it) < PLATE_DISTANCE })) px[i] = 0
+            if (plate[i] || (rim && !solidMotif(px, i, w, plate, band))) { px[i] = 0; continue }
+            // soft edge: the closer a pixel is to the plate colour, the more transparent it gets, and the plate's share is
+            // taken out of its colour (anti-aliased motif edges otherwise became jagged steps with a dark plate-coloured seam)
+            val e = expected(i); val a0 = px[i] ushr 24
+            if (e == NO_PLATE || a0 == 0) continue
+            val d = kotlin.math.sqrt(dist2(px[i], e).toFloat())
+            val a = ((d - PLATE_EDGE_IN) / (PLATE_EDGE_OUT - PLATE_EDGE_IN)).coerceIn(0f, 1f)
+            if (a >= 1f) continue
+            if (a <= 0f) { px[i] = 0; continue }
+            fun unmix(sh: Int) = ((((px[i] shr sh) and 0xFF) - ((e shr sh) and 0xFF) * (1 - a)) / a).toInt().coerceIn(0, 255) shl sh
+            px[i] = ((a0 * a).toInt() shl 24) or unmix(16) or unmix(8) or unmix(0)
         }
         bmp.setPixels(px, 0, w, 0, 0, w, h)
     }
@@ -197,6 +207,8 @@ object IconRenderer {
     private const val NO_PLATE = 1 // marker: no expected plate colour (any value with alpha ≠ 0xFF works)
     private const val PLATE_COVERAGE = 0.4f   // share of opaque pixels from which a disc is assumed
     private const val PLATE_DISTANCE = 40 * 40 // colour distance² to the row's plate colour for enclosed holes
+    private const val PLATE_EDGE_IN = 24f      // colour distance to the plate: fully transparent below …
+    private const val PLATE_EDGE_OUT = 110f    // … fully opaque above (anti-aliased motif edges in between)
     private const val PLATE_STEP = 22 * 22     // colour distance² between neighbouring plate pixels (gradient steps)
     private const val PLATE_SEED_INSET = 0.04f // second seed this far inside the edge (× size), past a light rim
     private const val PLATE_RIM_BAND = 2       // rim band removed outside the motif (× seed inset; the rim curves into the corners)

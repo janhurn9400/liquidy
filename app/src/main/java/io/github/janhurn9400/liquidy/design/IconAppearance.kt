@@ -47,10 +47,15 @@ object IconAppearance {
     /**
      * Tinted: maps brightness linearly from the plate colour (black) to the glyph colour (white), alpha unchanged —
      * keeps the motif's inner shading (e.g. camera lens rings) instead of a flat silhouette. [gain] > 1 lets light
-     * but not white content already reach the glyph colour.
+     * but not white content already reach the glyph colour; [floor] lifts even dark motif parts that far towards the
+     * glyph colour (icons: the whole motif stays clearly lighter than the plate, like on iOS).
      */
-    fun duotone(plate: Color, glyph: Color, gain: Float = 1f): FloatArray {
-        fun row(p: Float, q: Float) = floatArrayOf((q - p) * gain * 0.299f, (q - p) * gain * 0.587f, (q - p) * gain * 0.114f, 0f, p * 255f)
+    fun duotone(plate: Color, glyph: Color, gain: Float = 1f, floor: Float = 0f): FloatArray {
+        // out = plate + (glyph − plate) · (floor + (1 − floor) · gain · brightness)
+        fun row(p: Float, q: Float): FloatArray {
+            val k = (q - p) * (1 - floor) * gain
+            return floatArrayOf(k * 0.299f, k * 0.587f, k * 0.114f, 0f, (p + (q - p) * floor) * 255f)
+        }
         return row(plate.red, glyph.red) + row(plate.green, glyph.green) + row(plate.blue, glyph.blue) + floatArrayOf(0f, 0f, 0f, 1f, 0f)
     }
 

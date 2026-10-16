@@ -336,6 +336,10 @@ object DesignTokens {
     const val TINT_GLYPH_V = 0.95f
     /** Widgets: content brightness → plate…glyph; × this so light content (≈ 0.85) already reaches the glyph colour. */
     const val TINT_WIDGET_GAIN = 1.15f
+    /** Icons: motif brightness gain and minimum lift towards the glyph colour (iOS glyphs are clearly lighter than the
+     *  plate everywhere, mostly near white) [DERIVED from the side-by-side comparison with the user's iPhone 10-16]. */
+    const val TINT_ICON_GAIN = 1.3f
+    const val TINT_ICON_FLOOR = 0.35f
 
     // ── Wallpaper (own generated gradient; colours sampled from IMG_3123) ───
     val wallpaperBase = Color(0xFFC3C1C0)
