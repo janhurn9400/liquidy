@@ -15,7 +15,8 @@ import androidx.compose.ui.graphics.asImageBitmap
  * so T-ICON-R stays live-adjustable in the debug panel.
  * Legacy icons: white background, icon centred at 80 %.
  */
-class IconLayers(val glyph: ImageBitmap, val mono: ImageBitmap)
+/** [designedMono]: [mono] is a drawn monochrome glyph (icon pack or the app's themed icon), not computed from the colours. */
+class IconLayers(val glyph: ImageBitmap, val mono: ImageBitmap, val designedMono: Boolean = false)
 
 object IconRenderer {
     private const val LEGACY_SCALE = 0.8f // [ESTIMATED] iOS has no legacy icons
@@ -49,7 +50,7 @@ object IconRenderer {
      *  - [IconLayers.mono]: monochrome mask (monochrome layer from API 33, otherwise from [glyph]) for Clear/Tinted.
      * Same geometry as [render] (layer 1.5× of the icon), so the motifs sit congruently.
      */
-    fun layers(drawable: Drawable, sizePx: Int, fullBleed: Boolean = false): IconLayers {
+    fun layers(drawable: Drawable, sizePx: Int, fullBleed: Boolean = false, designedMono: Drawable? = null): IconLayers {
         val glyph = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val c = Canvas(glyph)
         val inset = (sizePx * 0.25f).toInt()
@@ -63,6 +64,14 @@ object IconRenderer {
         }
         knockOutPlate(glyph)
         val monoLayer = (drawable as? AdaptiveIconDrawable)?.monochrome
+        if (designedMono != null) {
+            // drawn glyph (pack "_mono" icon or the app's own themed icon): it fills the icon square like the icon itself
+            val m = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+            if (designedMono is AdaptiveIconDrawable) (designedMono.monochrome ?: designedMono.foreground)?.let { it.setBounds(-inset, -inset, sizePx + inset, sizePx + inset); it.draw(Canvas(m)) }
+            else { designedMono.setBounds(0, 0, sizePx, sizePx); designedMono.draw(Canvas(m)) }
+            Canvas(m).drawColor(android.graphics.Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN)
+            return IconLayers(glyph.asImageBitmap(), m.asImageBitmap(), designedMono = true)
+        }
         val mono = if (monoLayer != null) {
             Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).also { b ->
                 monoLayer.setBounds(-inset, -inset, sizePx + inset, sizePx + inset); monoLayer.draw(Canvas(b))
