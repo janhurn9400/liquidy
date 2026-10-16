@@ -111,6 +111,7 @@ class BugRecorder : Service() {
         val n = name
         if (ok && n != null) {
             lastVideo = n
+            lastVideoUri = uri
             val cb = onFinished
             onFinished = null
             if (cb != null) cb(n) else getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, doneNotification())
@@ -161,6 +162,9 @@ class BugRecorder : Service() {
         /** File name of the last finished recording (for the issue text). */
         var lastVideo: String? = null
             private set
+        /** MediaStore entry of the last finished recording (attached to the email report). */
+        var lastVideoUri: Uri? = null
+            private set
         /** Called on the main thread with the file name when a recording has been saved. */
         var onFinished: ((String) -> Unit)? = null
 
@@ -206,19 +210,32 @@ class BugRecorder : Service() {
 class BugReportActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val intro = getString(R.string.settings_report_template)
-        fun open(file: String?) {
-            val text = if (file != null) BugRecorder.introWithVideo(this, intro, file) else intro
-            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Diagnostics.issueUrl(this, text))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            finish()
-        }
         when (intent?.action) {
             ACTION_STOP_AND_REPORT -> if (BugRecorder.recording) {
-                BugRecorder.onFinished = { open(it) }
+                BugRecorder.onFinished = { choose() }
                 BugRecorder.stop(this)
-            } else open(BugRecorder.lastVideo)
-            else -> open(BugRecorder.lastVideo)
+            } else choose()
+            else -> choose()
         }
+    }
+
+    /** Email (video attached, for people without GitHub) or GitHub issue (video to attach in the form). */
+    private fun choose() {
+        val intro = getString(R.string.settings_report_template)
+        android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+            .setTitle(R.string.report_choose_title)
+            .setItems(arrayOf(getString(R.string.report_choose_email), getString(R.string.settings_report_github))) { _, which ->
+                runCatching {
+                    if (which == 0) startActivity(Diagnostics.emailIntent(this, intro, BugRecorder.lastVideoUri))
+                    else {
+                        val text = BugRecorder.lastVideo?.let { BugRecorder.introWithVideo(this, intro, it) } ?: intro
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Diagnostics.issueUrl(this, text))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                }
+                finish()
+            }
+            .setOnCancelListener { finish() }
+            .show()
     }
 
     companion object {

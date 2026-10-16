@@ -43,6 +43,35 @@ object Diagnostics {
 
     private const val ISSUES_NEW = "https://github.com/janhurn9400/liquidy/issues/new"
 
+    /** Where email bug reports go. TODO: placeholder — replace with the project's own address once it exists. */
+    const val REPORT_EMAIL = "liquidy.reports@example.com"
+
+    /**
+     * Bug report by email for people who don't use GitHub: only mail apps are offered (the apps that handle mailto:,
+     * each targeted with the attachment-capable ACTION_SEND — the chooser ignores a mailto selector), recipient, subject
+     * and the diagnostics are prefilled and a recorded [video] is attached directly. Sent only when the user taps Send.
+     */
+    fun emailIntent(context: Context, intro: String, video: android.net.Uri? = null): android.content.Intent {
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf(REPORT_EMAIL))
+            putExtra(android.content.Intent.EXTRA_SUBJECT, context.getString(io.github.janhurn9400.liquidy.R.string.report_email_subject))
+            putExtra(android.content.Intent.EXTRA_TEXT, intro + "\n\n" + report(context))
+            if (video != null) {
+                type = "video/mp4"
+                putExtra(android.content.Intent.EXTRA_STREAM, video)
+                clipData = android.content.ClipData.newRawUri("video", video)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } else type = "text/plain"
+        }
+        val mailto = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:" + REPORT_EMAIL))
+        val apps = context.packageManager.queryIntentActivities(mailto, 0).map { it.activityInfo.packageName }.distinct()
+        if (apps.isEmpty()) return mailto // no mail app found: let the system decide (text only)
+        val perApp = apps.map { android.content.Intent(send).setPackage(it) }
+        if (perApp.size == 1) return perApp[0]
+        return android.content.Intent.createChooser(perApp[0], context.getString(io.github.janhurn9400.liquidy.R.string.report_email_chooser))
+            .putExtra(android.content.Intent.EXTRA_INITIAL_INTENTS, perApp.drop(1).toTypedArray())
+    }
+
     fun copy(context: Context) {
         context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Liquidy diagnostics", report(context)))
     }

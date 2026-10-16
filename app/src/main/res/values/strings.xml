@@ -180,9 +180,9 @@
     <string name="settings_sec_diagnostics">Diagnostics</string>
     <string name="settings_diagnostics_copy">Copy Diagnostics</string>
     <string name="settings_diagnostics_copied">Copied</string>
-    <string name="settings_diagnostics_footer">Technical details only — no apps or personal data. Nothing is sent until you submit the issue on GitHub.</string>
+    <string name="settings_diagnostics_footer">Technical details only — no apps or personal data. Nothing is sent until you send the email or submit the issue on GitHub.</string>
     <string name="settings_report">Report a Problem</string>
-    <string name="settings_report_about">Found a bug or something that looks different from the original? Open an issue on GitHub — the technical details below are filled in for you, just describe what happened.</string>
+    <string name="settings_report_about">Found a bug or something that looks different from the original? Report it on GitHub or by email — the technical details below are filled in for you, just describe what happened.</string>
     <string name="settings_report_github">Report on GitHub</string>
     <string name="settings_report_included">Included Details</string>
     <string name="settings_report_template">**What happened?**\n\n\n**What did you expect?**\n\n\n**Steps to reproduce**\n1. \n\n**Device details** (filled in by Liquidy)</string>
@@ -283,7 +283,7 @@
     <string name="delete_app_menu">Delete App</string>
     <string name="settings_report_record">Record Screen &amp; Report</string>
     <string name="settings_report_recording">Recording… stop it from the notification</string>
-    <string name="settings_report_record_footer">Records up to one minute while you show the problem. A short video helps a lot to reproduce and fix a bug. Stop it from the notification — the issue opens and you just attach the video from Movies/Liquidy. Nothing is uploaded by Liquidy.</string>
+    <string name="settings_report_record_footer">Records up to one minute while you show the problem. A short video helps a lot to reproduce and fix a bug. Stop it from the notification, then send it by email (video attached) or on GitHub. Nothing is uploaded by Liquidy.</string>
     <string name="settings_report_video_hint">**Screen recording:** please attach `%1$s` from Movies/Liquidy — drag it into this text field or use \"Paste, drop, or click to add files\" below. It helps a lot to reproduce and fix the bug.</string>
     <string name="bugrec_channel">Bug report recording</string>
     <string name="bugrec_running">Recording for bug report</string>
@@ -291,4 +291,9 @@
     <string name="bugrec_stop">Stop &amp; Report</string>
     <string name="bugrec_done">Recording saved</string>
     <string name="bugrec_done_text">Tap to open the bug report.</string>
+    <string name="settings_report_email">Send by Email</string>
+    <string name="report_email_subject">Liquidy bug report</string>
+    <string name="report_email_chooser">Send with</string>
+    <string name="report_choose_title">Send the report</string>
+    <string name="report_choose_email">Send by Email (video attached)</string>
 </resources>

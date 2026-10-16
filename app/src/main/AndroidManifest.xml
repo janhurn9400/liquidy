@@ -11,6 +11,11 @@
 
     <!-- App list via LauncherApps; package visibility for all launcher activities -->
     <queries>
+        <!-- Mail apps for the bug report by email -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />

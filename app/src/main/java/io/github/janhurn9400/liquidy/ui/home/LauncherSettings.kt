@@ -862,6 +862,10 @@ private fun ReportPage(backLabel: String, onClose: () -> Unit, onBack: () -> Uni
                     android.net.Uri.parse(io.github.janhurn9400.liquidy.data.Diagnostics.issueUrl(context, intro))))
             }
             Divider()
+            LinkRow(stringResource(R.string.settings_report_email)) {
+                open(context, io.github.janhurn9400.liquidy.data.Diagnostics.emailIntent(context, intro))
+            }
+            Divider()
             LinkRow(stringResource(R.string.settings_diagnostics_copy), if (copied) stringResource(R.string.settings_diagnostics_copied) else null) {
                 io.github.janhurn9400.liquidy.data.Diagnostics.copy(context); copied = true
             }
