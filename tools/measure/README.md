@@ -1,14 +1,14 @@
-# Messskripte (Phase 0)
+# Measurement scripts (phase 0)
 
-Python-venv mit numpy, pillow, scipy, opencv-python-headless. Frames vorher extrahieren:
+Python venv with numpy, pillow, scipy, opencv-python-headless. Extract the frames first:
 
-    ffmpeg -i docs/reference/iphone/recording1.mp4 -vf scale=402:874 -fps_mode passthrough -frame_pts 1 fr/f_%06d.png   # 1 px = 1 pt, Dateinummer/60 = Sekunde
+    ffmpeg -i docs/reference/iphone/recording1.mp4 -vf scale=402:874 -fps_mode passthrough -frame_pts 1 fr/f_%06d.png   # 1 px = 1 pt, file number / 60 = second
 
-- `corner.py` — Eckenradius-Fit (continuous corner vs. Kreis)
-- `track.py` + `t_page.py` / `fit_page.py` — Seiten-Offset per Kreuzkorrelation + Feder-Fit
-- `t_scale.py` + `fit_f.py` — Ordner-Skalierung per Template-Matching + Feder-Fit
-- `t_kb.py` — Tastatur/Suchfeld-Offset
-- `wiggle.py` + `sinfit.py` — Wackel-Rotation/-Versatz (volle Auflösung) + Sinus-Fit
-- `tap.py` — Abdunkeln beim Antippen, `pill.py` — Pill-Zustand, `springfit.py` — gedämpfter Oszillator-Fit
+- `corner.py` — corner radius fit (continuous corner vs. circle)
+- `track.py` + `t_page.py` / `fit_page.py` — page offset via cross-correlation + spring fit
+- `t_scale.py` + `fit_f.py` — folder scale via template matching + spring fit
+- `t_kb.py` — keyboard/search field offset
+- `wiggle.py` + `sinfit.py` — jiggle rotation/offset (full resolution) + sine fit
+- `tap.py` — darkening on tap, `pill.py` — pill state, `springfit.py` — damped oscillator fit
 
-Pfade in den Skripten zeigen noch auf das Scratchpad der Phase-0-Session; vor erneuter Nutzung anpassen.
+Paths in the scripts still point to the scratchpad of the phase-0 session; adjust before reusing them.

@@ -1,42 +1,41 @@
-# Architekturplan (Entwurf Phase 0 — noch nicht umgesetzt)
+# Architecture plan (phase-0 draft — kept for reference; current state in CLAUDE.md)
 
 ## Setup
-- Kotlin + Jetpack Compose, minSdk 33, targetSdk 36, compileSdk 36, ein Modul `:app` (später `:controlcenter` für den AccessibilityService).
-- Schrift: **Inter** (OFL) als gebündelte TTF. Keine Apple-Assets.
-- Emulator: neues AVD `iOSHome_API36` — System-Image `android-36;google_apis;arm64-v8a`, **1206 × 2622 px @ 480 dpi = 402 × 874 dp** (= Nutzer-iPhone, gemessen), `hw.gpu.mode=host`.
-- Launcher-Integration nach Launcher3-Vorbild: `MAIN` + `HOME` + `DEFAULT`-Intent-Filter, `launchMode=singleTask`, `stateNotNeeded`, `onNewIntent` (Home-Taste → Ordner schließen / zu Seite 1), App-Liste über `LauncherApps` (+ Callback bei Install/Deinstall), Edge-to-Edge mit transparenten Systemleisten.
+- Kotlin + Jetpack Compose, minSdk 33, targetSdk 36, compileSdk 36, one module `:app` (plus `:hiddenapi` with compile-only stubs for the optional app-open transition).
+- Font: **Inter** (OFL) as a bundled TTF. No Apple assets.
+- Emulator (original plan): AVD `iOSHome_API36` — system image `android-36;google_apis;arm64-v8a`, **1206 × 2622 px @ 480 dpi = 402 × 874 dp** (= the user's iPhone, measured), `hw.gpu.mode=host`. Now: the Duo-resolution foldable AVD, see CLAUDE.md.
+- Launcher integration modelled on Launcher3: `MAIN` + `HOME` + `DEFAULT` intent filter, `launchMode=singleTask`, `stateNotNeeded`, `onNewIntent` (Home button → close folder / go to page 1), app list via `LauncherApps` (+ callback on install/uninstall), edge-to-edge with transparent system bars.
 
-## Paketstruktur
+## Package structure
 ```
 app/src/main/java/…/
-  motion/     Motion.kt          alle Springs/Dauern/Kurven, je mit Verweis auf RESEARCH-ID (M-…)
-              IosSpring.kt       data class IosSpring(response, dampingFraction) → Compose-SpringSpec
-  design/     DesignTokens.kt    alle Maße/Abstände/Radien/Blur/Farben (T-…)
-              ContinuousShape.kt Apple-„continuous corner“-Shape (Bézier-Konstanten)
-  tuning/     Tunables.kt        Registry: jeder Motion-/Token-Wert ist ein observierbarer State
-              DebugPanel.kt      3-Finger-Long-Press → Slider-Panel, Reset, Export (Kotlin-Snippet + JSON)
-  data/       AppRepository.kt   LauncherApps, Icons laden
-              LayoutStore.kt     Seiten/Dock/Ordner als JSON in DataStore
-              IconRenderer.kt    AdaptiveIcon → Squircle; Legacy-Icons auf Fläche skaliert; Icon-Cache
-  glass/      Backdrop.kt        Wallpaper-Layer als GraphicsLayer zum Abtasten
-              LiquidGlass.kt     AGSL: Blur + Refraktion + Spekular + dunkler Rand + Tönung
-  gesture/    HomeGestures.kt    eine zentrale Gesten-Arena: horizontal = Paging, vertikal = Suche,
-                                 Long-Press = Menü/Edit, 3-Finger = Debug; VelocityTracker
-  ui/home/    HomeScreen, Pager (eigener, kein HorizontalPager), IconGrid, AppIcon, Dock, PageIndicator/SearchPill
-  ui/edit/    (Phase 2)  ui/folder/ (Phase 3)  ui/library/ ui/search/ (Phase 4)  ui/widgets/ (Phase 5)
+  motion/     Motion.kt          all springs/durations/curves, each with a reference to a RESEARCH ID (M-…)
+              IosSpring.kt       data class IosSpring(response, dampingFraction) → Compose SpringSpec
+  design/     DesignTokens.kt    all sizes/spacing/radii/blur/colours (T-…)
+              ContinuousShape.kt Apple "continuous corner" shape (Bézier constants)
+  tuning/     Tunables.kt        registry: every motion/token value is an observable state
+              DebugPanel.kt      3-finger long press → slider panel, reset, export (Kotlin snippet + JSON)
+  data/       AppRepository.kt   LauncherApps, loading icons
+              LayoutStore.kt     pages/dock/folders as JSON
+              IconRenderer.kt    AdaptiveIcon → squircle; legacy icons scaled onto a plate; icon cache
+  glass/      LiquidGlass.kt     Kyant backdrop: blur + refraction + specular + dark rim + tint (docs/GLASS.md)
+  ui/home/    HomeScreen (one central gesture arena: horizontal = paging, vertical = search,
+              long press = menu/edit, 3 fingers = debug; VelocityTracker), own pager (no HorizontalPager),
+              AppIcon, dock, page indicator/search pill, folders, edit mode
+  ui/library/ ui/search/ ui/widgets/ ui/wallpaper/ ui/welcome/
 ```
 
-## Zentrale Entscheidungen
-1. **Eigener Pager statt `HorizontalPager`.** Seitenposition ist ein `Animatable<Float>`; Drag schreibt direkt (`snapTo`), Loslassen → `animateTo(ziel, M-PAGE, initialVelocity = fingerVelocity)`. Neuer Touch während der Animation stoppt sie an Ort und Stelle und übernimmt — exakt das iOS-Verhalten. Gummiband per UIScrollView-Formel.
-2. **Jede animierte Größe ist ein `Animatable`**, nie `animate*AsState` mit Tween. Retarget behält Geschwindigkeit (Compose-Default). Keine Dauer-basierten Animationen außer Wackeln.
-3. **Motion/Tokens sind live-editierbar.** `Motion.kt`/`DesignTokens.kt` definieren die Defaults; zur Laufzeit liest die UI aus `Tunables` (Compose-State). Das Debug-Panel ändert sie live; „Export“ erzeugt die neuen Default-Zeilen, die ich dann in Motion.kt/DesignTokens.kt übernehme. So bleibt die Quelle der Wahrheit im Code.
-4. **Eigener Wallpaper im Launcher** (siehe RESEARCH §5.1), damit Glas/Blur echt auf den Hintergrund reagieren.
-5. **Liquid Glass:** eigener AGSL-Shader mit voller Parametrisierung über Tokens; [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) als Referenz (ggf. als Abhängigkeit für den Start, wenn Lizenz passt und es Zeit spart).
-6. **Layout in pt = dp**, alle Positionen aus Tokens berechnet (kein Constraint-Layout-Raten) → Abgleich mit iPhone-Screenshots per Overlay möglich.
-7. **Verifikations-Tool:** kleines Skript `tools/compare.sh`, das einen Emulator-Screenshot und einen iPhone-Screenshot (gleiche 3x-Auflösung) übereinanderlegt/differenziert.
+## Key decisions
+1. **Own pager instead of `HorizontalPager`.** The page position is an `Animatable<Float>`; dragging writes directly (`snapTo`), release → `animateTo(target, M-PAGE, initialVelocity = fingerVelocity)`. A new touch during the animation stops it in place and takes over — exactly the iOS behaviour. Rubber band via the UIScrollView formula.
+2. **Every animated value is an `Animatable`**, never `animate*AsState` with a tween. Retargeting keeps the velocity (Compose default). No duration-based animations except the jiggle.
+3. **Motion/tokens are editable live.** `Motion.kt`/`DesignTokens.kt` define the defaults; at runtime the UI reads from `Tunables` (Compose state). The debug panel changes them live; "Export" produces the new default lines, which are then copied into Motion.kt/DesignTokens.kt. The source of truth stays in the code.
+4. **Wallpaper:** Android draws its own wallpaper behind the transparent window; glass and blur use an aligned copy (RESEARCH §5.1, glass/WallpaperCropModel).
+5. **Liquid Glass:** [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) (`backdrop`, Apache-2.0) wrapped behind our own `LiquidGlass` API, all parameters as tokens (docs/GLASS.md).
+6. **Layout in pt = dp**, all positions computed from tokens (no constraint-layout guessing) → can be compared with iPhone screenshots by overlay.
+7. **Verification:** emulator screenshots laid next to/over iPhone screenshots and recordings (tools/measure/).
 
-## Ablauf Phase 1 (nach deinem OK)
-1. Gradle-Projekt, AVD anlegen (Download System-Image ~1,5 GB), Launcher-Manifest, Inter.
-2. Motion.kt, DesignTokens.kt, Tunables + Debug-Panel-Grundgerüst (früh, wie gewünscht).
-3. Wallpaper + Grid + Dock (Glas) + eigener Pager + Page-Indicator/Pill + Antipp-Feedback.
-4. Screenshots ziehen, gegen Messwerte prüfen, an dich übergeben.
+## Phase 1 plan (historical)
+1. Gradle project, create the AVD (system image download ~1.5 GB), launcher manifest, Inter.
+2. Motion.kt, DesignTokens.kt, Tunables + debug panel skeleton (early, as requested).
+3. Wallpaper + grid + dock (glass) + own pager + page indicator/pill + tap feedback.
+4. Take screenshots, check against the measured values, hand over.

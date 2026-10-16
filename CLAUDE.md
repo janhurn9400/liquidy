@@ -1,59 +1,60 @@
-# CLAUDE.md — iOS-27-Homescreen-Launcher für Android
+# CLAUDE.md — iOS 27 home screen launcher for Android (Liquidy)
 
-Ziel: Android-Launcher (Kotlin + Compose, minSdk 33), der sich 1:1 wie der iOS-27-Homescreen anfühlt (Layout, Physik, Timing). Antworten an den Nutzer auf Deutsch.
+Goal: an Android launcher (Kotlin + Compose, minSdk 33) that feels 1:1 like the iOS 27 home screen (layout, physics, timing). **Reply to the user in German.** Everything in the repository (docs, code comments, commit messages, release notes) is written in **English**.
 
-## Dokumente
-- `docs/RESEARCH.md` — alle Maße/Springs mit Quelle und Status [BELEGT]/[ABGELEITET]/[GESCHÄTZT], plus „Bitte am iPhone prüfen“
-- `docs/ARCHITECTURE.md` — Architektur & Entscheidungen
+## Documents
+- `docs/RESEARCH.md` — all dimensions/springs with source and status [SOURCED]/[DERIVED]/[ESTIMATED]/[MEASURED], plus "Please check on the iPhone"
+- `docs/ARCHITECTURE.md` — architecture & decisions
+- `docs/GLASS.md` — Liquid Glass implementation incl. pitfalls
+- `docs/FOLD-BRANCHES.md` — where folded and unfolded differ, and why
 
-## Regeln
-1. Alle Animationswerte nur in `motion/Motion.kt` (mit RESEARCH-ID `M-…`), alle Design-Werte nur in `design/DesignTokens.kt` (`T-…`). Keine Magic Numbers im UI-Code.
-2. Alles Animierte ist ein unterbrechbares `Animatable`, Gesten-Geschwindigkeit fließt als `initialVelocity` ein.
-3. Keine Apple-Assets (Schrift Inter, eigene/freie Wallpaper, App-Icons nur per Squircle-Maske).
-4. Nach jeder Änderung: bauen, im Emulator installieren, kurz prüfen, dass es startet (ein Screenshot reicht), dann kurz berichten + worauf am iPhone achten. Der Nutzer beurteilt selbst — keine langen Screenshot-Testserien. Bei Feedback wenige Werte gezielt ändern und nennen.
-5. Emulator = 60 Hz + Maus → beim Beurteilen von Ruckeln/Flings berücksichtigen.
+## Rules
+1. All animation values only in `motion/Motion.kt` (with RESEARCH ID `M-…`), all design values only in `design/DesignTokens.kt` (`T-…`). No magic numbers in UI code.
+2. Everything animated is an interruptible `Animatable`; gesture velocity is passed as `initialVelocity`.
+3. No Apple assets (Inter font, own/free wallpapers, app icons only via squircle mask). No "iPhone"/"Apple" in user-visible text.
+4. After every change: build, install in the emulator, quickly check that it starts (one screenshot is enough), then report briefly + what to look for on the iPhone. The user judges for themselves — no long screenshot test series. On feedback, change a few values specifically and name them.
+5. Emulator = 60 Hz + mouse → keep in mind when judging stutter/flings.
+6. Releases are regular (not pre-release) so `releases/latest/download/liquidy-magisk.zip` keeps working. Versioning: new behaviour/features → minor (0.x.0), fixes/polish → patch.
 
-## Bauen & Testen
-- Emulator: AVD `Pixel_10_Pro_Fold` in iPhone-Duo-Auflösung (2854×2007 @480 dpi, Scharnier bei x = 1427 px, GPU host).
+## Build & test
+- Emulator: AVD `Pixel_10_Pro_Fold` in iPhone-Duo resolution (2854×2007 @480 dpi, hinge at x = 1427 px, GPU host).
   Start: `~/Library/Android/sdk/emulator/emulator -avd Pixel_10_Pro_Fold -gpu host -no-boot-anim -writable-system`
-  (`-writable-system` IMMER: Liquidy liegt dort als System-App in `/system/priv-app/Liquidy` + Berechtigung/Hidden-API-XML aus
-  tools/magisk-module — ohne Magisk per `adb root && adb remount`. Nur so läuft die eigene App-Öffnen-Animation. `adb install -r`
-  danach wie gewohnt, das Update bleibt privilegiert.)
-  App-Daten lesen: `run-as` geht bei System-Apps nicht → `adb root`, dann `adb shell cat /data/data/io.github.janhurn9400.liquidy/shared_prefs/…`.
-  Zwei Displays → Screenshot nur mit Display-ID: `adb exec-out screencap -p -d 4619827259835644672 > shot.png` (innen, aufgeklappt).
-  Nach jeder Neuinstallation hängt der Emulator anfangs (Shader-Kompilierung, ANR-Dialog möglich) — kurz warten, kein App-Fehler.
+  (`-writable-system` ALWAYS: Liquidy is installed there as a system app in `/system/priv-app/Liquidy` + permission/hidden-API XML from
+  tools/magisk-module — without Magisk via `adb root && adb remount`. Only then does the own app-open animation run. `adb install -r`
+  works as usual afterwards, the update stays privileged.)
+  Reading app data: `run-as` doesn't work for system apps → `adb root`, then `adb shell cat /data/data/io.github.janhurn9400.liquidy/shared_prefs/…`.
+  Two displays → screenshots only with a display ID: `adb exec-out screencap -p -d 4619827259835644672 > shot.png` (inner, unfolded).
+  After every reinstall the emulator hangs at first (shader compilation, ANR dialog possible) — wait briefly, not an app bug.
 - `./gradlew :app:assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk`
-  Als Home setzen: `adb shell cmd package set-home-activity io.github.janhurn9400.liquidy/.MainActivity`
-- Debug-Panel: 3-Finger-Long-Press (Gerät), Taste **D** (Emulator), oder
+  Set as home: `adb shell cmd package set-home-activity io.github.janhurn9400.liquidy/.MainActivity`
+- Debug panel: 3-finger long press (device), key **D** (emulator), or
   `adb shell am start -n io.github.janhurn9400.liquidy/.MainActivity --ez debug true`.
-  „Export“ → Zwischenablage + Logcat-Tag `Tuning` (`adb logcat -s Tuning`).
-- Vergleich: Screenshots nach `shots/` (gitignored), Messskripte in `tools/measure/`, Referenzen in `docs/reference/iphone/`.
+  "Export" → clipboard + logcat tag `Tuning` (`adb logcat -s Tuning`).
+- Comparison: screenshots in `shots/` (gitignored), measurement scripts in `tools/measure/`, references in `docs/reference/iphone/` (local only, not in the repo).
 
-## Stand (2026-10-15, v0.4.2 — erstes öffentliches Release, Repo öffentlich, GPL-3.0)
-- Phase 0: abgeschlossen. Phase 1–4 funktional gebaut, Feinabgleich läuft (Nutzer tunt NICHT selbst — Werte aus seinen Videos ableiten, Emulator-Aufnahme frameweise danebenlegen).
-- Phase 1: Raster/Labels/Dock/Pill ±1 px; Pager M-PAGE verifiziert (0,362 s / 0,904).
-- Phase 2: Bearbeitungsmodus (Long-Press, Wackeln gemessen, Badges, Edit-Buttons, Ziehen + Ausweichen, Dock ↔ Raster, Rand-Seitenwechsel inkl. neuer Seite, Lösch-Dialog, persistentes Layout `LayoutStore`). Offen: Kontextmenü beim Long-Press auf Icon (iOS 27), Blasenmenü im Bearbeitungsmodus.
-- Phase 3: Ordner (Drüberziehen + Halten, Name aus App-Kategorie, Mini-Raster gemessen, Öffnen/Schließen M-FOLDER gemessen, Rausziehen per Long-Press). Offen: Umbenennen, Ordner-Paging > 9, Umsortieren im Ordner.
-- Phase 4: Suche (Rev. 3 nach frameweiser Analyse), App-Mediathek 1:1 nach recording2 (Kacheln, Glas-Suchfeld mit Scroll-Kante, A–Z-Liste per Herunterziehen, panellose Kategorie mit Gruppen-Zoom).
-- Emulator-Performance: GPU-Median 18 ms/Frame (~40 fps) unabhängig von Glas/Blur (A/B gemessen) → Ruckeln im Emulator ist kein App-Problem. `adb shell screenrecord` liefert oft nur Standbilder; für Zwischenzustände Federn per Debug-Prefs verlangsamen + screencap.
-- Tastatur: Manifest `adjustResize` (nötig für animierte IME-Insets); IME-Insets nur in Layout-/Draw-Lambdas lesen (Composition-Lesen = 1 Frame Verzug).
-- Suche Rev. 6: Pill → Suchfeld-Morph (SearchPill.kt, liegt außerhalb der verwischten Ebene), Tippen auf Pill öffnet Suche.
-- Liquid Glass: Kyant backdrop (siehe docs/GLASS.md inkl. Fallstricke). Kotlin 2.4.10 via buildscript-Classpath.
-- Suche Rev. 5: Wallpaper statisch (nur Blur), Inhalt verschoben; nach dem Öffnen federt der Homescreen auf 0 pt zurück (Skala 0,92).
-- Kontextmenü (M-CTXMENU/T-CTX) mit nativen Android-Shortcuts gebaut; Weiterziehen → Bearbeitungsmodus.
-- Wallpaper-Editor (Pair/Colour/Gradient/Photo + Blur, eigener Fotos-Picker über MediaStore, Zuschnitt) über Edit-Menü; Wallpaper in SharedPreferences („wallpaper“). Labels passen sich der Wallpaper-Helligkeit an.
-- Customise-Blatt: Icon-Stile Default/Dark/Clear/Tinted (IconAppearance, Ebenen aus IconRenderer.layers).
-- Widgets (Grundlage): WidgetSpec im Layout (Schlüssel „widget:…“), GridPlacement (iOS-Fluss, Widgets nur Spalte 0/2), eigene iOS-Widgets (ui/widgets/IosWidgets.kt: Uhr, Kalender, Batterien), Android-Widgets über AppWidgetHost (AndroidWidgets.kt, Bind-/Konfig-Flow über onActivityResult), Picker + Hinzufügen-Blatt (WidgetPicker.kt, recording8).
-- Heute-Ansicht (Pager-Seite −1, TodayPage.kt), Resize per Griff + Größenleiste im Widget-Menü, Widgets ziehen/antippen. Ordner-Icons + Widget-Glas nutzen WallpaperBackdrop (nur Wallpaper als Quelle).
-- Wallpaper: es gibt NUR das Android-Wallpaper (Nutzerwunsch, nicht ändern!). Fenster durchsichtig (windowShowWallpaper + windowIsTranslucent), Unschärfe macht Android per Window.setBackgroundBlurRadius. Der Picker setzt seine Wahl als Android-Wallpaper. Pixel (nur intern fürs Glas) per MANAGE_EXTERNAL_STORAGE gelesen; ohne Zugriff Rückfall: selbst zeichnen.
-- GestureNavContract (Wisch nach Hause → Fenster fliegt ins Icon) mit Icon-Surface wie Launcher3 FloatingSurfaceView; Teststart: `adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME` (am start -n leitet auf den Home-Task um).
-- App öffnen/schließen Scharf/Unscharf: Code da (launchBlur/returnBlur in HomeModel), in backgroundBlurPx deaktiviert — Nutzer will es später mit iPhone-Video genauer prüfen.
-- Root-Weg (optional): Magisk-Modul tools/magisk-module (Build: tools/build-magisk-module.sh → build/ioshome-magisk.zip) blendet die installierte App als priv-app ein + Berechtigung CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS + Hidden-API-Freigabe. Dann öffnet AppLaunchTransition (RemoteTransition, Stubs in :hiddenapi, compileOnly) Apps mit eigener Feder aus dem Icon. Emulator: rootAVD-Ramdisk gepatcht (Magisk 26.4). Play Store: App darf das Modul nicht selbst laden/installieren — nur Link + „Magisk öffnen“.
-- Duo-Stil (Foldables/Tablets) ist Hauptziel: zwei Seiten + Dock-Spalte rechts. Dock-Glas federt mit der Anzahl (M-REFLOW); „Mehr Apps im Dock“ (Launcher-Einstellungen, eigene Erweiterung) erlaubt so viele, wie in die Spalte passen.
-- Liquid Glass: keine Farbsäume (Apple hat keine). Regler „Klar ↔ Getönt“ (glass/GlassClarity, Unterseite mit Vorschau in Darstellung): getönt = mehr Unschärfe, keine Brechung, grauer Schleier.
-- Berechtigungen-Seite erklärt jede Erlaubnis. Wetter-Widget (Open-Meteo) gebaut.
-- Ordner (v0.4.0, Nutzer-Video 10-14 gemessen): Hinweis = Ordnerglas wächst + dunkelt ab, App fliegt in Mini-Platz, Blättern, Rausziehen erst nach Verlassen des Panels, Umbenennen mit Cursor; Schließen morpht ohne Überblendung ins Icon. Rand-Seitenwechsel mit Hinüberschauen + Haptik. 🍎 Quirks-Kategorie (Widgets in jeder Reihe, mehr Dock-Apps); Standard = iOS-Raster (Widgets nur in Reihenpaaren).
-- Offen als Nächstes: Heute-Ansicht bearbeiten; App-Öffnen/-Schließen (Phase 6, iPhone-Video für M-HOME-RETURN und Scharf/Unscharf); Icon-Stil für Ordner-Icons/Mediathek; Widgets bei „Getönt“ am iPhone prüfen.
-- FESTE REGEL Dock-Größe: Items im Duo-Dock sind kleiner (48 statt 60 pt). Jede Stelle, die ein Dock-Item zeigt oder von ihm ausgeht (Zeichnen, Ordner auf/zu, Kontextmenü, App-Start/-Rückflug, Ziehen, Aufnehmen, Flug in einen Ordner), nimmt `HomeGeometry.dockIconScale` bzw. `iconRect(topLeft, inDock)` — nie eigene Werte.
-- Architektur: eine zentrale Gesten-Arena in `ui/home/HomeScreen.kt`; Geometrie nur in `HomeGeometry`/`FolderGeometry`/`LibraryGeometry`; Layout-Zustand in `HomeModel`.
-- Lektion: Bewegungen IMMER frameweise gegen die Referenz analysieren (Montage + Tracking), nicht nur Einzelwerte — sonst wirkt es „schlampig“ (Suche Rev. 1/2).
+## Status (2026-10-16, v0.4.2 — first public release, public repo, GPL-3.0)
+- Phase 0: done. Phases 1–4 built, fine-tuning ongoing (the user does NOT tune values themselves — derive values from their videos, put emulator captures next to them frame by frame).
+- Phase 1: grid/labels/dock/pill ±1 px; pager M-PAGE verified (0.362 s / 0.904).
+- Phase 2: edit mode (long press, measured jiggle, badges, edit buttons, dragging + reflow, dock ↔ grid, edge page flip with peek incl. new page, delete dialog, persistent layout `LayoutStore`), context menu with native Android shortcuts.
+- Phase 3: folders (hold over an app, name from app category, measured mini grid, open/close M-FOLDER measured, drag out, paging, reorder, rename with cursor; close morphs into the icon without a crossfade).
+- Phase 4: search (rev. 3 after frame-by-frame analysis), App Library 1:1 after recording2 (tiles, glass search field with scroll edge, A–Z list by pulling down, panel-less category with group zoom).
+- Emulator performance: GPU median 18 ms/frame (~40 fps) regardless of glass/blur (A/B measured) → stutter in the emulator is not an app problem. `adb shell screenrecord` often only yields still frames; for in-between states slow down springs via debug prefs + screencap.
+- Keyboard: manifest `adjustResize` (needed for animated IME insets); read IME insets only in layout/draw lambdas (reading in composition = 1 frame delay).
+- Search rev. 6: pill → search field morph (SearchPill.kt, outside the blurred layer), tapping the pill opens search.
+- Liquid Glass: Kyant backdrop (see docs/GLASS.md incl. pitfalls). Kotlin 2.4.10 via buildscript classpath. No colour fringes (Apple has none). "Clear ↔ Tinted" slider (glass/GlassClarity, subpage with preview in Appearance): tinted = more blur, no refraction, grey veil. `LiquidGlass(refraction = false)` = frosted glass.
+- Reusable sheet: glass/GlassSheet (frosted, slides up, dims behind, optional floating Liquid Glass bottomBar e.g. search field; the sheet is the glass source for elements inside it). Used by widget settings (album, calendars, location, clock city).
+- Wallpaper editor (Pair/Colour/Gradient/Photo + blur, own photo picker via MediaStore, crop) via the edit menu. Labels adapt to the wallpaper brightness.
+- Customise sheet: icon styles Default/Dark/Clear/Tinted (IconAppearance, layers from IconRenderer.layers).
+- Widgets: WidgetSpec in the layout (key "widget:…"), GridPlacement (iOS flow, widgets only in column 0/2 and row pairs unless 🍎 Quirks), own widgets (ui/widgets: clock with city/time zone, calendar, batteries, weather via Open-Meteo, photos, reminders), Android widgets via AppWidgetHost, picker + add sheet.
+- Today view (pager page −1, TodayPage.kt), resize via handle + size bar in the widget menu.
+- Wallpaper: there is ONLY the Android wallpaper (user's wish, don't change!). Window transparent (windowShowWallpaper + windowIsTranslucent). The picker sets its choice as the Android wallpaper. Pixels (only internally for glass/blur) read via MANAGE_EXTERNAL_STORAGE and cropped like Android (glass/WallpaperCropModel, no zoom on a foldable's folded display); without access: fall back to drawing our own.
+- GestureNavContract (swipe home → window flies into the icon) with an icon surface like Launcher3's FloatingSurfaceView; test start: `adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME`.
+- App open/close sharp/blur: code exists (launchBlur/returnBlur in HomeModel), disabled in backgroundBlurPx — the user wants to check it later with an iPhone video.
+- Animation Module (optional, root): tools/magisk-module (build: tools/build-magisk-module.sh → build/liquidy-magisk.zip) adds the installed app as a priv-app + CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS + hidden-API allowlist. Then AppLaunchTransition (RemoteTransition, stubs in :hiddenapi, compileOnly) opens apps with its own spring. Settings › Advanced › Animation Module explains it and links the download. Play Store: the app must not load/install the module itself — only a link + "Open Magisk".
+- Duo style (foldables/tablets) is the main target: two pages + dock column on the right. Dock glass springs with the app count (M-REFLOW); "More Apps in Dock" under 🍎 Quirks.
+- 🍎 Quirks settings category: the original's rules are on by default; options relax them (Widgets in Any Row, More Apps in Dock).
+- Settings: iOS-27-style category tiles, own app icon (placeholder, adaptive icon in res/drawable), close with Home/Back; permissions page explains each permission; Advanced › Report a Problem opens a GitHub issue prefilled with diagnostics.
+- Next: edit the Today view; app open/close (phase 6, iPhone video for M-HOME-RETURN and sharp/blur); icon style for folder icons/App Library; check widgets in "Tinted" on the iPhone; translate code comments to English.
+- FIXED RULE dock size: items in the Duo dock are smaller (48 instead of 60 pt). Every place that shows a dock item or starts from it (drawing, folder open/close, context menu, app launch/return, dragging, picking up, flying into a folder) uses `HomeGeometry.dockIconScale` or `iconRect(topLeft, inDock)` — never its own values.
+- Architecture: one central gesture arena in `ui/home/HomeScreen.kt`; geometry only in `HomeGeometry`/`FolderGeometry`/`LibraryGeometry`; layout state in `HomeModel`.
+- Lesson: ALWAYS analyse motion frame by frame against the reference (montage + tracking), not just single values — otherwise it looks "sloppy" (search rev. 1/2).

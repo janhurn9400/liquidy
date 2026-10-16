@@ -1,243 +1,242 @@
-# RESEARCH.md — iOS 27 Homescreen → Android (Compose)
+# RESEARCH.md — iOS 27 home screen → Android (Compose)
 
-Stand: 2026-10-06 · Phase 0 (Rev. 2: mit Messungen aus Nutzer-Screenshots + Bildschirmaufnahme)
+As of: 2026-10-06 · Phase 0 (rev. 2: with measurements from the user's screenshots + screen recording), extended since
 
-**Legende**
-- **[GEMESSEN]** — pixelgenau aus den nativen iPhone-Referenzen in `docs/reference/iphone/` (iOS 27, 1206 × 2622 px @3x = 402 × 874 pt); Animationen per Frame-Tracking aus `recording1.mp4` (60 fps) + Feder-Fit
-- **[BELEGT]** — direkt aus Apple-Doku/WWDC oder klar zitierbarer Quelle
-- **[ABGELEITET]** — aus belegten/gemessenen Werten berechnet (Rechenweg steht dabei)
-- **[GESCHÄTZT]** — begründete Annahme → „Bitte am iPhone prüfen“
+**Legend**
+- **[MEASURED]** — pixel-exact from the native iPhone references in `docs/reference/iphone/` (iOS 27, 1206 × 2622 px @3x = 402 × 874 pt); animations by frame tracking from `recording1.mp4` (60 fps) + spring fit
+- **[SOURCED]** — directly from Apple docs/WWDC or a clearly citable source
+- **[DERIVED]** — calculated from sourced/measured values (calculation given)
+- **[ESTIMATED]** — reasoned assumption → "please check on the iPhone"
 
-Jede Zahl, die in `Motion.kt`/`DesignTokens.kt` landet, hat eine ID (`M-…`, `T-…`), auf die der Code verweist. Alle Längen in **pt = dp**.
+Every number that ends up in `Motion.kt`/`DesignTokens.kt` has an ID (`M-…`, `T-…`) that the code refers to. All lengths in **pt = dp**.
 
-### Referenzmaterial (vom Nutzer, 2026-10-05)
-| Datei | Inhalt |
+### Reference material (from the user, 2026-10-05)
+| File | Content |
 |---|---|
-| IMG_3123 | Homescreen Seite 1 (2 kleine Widgets, 14 Icons, Pill „Suche“, Dock) — heller grauer Wallpaper |
-| IMG_3124 | Bearbeitungsmodus (Minus-Badges, Buttons oben, Page-Dots in der Pill) |
-| IMG_3125 | Bearbeitungsmodus + Long-Press-Menü (Add Widget / Customise / Edit Wallpaper / Edit Pages) |
-| IMG_3126 | Widget-Galerie (Sheet) |
-| IMG_3127 | „Customise“-Panel (Default / Dark / Clear / Tinted) |
-| IMG_3128 | Wallpaper-Editor |
-| IMG_3129 | Seiten bearbeiten |
-| IMG_3130 | geöffneter Ordner „Utilities“ |
-| IMG_3131 | Suche (Swipe down) mit Tastatur |
-| IMG_3132 | Heute-Ansicht (links von Seite 1) |
-| recording1.mp4 | 26,5 s: Seiten wischen, Heute-Ansicht, Suche 2×, Ordner zu/auf/zu, Bearbeitungsmodus + Menü, App öffnen (Fotos), Kontrollzentrum |
+| IMG_3123 | Home screen page 1 (2 small widgets, 14 icons, "Search" pill, dock) — light grey wallpaper |
+| IMG_3124 | Edit mode (minus badges, buttons at the top, page dots in the pill) |
+| IMG_3125 | Edit mode + long-press menu (Add Widget / Customise / Edit Wallpaper / Edit Pages) |
+| IMG_3126 | Widget gallery (sheet) |
+| IMG_3127 | "Customise" panel (Default / Dark / Clear / Tinted) |
+| IMG_3128 | Wallpaper editor |
+| IMG_3129 | Edit pages |
+| IMG_3130 | Open folder "Utilities" |
+| IMG_3131 | Search (swipe down) with keyboard |
+| IMG_3132 | Today view (left of page 1) |
+| recording1.mp4 | 26.5 s: paging, Today view, search ×2, folder close/open/close, edit mode + menu, opening an app (Photos), Control Centre |
 
-Messskripte: siehe `tools/measure/` (werden mit Phase 1 eingecheckt).
+Measurement scripts: see `tools/measure/`.
 
 ---
 
-## 1. Was ist neu in iOS 27 (relevant für den Homescreen)
+## 1. What's new in iOS 27 (relevant to the home screen)
 
-| Thema | Befund | Status | Quelle |
+| Topic | Finding | Status | Source |
 |---|---|---|---|
-| Release | vorgestellt 8. Juni 2026, Release 14. Sept. 2026 | [BELEGT] | [Macworld](https://www.macworld.com/article/2986799/ios-27-new-iphone-features-release-date-beta-compatiblity-apple-intelligence-siri.html) |
-| Liquid Glass | diffundiert Hintergrund stärker, **dunklerer Rand**, **hellere Spekularkanten** | [BELEGT] + [GEMESSEN]: Pill & Dock haben oben/unten einen hellen Lichtsaum, links/rechts einen dunklen Rand | [MacRumors](https://www.macrumors.com/2026/06/10/how-liquid-glass-is-changing-in-ios-27/) |
-| Glas-Regler | Einstellungen › Darstellung › Liquid Glass: „Klarer ↔ Getönter“ | [BELEGT] | [Six Colors](https://sixcolors.com/post/2026/09/ios-27-review-little-things-mean-a-lot/) |
-| Glas-Regler Messung | Nutzer-iPhone 10-14, Dock/Suchfeld bei klar/Mitte/getönt: Unschärfe σ ≈ 0,4 / 1,3 / ≥ 4 pt (getönt völlig glatt, Brechung unsichtbar), Dock-Farbe fast gleich; getönt ohne Brechung (Mediathek-Feld: Rand nur weichgezeichnet) und neutral-grauer Schleier (Dock 204→196, Suchfeld 44→54, Blau 252→224 → Grau ≈ 140, ≈ 15 %). Umgesetzt: glass/GlassClarity, T-GLASS.frostMid/frostTinted/tintedVeil/tintedGrey | [GEMESSEN] | Screenshots Nutzer |
-| App-Icons | mehrere Glas-Layer, schärfer; **Tilt-Glitzer entfernt**; heller Rand-Lichtsaum oben | [BELEGT] + [GEMESSEN] Lichtsaum | [Design Compass](https://designcompass.org/en/2026/09/16/ios-27-liquid-glass-icons/) |
-| Icon-Stile | Default / Dark / Clear / Tinted (Panel „Customise“, IMG_3127) | [BELEGT] + Screenshot | Design Compass |
-| Widgets | neu: Vollbild-Widget (XL) | [BELEGT] | [TechCrunch](https://techcrunch.com/2026/06/09/ios-27-features-we-didnt-see-on-stage/) |
-| Suche | Swipe nach unten → Suche mit „Siri Suggestions“ oben, Suchfeld über der Tastatur unten (IMG_3131) | [BELEGT] + Screenshot | [Macworld](https://www.macworld.com/article/3236198/ios-27-is-driving-my-fingers-insane.html) |
-| Bearbeiten-Menü | Add Widget / Customise / Edit Wallpaper / Edit Pages — **kein Undo/Redo** in der ausgelieferten Version | [GEMESSEN] IMG_3125 | — |
+| Release | announced 8 June 2026, released 14 Sept 2026 | [SOURCED] | [Macworld](https://www.macworld.com/article/2986799/ios-27-new-iphone-features-release-date-beta-compatiblity-apple-intelligence-siri.html) |
+| Liquid Glass | diffuses the background more, **darker rim**, **brighter specular edges** | [SOURCED] + [MEASURED]: pill & dock have a light rim at the top/bottom and a dark edge left/right | [MacRumors](https://www.macrumors.com/2026/06/10/how-liquid-glass-is-changing-in-ios-27/) |
+| Glass slider | Settings › Appearance › Liquid Glass: "Clearer ↔ More Tinted" | [SOURCED] | [Six Colors](https://sixcolors.com/post/2026/09/ios-27-review-little-things-mean-a-lot/) |
+| Glass slider measurement | User's iPhone 10-14, dock/search field at clear/middle/tinted: blur σ ≈ 0.4 / 1.3 / ≥ 4 pt (tinted completely smooth, refraction invisible), dock colour almost unchanged; tinted without refraction (App Library field: edge only softened) and a neutral grey veil (dock 204→196, search field 44→54, blue 252→224 → grey ≈ 140, ≈ 15 %). Implemented: glass/GlassClarity, T-GLASS.frostMid/frostTinted/tintedVeil/tintedGrey | [MEASURED] | User screenshots |
+| App icons | several glass layers, sharper; **tilt sparkle removed**; light rim at the top | [SOURCED] + [MEASURED] rim | [Design Compass](https://designcompass.org/en/2026/09/16/ios-27-liquid-glass-icons/) |
+| Icon styles | Default / Dark / Clear / Tinted ("Customise" panel, IMG_3127) | [SOURCED] + screenshot | Design Compass |
+| Widgets | new: full-screen widget (XL) | [SOURCED] | [TechCrunch](https://techcrunch.com/2026/06/09/ios-27-features-we-didnt-see-on-stage/) |
+| Search | swipe down → search with "Siri Suggestions" at the top, search field above the keyboard at the bottom (IMG_3131) | [SOURCED] + screenshot | [Macworld](https://www.macworld.com/article/3236198/ios-27-is-driving-my-fingers-insane.html) |
+| Edit menu | Add Widget / Customise / Edit Wallpaper / Edit Pages — **no undo/redo** in the shipped version | [MEASURED] IMG_3125 | — |
 
-Grundgerüst (4×6, Dock 4, Seiten, Ordner, App-Mediathek) unverändert. Tilt-Parallax bauen wir **nicht**.
+Basic structure (4×6, dock of 4, pages, folders, App Library) unchanged. We do **not** build tilt parallax.
 
 ---
 
-## 2. Maße & Formen  — alle [GEMESSEN] aus IMG_3123/3124/3130, sofern nicht anders markiert
+## 2. Dimensions & shapes — all [MEASURED] from IMG_3123/3124/3130 unless marked otherwise
 
-### 2.1 Gerät & Einheiten
-- Referenzgerät: **402 × 874 pt @3x** (iPhone 17 Pro bzw. 16 Pro — gleiche Maße). Display-Eckenradius 62 pt ([ScreenCorners](https://github.com/kylebshr/ScreenCorners)) [BELEGT].
-- 1 pt = 1 dp (Fehler ~2 %) [ABGELEITET]. Emulator-AVD: **1206 × 2622 px @ 480 dpi = 402 × 874 dp** → Screenshots pixelgleich vergleichbar.
+### 2.1 Device & units
+- Reference device: **402 × 874 pt @3x** (iPhone 17 Pro or 16 Pro — same dimensions). Display corner radius 62 pt ([ScreenCorners](https://github.com/kylebshr/ScreenCorners)) [SOURCED].
+- 1 pt = 1 dp (error ~2 %) [DERIVED]. Original emulator AVD: **1206 × 2622 px @ 480 dpi = 402 × 874 dp** → screenshots comparable pixel for pixel. (The project now uses the Duo-resolution foldable AVD, see CLAUDE.md.)
 
-### 2.2 Homescreen-Raster
+### 2.2 Home screen grid
 
-| ID | Wert | Pixel (@3x) |
+| ID | Value | Pixels (@3x) |
 |---|---|---|
-| T-ICON | **64 pt** Icon (nicht 60!) | 192 px |
-| T-ICON-R | Eckenradius **16,33 pt** (25,5 % der Kante), *continuous corner* — Fit-Fehler 0,37 px; Kreisbogen passt schlechter (0,64 px). → iOS 27 ist runder als die alten 22,5 % | 49 px |
-| T-GRID-SIDE | Seitenrand bis Icon-Kante **30 pt** (links = rechts) | 90 px |
-| T-GRID-COLPITCH | Spaltenabstand Mitte-Mitte **92,67 pt** (Lücke zwischen Icons 28,67 pt) | 278 px |
-| T-GRID-TOP | Oberkante Reihe 1 **90 pt** | 270 px |
-| T-GRID-ROWPITCH | Reihenabstand **100,33 pt** | 301 px |
+| T-ICON | **64 pt** icon (not 60!) | 192 px |
+| T-ICON-R | corner radius **16.33 pt** (25.5 % of the edge), *continuous corner* — fit error 0.37 px; a circular arc fits worse (0.64 px). → iOS 27 is rounder than the old 22.5 % | 49 px |
+| T-GRID-SIDE | side margin to the icon edge **30 pt** (left = right) | 90 px |
+| T-GRID-COLPITCH | column pitch centre to centre **92.67 pt** (gap between icons 28.67 pt) | 278 px |
+| T-GRID-TOP | top of row 1 **90 pt** | 270 px |
+| T-GRID-ROWPITCH | row pitch **100.33 pt** | 301 px |
 | T-GRID-COLS/ROWS | 4 × 6 | — |
-| T-LABEL-CAP | Label-Versalhöhe ≈ **9 pt**, Versal-Oberkante 8 pt unter Icon, Grundlinie bei Icon-Oberkante + **80,33 pt** | 27 px / 24 px / 241 px |
-| T-LABEL-W | Referenzbreite „FaceTime“ = **53 pt** → Inter-Schriftgröße so wählen, dass Breite & Versalhöhe passen (≈ 12–12,5 sp) | 159 px |
-| T-LABEL-COLOR | auf hellem Wallpaper **dunkel, warm getönt** ≈ `#493A36` (iOS färbt Labels passend zum Wallpaper) | — |
-| T-WIDGET-S | kleines Widget **164,33 × 164,33 pt**, r = **27,75 pt** continuous (Fit 0,37 px); vertikal exakt 2 Reihen (Icon-Oberkante R1 bis Icon-Unterkante R2), horizontal **4 pt** breiter als die Icons auf jeder Seite; x = 26 / 211,33 pt | 493 px |
-| T-WIDGET-LABEL | Widget-Label Versal-Oberkante 8,67 pt unter Widget | 26 px |
-| T-WIDGET-GRID | S 2×2, M 4×2, L 4×4, XL 4×6 (Vollbild, iOS 27) | [BELEGT] Layout-Gist / TechCrunch |
+| T-LABEL-CAP | label cap height ≈ **9 pt**, cap top 8 pt below the icon, baseline at icon top + **80.33 pt** | 27 px / 24 px / 241 px |
+| T-LABEL-W | reference width "FaceTime" = **53 pt** → choose the Inter font size so that width & cap height match (≈ 12–12.5 sp) | 159 px |
+| T-LABEL-COLOR | on a light wallpaper **dark, warm tinted** ≈ `#493A36` (iOS tints labels to match the wallpaper) | — |
+| T-WIDGET-S | small widget **164.33 × 164.33 pt**, r = **27.75 pt** continuous (fit 0.37 px); vertically exactly 2 rows (icon top row 1 to icon bottom row 2), horizontally **4 pt** wider than the icons on each side; x = 26 / 211.33 pt | 493 px |
+| T-WIDGET-LABEL | widget label cap top 8.67 pt below the widget | 26 px |
+| T-WIDGET-GRID | S 2×2, M 4×2, L 4×4, XL 4×6 (full screen, iOS 27) | [SOURCED] layout gist / TechCrunch |
 
-**Layout-Formel:** `iconX(col) = 30 + col·92.67`, `iconY(row) = 90 + row·100.33` (pt). Reihe 6 endet bei 655,67 pt + Label.
+**Layout formula:** `iconX(col) = 30 + col·92.67`, `iconY(row) = 90 + row·100.33` (pt). Row 6 ends at 655.67 pt + label.
 
-### 2.3 Such-Pill & Page-Dots
+### 2.3 Search pill & page dots
 
-| ID | Wert |
+| ID | Value |
 |---|---|
-| T-PILL | Kapsel **78,67 × 30 pt**, horizontal zentriert, Oberkante **703,67 pt** (Abstand Pill → Dock 20 pt) |
-| T-PILL-RIM | oben/unten heller Lichtsaum (1–2 px, fast weiß), links/rechts dunkler 1-px-Rand |
-| T-PILL-CONTENT | Lupe (≈ 9,3 pt breit) + „Search“, Farbe ≈ `#6B605D` |
-| T-DOTS | in derselben Pill: Punkt Ø **6,33 pt**, Abstand Mitte-Mitte **14 pt**; aktiv Weiß 100 %, inaktiv Weiß ≈ 45 % |
+| T-PILL | capsule **78.67 × 30 pt**, horizontally centred, top **703.67 pt** (pill → dock gap 20 pt) |
+| T-PILL-RIM | light rim at the top/bottom (1–2 px, almost white), dark 1-px edge left/right |
+| T-PILL-CONTENT | magnifier (≈ 9.3 pt wide) + "Search", colour ≈ `#6B605D` |
+| T-DOTS | in the same pill: dot Ø **6.33 pt**, pitch centre to centre **14 pt**; active white 100 %, inactive white ≈ 45 % |
 
 ### 2.4 Dock
 
-| ID | Wert |
+| ID | Value |
 |---|---|
-| T-DOCK-INSET | **16,67 pt** links/rechts, **17 pt** unten |
-| T-DOCK | Glas-Platte **368,67 × 103,33 pt**, Oberkante 753,67 pt |
-| T-DOCK-R | Eckenradius **38,33 pt** (Fit 0,5 px). *Nicht* konzentrisch zum Display (das wären 45,3 pt) — Schätzung aus Phase 0 damit widerlegt |
-| T-DOCK-ICONS | 4 × 64 pt, vertikal zentriert (19,67 pt oben/unten), 20 pt Innenrand links/rechts, Abstand Mitte-Mitte **88,22 pt** (x = 36,67 / 125 / 213,33 / 301,33 pt) |
-| T-DOCK-RIM | wie Pill: oben/unten heller Saum, seitlich dunkler Rand; Füllung minimal dunkler als Wallpaper (≈ −8 % Luminanz) |
+| T-DOCK-INSET | **16.67 pt** left/right, **17 pt** bottom |
+| T-DOCK | glass plate **368.67 × 103.33 pt**, top 753.67 pt |
+| T-DOCK-R | corner radius **38.33 pt** (fit 0.5 px). *Not* concentric with the display (that would be 45.3 pt) — refutes the phase-0 estimate |
+| T-DOCK-ICONS | 4 × 64 pt, vertically centred (19.67 pt top/bottom), 20 pt inner margin left/right, pitch centre to centre **88.22 pt** (x = 36.67 / 125 / 213.33 / 301.33 pt) |
+| T-DOCK-RIM | like the pill: light rim top/bottom, dark edge at the sides; fill slightly darker than the wallpaper (≈ −8 % luminance) |
 
-### 2.5 Ordner (geöffnet)
+### 2.5 Folder (open)
 
-| ID | Wert |
+| ID | Value |
 |---|---|
-| T-FOLDER-PANEL | **306,33 × 352,67 pt**, r = **38,5 pt** continuous (Fit 0,7 px), **exakt bildschirmzentriert** |
-| T-FOLDER-GRID | 3 Spalten, Icons 64 pt; Spaltenabstand **92,67 pt** (= Homescreen), Reihenabstand **104,33 pt**; Innenrand links 29 pt, oben 28,67 pt |
-| T-FOLDER-TITLE | „Utilities“, fett, ≈ 34 pt (Large-Title-Größe), weiß, linksbündig über dem Panel (≈ 73 pt von links), [GESCHÄTZT] Größe ±2 pt |
-| T-FOLDER-BG | Homescreen dahinter stark geblurrt (Icons nur noch als Farbflecken), leicht abgedunkelt |
+| T-FOLDER-PANEL | **306.33 × 352.67 pt**, r = **38.5 pt** continuous (fit 0.7 px), **exactly centred on screen** |
+| T-FOLDER-GRID | 3 columns, icons 64 pt; column pitch **92.67 pt** (= home screen), row pitch **104.33 pt**; inner margin left 29 pt, top 28.67 pt |
+| T-FOLDER-TITLE | "Utilities", bold, ≈ 34 pt (large-title size), white, left-aligned above the panel (≈ 73 pt from the left), [ESTIMATED] size ±2 pt |
+| T-FOLDER-BG | home screen behind strongly blurred (icons only colour blobs), slightly darkened |
 
-### 2.6 Bearbeitungsmodus
+### 2.6 Edit mode
 
-| ID | Wert |
+| ID | Value |
 |---|---|
-| T-BADGE | Minus-Badge Ø **26 pt**, hellgraue Glas-Kreisfläche, schwarzer Strich **12 × 2 pt**; Mittelpunkt bei Icon-Ecke oben links + (2,3 / 3,2) pt |
-| T-EDIT-BTN | zwei Glas-Kapseln oben **66,67 × 27,33 pt**, y = 19 pt, 35,67 pt vom Rand; links Pinsel (Customise), rechts Häkchen (Fertig). Statusleiste wird ausgeblendet |
-| T-EDIT-PILL | Pill zeigt Page-Dots statt „Search“ |
-| T-WIDGET-RESIZE | Widgets bekommen unten rechts einen Resize-Griff (Kreisbogen) |
+| T-BADGE | minus badge Ø **26 pt**, light grey glass circle, black bar **12 × 2 pt**; centre at icon top-left corner + (2.3 / 3.2) pt |
+| T-EDIT-BTN | two glass capsules at the top **66.67 × 27.33 pt**, y = 19 pt, 35.67 pt from the edge; left brush (Customise), right checkmark (Done). Status bar is hidden |
+| T-EDIT-PILL | pill shows page dots instead of "Search" |
+| T-WIDGET-RESIZE | widgets get a resize handle at the bottom right (circular arc) |
 
-### 2.7 Squircle-Form  [BELEGT]
-„Continuous corner“-Rechteck aus Bézier-Kurven; Ecke beginnt 1,52866 × r von der Kante ([Liam Rosenfeld](https://liamrosenfeld.com/posts/apple_icon_quest/)). Unsere Messungen (Icons, Widgets, Ordner) passen mit dieser Form deutlich besser als mit Kreisbögen → `ContinuousRoundedShape(r)` für alles.
+### 2.7 Squircle shape [SOURCED]
+"Continuous corner" rectangle made of Bézier curves; the corner starts 1.52866 × r from the edge ([Liam Rosenfeld](https://liamrosenfeld.com/posts/apple_icon_quest/)). Our measurements (icons, widgets, folders) fit this shape much better than circular arcs → `ContinuousRoundedShape(r)` for everything.
 
-### 2.8 Liquid-Glass-Material
-Bausteine (AGSL): Blur + Sättigung, Rand-Refraktion, heller Saum oben/unten, dunkler Seitenrand, Tönung („Klar ↔ Getönt“). Saum/Rand-Verhalten [GEMESSEN] qualitativ; Blur-Radius & Refraktionsstärke [GESCHÄTZT] → Debug-Panel. Referenz: [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass).
+### 2.8 Liquid Glass material
+Building blocks (AGSL): blur + saturation, edge refraction, light rim top/bottom, dark side edge, tint ("Clear ↔ Tinted"). Rim/edge behaviour [MEASURED] qualitatively; blur radius & refraction strength [ESTIMATED] → debug panel. Reference: [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass).
 
 ---
 
 ## 3. Springs: Apple → Compose
 
-### 3.1 Apple-Parameter  [BELEGT]
-- `Spring(duration: 0.5, bounce: 0.0)` = Default; duration = response.
-- `.smooth` bounce 0 · `.snappy` 0.15 · `.bouncy` 0.3 (je 0.5 s); `.spring(response: 0.5, dampingFraction: 0.825)`; `.interactiveSpring(0.15, 0.86, blend 0.25)`; `CASpringAnimation` mass 1 / stiffness 100 / damping 10.
-- Retarget übernimmt die aktuelle Geschwindigkeit.
-Quellen: [Apple – Spring](https://developer.apple.com/documentation/swiftui/spring), [snappy](https://developer.apple.com/documentation/swiftui/animation/snappy(duration:extrabounce:)), [bouncy](https://developer.apple.com/documentation/swiftui/animation/bouncy(duration:extrabounce:)), [spring(response:…)](https://developer.apple.com/documentation/swiftui/animation/spring(response:dampingfraction:blendduration:)), [interactiveSpring](https://developer.apple.com/documentation/swiftui/animation/interactivespring(response:dampingfraction:blendduration:)), [WWDC23](https://developer.apple.com/videos/play/wwdc2023/10158/), [WWDC18](https://developer.apple.com/videos/play/wwdc2018/803/)
+### 3.1 Apple parameters [SOURCED]
+- `Spring(duration: 0.5, bounce: 0.0)` = default; duration = response.
+- `.smooth` bounce 0 · `.snappy` 0.15 · `.bouncy` 0.3 (each 0.5 s); `.spring(response: 0.5, dampingFraction: 0.825)`; `.interactiveSpring(0.15, 0.86, blend 0.25)`; `CASpringAnimation` mass 1 / stiffness 100 / damping 10.
+- Retargeting keeps the current velocity.
+Sources: [Apple – Spring](https://developer.apple.com/documentation/swiftui/spring), [snappy](https://developer.apple.com/documentation/swiftui/animation/snappy(duration:extrabounce:)), [bouncy](https://developer.apple.com/documentation/swiftui/animation/bouncy(duration:extrabounce:)), [spring(response:…)](https://developer.apple.com/documentation/swiftui/animation/spring(response:dampingfraction:blendduration:)), [interactiveSpring](https://developer.apple.com/documentation/swiftui/animation/interactivespring(response:dampingfraction:blendduration:)), [WWDC23](https://developer.apple.com/videos/play/wwdc2023/10158/), [WWDC18](https://developer.apple.com/videos/play/wwdc2018/803/)
 
-### 3.2 Umrechnung  [ABGELEITET]
+### 3.2 Conversion [DERIVED]
 ```
 ω₀ = 2π / response
-stiffness    = ω₀² = (2π / response)²          (m = 1, wie Compose)
-dampingRatio = dampingFraction ;  aus bounce: ζ = 1 − bounce (≥0) bzw. 1/(1+bounce) (<0)
+stiffness    = ω₀² = (2π / response)²          (m = 1, as in Compose)
+dampingRatio = dampingFraction ;  from bounce: ζ = 1 − bounce (≥0) or 1/(1+bounce) (<0)
 Compose: spring(dampingRatio = ζ, stiffness = (2π/response)²)
 ```
 | response (s) | 0.15 | 0.2 | 0.25 | 0.3 | 0.34 | 0.36 | 0.4 | 0.45 | 0.5 |
 |---|---|---|---|---|---|---|---|---|---|
 | stiffness | 1754.6 | 987.0 | 631.7 | 438.6 | 341.5 | 304.6 | 246.7 | 195.0 | 157.9 |
 
-Compose `Animatable.animateTo()` startet mit `initialVelocity = velocity` → Retarget ohne Sprung. Gesten-Geschwindigkeit (VelocityTracker, px/s) geht 1:1 als `initialVelocity` rein.
+Compose `Animatable.animateTo()` starts with `initialVelocity = velocity` → retargeting without a jump. Gesture velocity (VelocityTracker, px/s) goes in 1:1 as `initialVelocity`.
 
-**Fit-Methode für [GEMESSEN]-Springs:** Position pro Frame per Template-Matching/Kreuzkorrelation, dann Least-Squares-Fit der gedämpften Oszillator-Lösung (freie Parameter ω₀, ζ, v₀) ab dem ersten Frame nach Loslassen. RMS-Fehler steht jeweils dabei.
+**Fit method for [MEASURED] springs:** position per frame via template matching/cross-correlation, then a least-squares fit of the damped-oscillator solution (free parameters ω₀, ζ, v₀) from the first frame after release. The RMS error is given with each.
 
-### 3.3 Springs & Timings pro Interaktion
+### 3.3 Springs & timings per interaction
 
-| ID | Interaktion | Wert | Status |
+| ID | Interaction | Value | Status |
 |---|---|---|---|
-| **M-PAGE** | Seite einrasten nach Swipe | **response 0,36 s, ζ 0,90** (4 Swipes: 0,32–0,38 s / 0,89–0,92; RMS 0,4–3 pt); Flick-Geschwindigkeit beim Loslassen ≈ 2000 pt/s | [GEMESSEN] |
-| M-PAGE-DRAG | Finger-Phase | Inhalt folgt 1:1 | [GEMESSEN] |
-| M-RUBBER | Gummiband am Rand | `(x·d·0.55)/(d + 0.55·x)` | [BELEGT] UIScrollView |
-| M-PAGE-THRESH | Seitenwechsel-Schwelle | > ~300 pt/s oder > 50 % Versatz | [GESCHÄTZT] |
-| **M-PILL** | Pill „Search“ ↔ Dots | bei Swipe-Beginn Überblendung zu Dots in ≈ 0,15 s; nach dem Einrasten bleiben Dots ≈ **0,5 s** stehen, dann ≈ 0,15 s zurück zu „Search“ | [GEMESSEN] |
-| **M-PRESS** | Icon antippen | Touch-Down: **sofort** (≤ 1 Frame) auf **57 % Helligkeit** (≙ Schwarz-Overlay α 0,43), **keine Skalierung**; beim Loslassen sofort zurück (+ App-Start) | [GEMESSEN] |
-| M-PRESS-CANCEL | Finger wegziehen ohne Start | weiches Zurückblenden? | [GESCHÄTZT] → prüfen |
-| **M-FOLDER** | Ordner öffnen **und** schließen | **response 0,34 s, ζ 1,0** (kritisch, kein Nachfedern; Öffnen/Schließen symmetrisch, RMS < 1 pt). Panel skaliert von Icon-Rechteck (Skala 64/306,33 = 0,209, Mittelpunkt = Ordner-Icon) zur Bildschirmmitte | [GEMESSEN] |
-| M-MERGE | Icon über App/Ordner halten → Ordner-Absicht | reagiert, sobald das Icon über dem Ziel **stillsteht** (Hinweis ≈ 20 ms nach dem Anhalten); Glas wächst auf **1,22×** (Kanten 93→72 / 187→162 px) in ≈ 0,1 s ohne Überschwingen (Feder ≈ 0,11 s, ζ 1); Ordnername blendet aus; ausgelöst bei ≈ 26 pt Abstand der Mitten | [GEMESSEN] Nutzer-iPhone 10-14, 10,6 s |
-| M-MERGE-DROP | Loslassen über dem Ordner | Icon schrumpft auf Mini-Größe und fliegt in den freien Mini-Platz: **response 0,46 s, ζ 1,0** (RMS 1,2 %); Ordner-Glas zurück in ≈ 0,1 s | [GEMESSEN] 11,40–11,78 s |
-| M-FOLDER-PAGE | Blättern im offenen Ordner | Seite = Panelbreite, Icons am Panelrand abgeschnitten, folgt dem Finger, rastet mit **M-PAGE** ein (RMS 1,1 px); Bearbeiten fügt eine leere Seite an | [GEMESSEN] 16,5–18,9 s |
-| M-FOLDER-OUT | App aus dem offenen Ordner ziehen | Ordner bleibt offen, App hängt am Finger; erst **≈ 0,15 s** nachdem ihre Mitte das Panel verlassen hat, schließt er (normales M-FOLDER-Schließen) | [GEMESSEN] 23,27 → 23,42 s |
-| M-EDGE | Icon am Seitenrand halten | sofort ≈ 5 pt Ruck, dann kriecht die Seite gleichmäßig bis ≈ 40 pt; nach **≈ 0,85 s** Haptik + Wechsel (M-PAGE) | [GEMESSEN] 26,8–27,9 s |
-| M-BADGE-DRAG | Minus-Badge beim Aufnehmen/Ablegen | Aufnehmen: Original an der Ausgangsstelle blendet als Geist aus, sein Badge schrumpft in ≈ 0,1 s weg; Ablegen: Badge wächst aus seiner Mitte, sobald das Icon gelandet ist, in ≈ 0,1 s ohne Überschwingen | [GEMESSEN] 43,32–43,42 / 44,89–44,99 s |
-| T-MERGE.dark | Ordner-Hinweis dunkelt das Ordnerglas ab | Glas innen 75 → 53 bei Umgebung 96 ≈ +30 % Schwarz; das Ordnerglas selbst wächst (kein zusätzlicher heller Glasfleck) | [GEMESSEN] 10,4 / 10,8 s |
-| T-WIDGET-ROWS | Widget-Raster | 2 Reihen hohe Widgets nur in den Reihenpaaren (Reihe 1, 3, 5) — nie eine einzelne App-Reihe über einem Widget; „Widgets in jeder Reihe“ unter 🍎 Quirks | [BELEGT Nutzer] |
-| **M-JIGGLE** | Wackeln | **Rotation ±1,70°, Periode 0,256 s**; Versatz **x ±0,39 pt @ 0,268 s**, **y ±0,39 pt @ 0,284 s** (drei leicht verschiedene Perioden → organisch); alles Sinus; **Phase pro Icon zufällig**; startet sofort mit voller Amplitude (kein Einblenden). Gilt für Grid, Dock und Widgets | [GEMESSEN] (4 Icons, RMS 0,05° / 0,01 pt) |
-| M-EDIT-ENTER | Badges/Buttons/Dots beim Eintritt | erscheinen innerhalb ~0,1 s; Feinkurve noch nicht vermessen | [GESCHÄTZT] |
-| M-SEARCH-PULL | Swipe nach unten (Rev. 3, beide Suchvorgänge der Aufnahme frameweise) | Blur wächst mit dem Finger und ist nach ≈ ¼ des Wegs voll (Icons bleiben als Farbformen erkennbar → Radius ≈ 12 pt); Homescreen rutscht mit (≈ 66 pt beim Loslassen, offen ≈ 90 pt), schrumpft (0,94 → 0,89) und dunkelt ab (−37 % → −58 %) | [GEMESSEN] |
-| M-SEARCH-BLOCK | „Siri Suggestions“ + Karte | blenden ab ≈ ⅓ des Wegs ein, kommen von oben (≈ −40 pt) und folgen dem Finger **über** die Ruheposition hinaus (+80…88 pt); nach dem Loslassen Rückfedern **response 0,46 s, ζ 0,81** (RMS 0,3 pt) | [GEMESSEN] |
-| M-SEARCH-KB | Tastatur + Suchfeld | Tastatur startet **schon während des Ziehens** (≈ 75 % des Wegs), Feder 0,44 s / 0,85 = gleiche Systemfeder wie der Block; Suchfeld reitet auf der Tastatur. Auf Android steuert das System die IME-Animation → Feld hängt an `WindowInsets.ime` | [GEMESSEN] |
-| M-SCROLL | Mediathek-Scrollen | UIScrollView 0,998/ms → Compose `exponentialDecay(frictionMultiplier = 0,4767)`; Zurückfedern [GESCHÄTZT] | [BELEGT]/[ABGELEITET] |
-| T-LIB | App-Mediathek-Layout (recording2, Ruhelage 9,9 s) | Feld 26/90, 350×47,33, Schrift 17; Kacheln 165,33 □, Seite 25,67, Abstand 20, Reihen 200,67, oben 168,67; Innenabstand 12,67, große Icons 64 (Abstand 12), Mini 25,67 (Abstand 6); Label-Grundlinie +16,67 unter Kachel | [GEMESSEN] |
-| T-LIB-LIST | A–Z-Liste (12,4 s) | Feld rechts 302,33, „Cancel“ x 323 (17 pt); Kopf-Grundlinie 182, Zeilen 72 pt ab 189,67, Icon 48 bei x 26,33, Name x 91 (17 pt weiß), Haarlinie bis 371; Index x 394,33, 183–550, 27 Zeichen | [GEMESSEN] |
-| T-LIB-CAT | Kategorie aufgeklappt (18,2 s) | kein Panel; Titel fett 34,5 bei x 30, Grundlinie 325,67; Raster = Homescreen-Raster (x 30, 92,67/100,33), oben 371 | [GEMESSEN] |
-| M-LIB-LIST | Herunterziehen → Liste (10,1–11,9 / 12,97–13,55 s) | sofort beim Ziehen: Kacheln unscharf in 0,12 s, Liste ab 0,3 s (0,45 s), Abdunkeln 0,75 s (Helligkeit 171 → 113); Liste folgt Finger 1:1, Feld ⅓; Loslassen: Feder 0,5/1,0, Tastatur hoch; „Cancel“: Liste 0,17 s weg, Kacheln ab 0,19 s scharf (0,38 s) | [GEMESSEN] |
-| M-LIB-CAT | Kategorie auf/zu (17,50–18,10 / 18,60–18,81 s) | Titel + Raster zoomen als Gruppe aus dem Mini-Cluster: Feder 0,54/0,9 (rms 0,005); die 4 Cluster-Icons fliegen einzeln aus ihren Mini-Plätzen; Mediathek schrumpft um (Mitte, 0,48 H) auf 0,88 und ist bei Fortschritt ≈ 0,55 weg; Zuklappen ≈ 0,32/1,0 | [GEMESSEN] |
-| M-SEARCH-MORPH | „Search“-Pill → Suchfeld (recording5) | Pill bleibt beim Ziehen **scharf** (nicht in der verwischten Ebene), wandert mit ≈ ¼ von h mit (23 pt bei h = 94). Bei h ≈ **94 pt** (noch während des Ziehens) zieht sie sich in ≈ 0,3 s symmetrisch auf **volle Feldbreite (≈ 386 pt) × 47 pt** auf (frühere 338 pt = Fehlmessung, Zwischenstand); Feld = klares Glas, Lupe + Platzhalter links, Mikrofon rechts; bleibt auf ihrer Höhe, bis die Tastatur sie erreicht, dann fährt sie mit und dockt in voller Breite an. Zurück unter ≈ 62 pt. Tastatur lugt bei iOS schon beim Morph unten heraus (Android: nicht steuerbar). Feld klebt direkt über der Tastatur: `windowSoftInputMode=adjustResize` (+ Edge-to-Edge) liefert die IME-Insets Frame für Frame (mit adjustNothing kamen sie als Sprung); Insets werden in der Layout-Phase gelesen → kein Frame Verzug. Gemessen: Abstand konstant 9–10 pt während der ganzen Tastaturanimation | [GEMESSEN] |
-| M-FOLDER-HANDOFF | Ordner: Übergang Icon ↔ Panel | Emulator-Aufnahme zeigte ein hängendes Rest-Panel (0,25 s) + hart verschwindendes Icon → Überblendung in der kleinsten Phase (bis Fortschritt 0,12) + feine Endschwelle | [ABGELEITET] |
-| M-CTXMENU | Long-Press auf Icon → Kontextmenü (recording4) | Touch-Down: sofort 57 % dunkel; ab +0,20 s wächst das Icon langsam 1,0 → 1,23 (bis +0,73 s), ab +0,47 s blendet das Dunkel aus (bis +0,67 s, Icon dann ~6 % heller); bei **+0,82 s** öffnet das Menü: Icon in ~0,08 s auf 1,15 und 10 pt nach oben, Hintergrund in ~0,15 s auf −50 %; Menü wächst aus dem Icon. Schließen ~0,2 s. Einträge (Telefon): Remove App (rot), Require Face ID, Edit Home Screen, App-Aktionen | [GEMESSEN] |
-| T-CTX | Kontextmenü-Layout (recording4 2,3 s) | Breite 250,67, links bündig mit angehobenem Icon (rechts bündig in der rechten Hälfte), 9 pt Abstand; Zeile 42 pt (+19,33 je weitere Textzeile), Innenabstand 10; Symbol Mitte x 40,67 (16,33 pt), Text x 64,67, 17 pt; Rot #FC7075; Hintergrund −52 %, nicht verwischt; Menü-Glas stark verwischt. Einträge auf Android: App entfernen, Home-Bildschirm bearbeiten, App-Info + native App-Shortcuts (LauncherApps, max. 4, Symbole einfarbig) | [GEMESSEN] |
-| T-FOLDER-PANEL (Rev.) | Ordner-Panel ist klares Glas | IMG_3130: innen ≈ außen (132 vs. 136) → Aufhellung 0,03, Blur = Hintergrund-Blur 14, Abdunkelung als Tönung | [GEMESSEN] |
-| M-LAUNCH | App öffnen | Fenster wächst vom Icon in ≈ **0,23 s** auf Vollbild, Homescreen dahinter blurt | [GEMESSEN] grob (Phase 6) |
-| M-DRAG-LIFT / M-REFLOW / M-DROP / M-BADGE / M-MENU | Phase 2 | noch nicht im Material | [GESCHÄTZT] (Phase-0-Werte bleiben Startpunkt) |
+| **M-PAGE** | page snaps after a swipe | **response 0.36 s, ζ 0.90** (4 swipes: 0.32–0.38 s / 0.89–0.92; RMS 0.4–3 pt); flick velocity at release ≈ 2000 pt/s | [MEASURED] |
+| M-PAGE-DRAG | finger phase | content follows 1:1 | [MEASURED] |
+| M-RUBBER | rubber band at the edge | `(x·d·0.55)/(d + 0.55·x)` | [SOURCED] UIScrollView |
+| M-PAGE-THRESH | page-change threshold | > ~300 pt/s or > 50 % offset | [ESTIMATED] |
+| **M-PILL** | "Search" pill ↔ dots | at the start of a swipe, crossfade to dots in ≈ 0.15 s; after snapping the dots stay ≈ **0.5 s**, then ≈ 0.15 s back to "Search" | [MEASURED] |
+| **M-PRESS** | tapping an icon | touch down: **immediately** (≤ 1 frame) to **57 % brightness** (≙ black overlay α 0.43), **no scaling**; on release back immediately (+ app launch) | [MEASURED] |
+| M-PRESS-CANCEL | dragging the finger away without launching | soft fade back? | [ESTIMATED] → check |
+| **M-FOLDER** | opening **and** closing a folder | **response 0.34 s, ζ 1.0** (critical, no overshoot; open/close symmetric, RMS < 1 pt). Panel scales from the icon rectangle (scale 64/306.33 = 0.209, centre = folder icon) to the screen centre | [MEASURED] |
+| M-MERGE | holding an icon over an app/folder → folder intent | reacts as soon as the icon **comes to rest** over the target (hint ≈ 20 ms after stopping); glass grows to **1.22×** (edges 93→72 / 187→162 px) in ≈ 0.1 s without overshoot (spring ≈ 0.11 s, ζ 1); folder name fades out; triggered at ≈ 26 pt distance between centres | [MEASURED] user's iPhone 10-14, 10.6 s |
+| M-MERGE-DROP | releasing over the folder | icon shrinks to mini size and flies into the free mini slot: **response 0.46 s, ζ 1.0** (RMS 1.2 %); folder glass back in ≈ 0.1 s | [MEASURED] 11.40–11.78 s |
+| M-FOLDER-PAGE | paging in an open folder | page = panel width, icons clipped at the panel edge, follows the finger, snaps with **M-PAGE** (RMS 1.1 px); editing adds an empty page | [MEASURED] 16.5–18.9 s |
+| M-FOLDER-OUT | dragging an app out of an open folder | folder stays open, app hangs on the finger; it closes only **≈ 0.15 s** after the app's centre has left the panel (normal M-FOLDER close) | [MEASURED] 23.27 → 23.42 s |
+| M-EDGE | holding an icon at the page edge | immediate ≈ 5 pt nudge, then the page creeps evenly to ≈ 40 pt; after **≈ 0.85 s** haptic + page change (M-PAGE) | [MEASURED] 26.8–27.9 s |
+| M-BADGE-DRAG | minus badge when picking up/dropping | pick up: the original at its spot fades out as a ghost, its badge shrinks away in ≈ 0.1 s; drop: the badge grows from its centre as soon as the icon has landed, ≈ 0.1 s without overshoot | [MEASURED] 43.32–43.42 / 44.89–44.99 s |
+| T-MERGE.dark | folder hint darkens the folder glass | glass inside 75 → 53 with surroundings at 96 ≈ +30 % black; the folder glass itself grows (no extra light glass patch) | [MEASURED] 10.4 / 10.8 s |
+| T-WIDGET-ROWS | widget grid | 2-row widgets only in row pairs (rows 1, 3, 5) — never a single row of apps above a widget; "Widgets in Any Row" under 🍎 Quirks | [SOURCED by user] |
+| **M-JIGGLE** | jiggle | **rotation ±1.70°, period 0.256 s**; offset **x ±0.39 pt @ 0.268 s**, **y ±0.39 pt @ 0.284 s** (three slightly different periods → organic); all sine; **random phase per icon**; starts immediately at full amplitude (no fade-in). Applies to grid, dock and widgets | [MEASURED] (4 icons, RMS 0.05° / 0.01 pt) |
+| M-EDIT-ENTER | badges/buttons/dots on entering | appear within ~0.1 s; fine curve not measured yet | [ESTIMATED] |
+| M-SEARCH-PULL | swipe down (rev. 3, both searches in the recording frame by frame) | blur grows with the finger and is full after ≈ ¼ of the way (icons stay recognisable as colour shapes → radius ≈ 12 pt); home screen moves along (≈ 66 pt at release, open ≈ 90 pt), shrinks (0.94 → 0.89) and darkens (−37 % → −58 %) | [MEASURED] |
+| M-SEARCH-BLOCK | "Siri Suggestions" + card | fade in from ≈ ⅓ of the way, come from above (≈ −40 pt) and follow the finger **beyond** the resting position (+80…88 pt); after release spring back **response 0.46 s, ζ 0.81** (RMS 0.3 pt) | [MEASURED] |
+| M-SEARCH-KB | keyboard + search field | keyboard starts **already while dragging** (≈ 75 % of the way), spring 0.44 s / 0.85 = same system spring as the block; search field rides on the keyboard. On Android the system drives the IME animation → field attached to `WindowInsets.ime` | [MEASURED] |
+| M-SCROLL | App Library scrolling | UIScrollView 0.998/ms → Compose `exponentialDecay(frictionMultiplier = 0.4767)`; spring back [ESTIMATED] | [SOURCED]/[DERIVED] |
+| T-LIB | App Library layout (recording2, at rest 9.9 s) | field 26/90, 350×47.33, font 17; tiles 165.33 □, side 25.67, gap 20, rows 200.67, top 168.67; inner padding 12.67, large icons 64 (gap 12), mini 25.67 (gap 6); label baseline +16.67 below the tile | [MEASURED] |
+| T-LIB-LIST | A–Z list (12.4 s) | field right 302.33, "Cancel" x 323 (17 pt); header baseline 182, rows 72 pt from 189.67, icon 48 at x 26.33, name x 91 (17 pt white), hairline to 371; index x 394.33, 183–550, 27 characters | [MEASURED] |
+| T-LIB-CAT | category expanded (18.2 s) | no panel; title bold 34.5 at x 30, baseline 325.67; grid = home screen grid (x 30, 92.67/100.33), top 371 | [MEASURED] |
+| M-LIB-LIST | pull down → list (10.1–11.9 / 12.97–13.55 s) | immediately while dragging: tiles blurred in 0.12 s, list from 0.3 s (0.45 s), darkening 0.75 s (brightness 171 → 113); list follows the finger 1:1, field ⅓; release: spring 0.5/1.0, keyboard up; "Cancel": list gone in 0.17 s, tiles sharp from 0.19 s (0.38 s) | [MEASURED] |
+| M-LIB-CAT | category open/close (17.50–18.10 / 18.60–18.81 s) | title + grid zoom as a group out of the mini cluster: spring 0.54/0.9 (rms 0.005); the 4 cluster icons fly individually out of their mini slots; App Library shrinks around (centre, 0.48 H) to 0.88 and is gone at progress ≈ 0.55; closing ≈ 0.32/1.0 | [MEASURED] |
+| M-SEARCH-MORPH | "Search" pill → search field (recording5) | the pill stays **sharp** while dragging (not in the blurred layer), moves along with ≈ ¼ of h (23 pt at h = 94). At h ≈ **94 pt** (still while dragging) it expands symmetrically in ≈ 0.3 s to **full field width (≈ 386 pt) × 47 pt** (earlier 338 pt = mis-measurement of an intermediate state); field = clear glass, magnifier + placeholder on the left, microphone on the right; stays at its height until the keyboard reaches it, then rides along and docks at full width. Back below ≈ 62 pt. On iOS the keyboard already peeks out during the morph (Android: not controllable). The field sits directly above the keyboard: `windowSoftInputMode=adjustResize` (+ edge-to-edge) delivers the IME insets frame by frame (with adjustNothing they came as a jump); insets are read in the layout phase → no frame delay. Measured: gap constant at 9–10 pt during the whole keyboard animation | [MEASURED] |
+| M-FOLDER-HANDOFF | folder: transition icon ↔ panel | an emulator recording showed a lingering leftover panel (0.25 s) + a hard-vanishing icon → crossfade in the smallest phase (up to progress 0.12) + fine end threshold; closing since 10-15: no crossfade, glass and icons morph fully into the folder icon | [DERIVED] |
+| M-CTXMENU | long press on an icon → context menu (recording4) | touch down: immediately 57 % dark; from +0.20 s the icon slowly grows 1.0 → 1.23 (until +0.73 s), from +0.47 s the darkening fades out (until +0.67 s, icon then ~6 % brighter); at **+0.82 s** the menu opens: icon in ~0.08 s to 1.15 and 10 pt up, background in ~0.15 s to −50 %; menu grows out of the icon. Closing ~0.2 s. Entries (Phone): Remove App (red), Require Face ID, Edit Home Screen, app actions | [MEASURED] |
+| T-CTX | context menu layout (recording4 2.3 s) | width 250.67, left-aligned with the lifted icon (right-aligned in the right half), 9 pt gap; row 42 pt (+19.33 per extra text line), inner padding 10; symbol centre x 40.67 (16.33 pt), text x 64.67, 17 pt; red #FC7075; background −52 %, not blurred; menu glass strongly blurred. Entries on Android: Remove App, Edit Home Screen, App Info + native app shortcuts (LauncherApps, max. 4, monochrome symbols) | [MEASURED] |
+| T-FOLDER-PANEL (rev.) | folder panel is clear glass | IMG_3130: inside ≈ outside (132 vs. 136) → lightening 0.03, blur = background blur 14, darkening as tint | [MEASURED] |
+| M-LAUNCH | opening an app | window grows from the icon to full screen in ≈ **0.23 s**, home screen behind blurs | [MEASURED] roughly (phase 6) |
+| M-DRAG-LIFT / M-REFLOW / M-DROP / M-BADGE / M-MENU | phase 2 | not in the material yet | [ESTIMATED] (phase-0 values remain the starting point) |
 
-### 3.4 Scroll-Physik  [BELEGT]
-Deceleration `UIScrollView.DecelerationRate.normal` = 0.998/ms, `.fast` = 0.99/ms ([Apple](https://developer.apple.com/documentation/uikit/uiscrollview/decelerationrate-swift.struct/normal)) — für App-Mediathek/Heute-Ansicht.
+### 3.4 Scroll physics [SOURCED]
+Deceleration `UIScrollView.DecelerationRate.normal` = 0.998/ms, `.fast` = 0.99/ms ([Apple](https://developer.apple.com/documentation/uikit/uiscrollview/decelerationrate-swift.struct/normal)) — for App Library/Today view.
 
 ---
 
-## 4. Verhaltensdetails
+## 4. Behaviour details
 
-| Verhalten | Status |
+| Behaviour | Status |
 |---|---|
-| Antippen: sofortiges Abdunkeln, keine Skalierung, Start beim Loslassen | [GEMESSEN] |
-| Long-Press auf leeren Bereich im Bearbeitungsmodus → Glas-Menü (4 Einträge, Icon + Text, liegt über dem Widget, blurt darunter) | [GEMESSEN] IMG_3125 |
-| Bearbeitungsmodus: Statusleiste weg, 2 Glas-Buttons oben, Badges an allen Icons + Widgets + Dock | [GEMESSEN] |
-| Swipe nach unten → Suche; Swipe rechts von Seite 1 → Heute-Ansicht (Widget-Liste, IMG_3132) | [GEMESSEN] |
-| Ordner: Hintergrund blurt stark, Titel groß über dem Panel | [GEMESSEN] |
-| Icon-Tilt/Glitzer | in iOS 27 entfernt [BELEGT] |
+| Tap: immediate darkening, no scaling, launch on release | [MEASURED] |
+| Long press on an empty area in edit mode → glass menu (4 entries, icon + text, lies over the widget, blurs what's below) | [MEASURED] IMG_3125 |
+| Edit mode: status bar gone, 2 glass buttons at the top, badges on all icons + widgets + dock | [MEASURED] |
+| Swipe down → search; swipe right from page 1 → Today view (widget list, IMG_3132) | [MEASURED] |
+| Folder: background blurs strongly, large title above the panel | [MEASURED] |
+| Icon tilt/sparkle | removed in iOS 27 [SOURCED] |
 
 ---
 
-## 5. Android-Grenzen
-1. **Systemhintergrund nicht lesbar** (Android 13+, `READ_WALLPAPER_INTERNAL` privilegiert) → Launcher zeichnet **eigenen Wallpaper**. ([Docs](https://developer.android.com/reference/android/app/WallpaperManager), [cvzi](https://github.com/cvzi/getwallpaperdrawable))
-2. Blur/Shader: `RenderEffect` (31) + AGSL (33) → minSdk 33.
-3. App-Öffnen (Phase 6): keine Remote-Transition für Drittanbieter (`CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS` = Signatur-Permission); möglich `ActivityOptions.makeScaleUpAnimation`/`makeClipRevealAnimation`.
-4. Tastatur-Animation gehört dem System (s. M-SEARCH-KB).
-5. Emulator: 60 Hz + Maus.
+## 5. Android limits
+1. **System wallpaper pixels** are not readable by normal apps (Android 13+, `READ_WALLPAPER_INTERNAL` is privileged) ([docs](https://developer.android.com/reference/android/app/WallpaperManager), [cvzi](https://github.com/cvzi/getwallpaperdrawable)). Current solution: Android draws its own wallpaper behind the transparent window; for glass and blur we read the pixels with all-files access (MANAGE_EXTERNAL_STORAGE) and reproduce Android's crop (glass/WallpaperCropModel), otherwise we draw our own wallpaper.
+2. Blur/shaders: `RenderEffect` (31) + AGSL (33) → minSdk 33.
+3. Opening apps (phase 6): no remote transition for third parties (`CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS` = signature permission); available: `ActivityOptions.makeScaleUpAnimation`/`makeClipRevealAnimation`. With the optional Animation Module (system app) the own transition works.
+4. The keyboard animation belongs to the system (see M-SEARCH-KB).
+5. Emulator: 60 Hz + mouse.
 
 ---
 
-## 6. Bitte am iPhone prüfen
+## 6. Please check on the iPhone
 
-Erledigt durch Messung: Modell/Maße ✔ · Pill existiert in iOS 27 ✔ · Antipp-Feedback ✔ · Icon-Ecke runder ✔ · Undo/Redo nicht vorhanden ✔ · Standard-Icongröße ✔
+Done by measurement: model/dimensions ✔ · pill exists in iOS 27 ✔ · tap feedback ✔ · icon corner rounder ✔ · no undo/redo ✔ · default icon size ✔
 
-Noch offen:
-- [ ] iPhone **17 Pro** oder **16 Pro**? (Maße identisch — nur für die Doku)
-- [ ] Icon antippen und den Finger **wegziehen** (ohne App zu starten): Blendet das Abdunkeln weich zurück oder springt es?
-- [ ] Wie lange musst du für den Bearbeitungsmodus auf ein Icon / leere Fläche drücken? (Gefühl: ~0,5 s oder ~1 s?)
-- [ ] Für Phase 2 später: eine zweite Aufnahme mit **Icon ziehen** (andere weichen aus), an den Rand ziehen (Seitenwechsel), Icon löschen, Ordner per Drüberziehen erstellen.
-- [ ] Für Phase 1 hilfreich: eine Aufnahme mit **langsamem** Wischen (Finger halten, loslassen ohne Schwung, auch zurückschnappen lassen) und Wischen über den Rand der letzten Seite (Gummiband).
+Still open:
+- [ ] iPhone **17 Pro** or **16 Pro**? (dimensions identical — documentation only)
+- [ ] Tap an icon and **drag the finger away** (without launching the app): does the darkening fade back softly or jump?
+- [ ] How long do you have to press an icon / empty area for edit mode? (feel: ~0.5 s or ~1 s?)
+- [ ] Phase 2: a second recording with **dragging an icon** (others move aside), dragging to the edge (page change), deleting an icon, creating a folder by dragging onto another icon. *(Done 10-14.)*
+- [ ] Phase 1: a recording with **slow** swiping (hold the finger, release without momentum, also let it snap back) and swiping past the edge of the last page (rubber band).
 
-## Nachtrag recording6/7 (Wallpaper, Customise, Glas-Kalibrierung)
+## Addendum recording6/7 (wallpaper, Customise, glass calibration)
 
-| ID | Was | Wert | Status |
+| ID | What | Value | Status |
 |---|---|---|---|
-| T-WPE | Wallpaper-Editor (recording6 7,7 s) | Vorschau = echter Homescreen 0,699× bei (60,33 / 131,33), Ecke ≈ 38; Cancel/Done-Kapseln 27,33 hoch, Mitte y 32; Kreise Ø 40 bei y 797, x 69 + 60,5·i, Trenner x 291, Blur x 332; Beschriftung 12 pt, Grundlinie 833 | [GEMESSEN] |
-| T-WPE-SHEET | „Choose Colour“ (17,5 s) | Glasblatt ab y 539,67, seitlich 6; 6×3 Farbkreise Ø 33, Raster 57,5 ab (57,9 / +95,33); Regler bei +270,33; 18 Farben gesampelt (DesignTokens.wallpaperSwatches) | [GEMESSEN] |
-| T-WPE-PHOTO | Fotos-Picker (29,4 s) | Blatt ab y 62; Glas-Kopf (X Ø 44, „Photos | Collections“, Chips 32 hoch, ausgewählt #1BA6FB); Raster 3 Spalten, Zellen im Bildschirmformat | [GEMESSEN grob] |
-| T-CUST | Customise-Blatt (recording7 14,7 / 22,4 s) | Glasblatt seitlich 10, unten 864; oben 594,67 (Tinted: 406); Stil-Vorschauen 61 pt bei x 67,5/156/244,6/333; Beschriftung y 770 (582); Hell/Dunkel y 836,6 (823); Tinted-Regler bei 643 / 697 | [GEMESSEN] |
-| T-GLASS (Rev.) | Glas auf Foto-Wallpaper (recording7 2,1 s, Katze) | im Dock fast scharf (Detail innen ≈ ½ außen) → Blur 0,6 dp; Sättigung innen ≈ 1,28× außen → 1,2 (vorher 1,5 = zu orange) | [GEMESSEN] |
-| T-CTX.editTint | Edit-Menü-Glas | über hellem Wallpaper 145 statt 188 → Tönung 0,24 | [GEMESSEN] |
-| T-LABEL (adaptiv) | Labels auf dunklem/buntem Wallpaper | weiß mit leichtem Schatten, sobald mittlere Helligkeit < 0,6 | [GESCHÄTZT] |
+| T-WPE | wallpaper editor (recording6 7.7 s) | preview = real home screen 0.699× at (60.33 / 131.33), corner ≈ 38; Cancel/Done capsules 27.33 high, centre y 32; circles Ø 40 at y 797, x 69 + 60.5·i, divider x 291, blur x 332; labels 12 pt, baseline 833 | [MEASURED] |
+| T-WPE-SHEET | "Choose Colour" (17.5 s) | glass sheet from y 539.67, sides 6; 6×3 colour circles Ø 33, grid 57.5 from (57.9 / +95.33); slider at +270.33; 18 colours sampled (DesignTokens.wallpaperSwatches) | [MEASURED] |
+| T-WPE-PHOTO | photo picker (29.4 s) | sheet from y 62; glass header (X Ø 44, "Photos | Collections", chips 32 high, selected #1BA6FB); grid 3 columns, cells in screen aspect ratio | [MEASURED roughly] |
+| T-CUST | Customise sheet (recording7 14.7 / 22.4 s) | glass sheet sides 10, bottom 864; top 594.67 (Tinted: 406); style previews 61 pt at x 67.5/156/244.6/333; labels y 770 (582); light/dark y 836.6 (823); tinted sliders at 643 / 697 | [MEASURED] |
+| T-GLASS (rev.) | glass on a photo wallpaper (recording7 2.1 s, cat) | almost sharp in the dock (detail inside ≈ ½ outside) → blur 0.6 dp; saturation inside ≈ 1.28× outside → 1.2 (previously 1.5 = too orange) | [MEASURED] |
+| T-CTX.editTint | edit-menu glass | over a light wallpaper 145 instead of 188 → tint 0.24 | [MEASURED] |
+| T-LABEL (adaptive) | labels on a dark/colourful wallpaper | white with a slight shadow as soon as the mean brightness < 0.6 | [ESTIMATED] |
 
-## Nachtrag recording8 (Heute-Ansicht, Widgets, Resize)
+## Addendum recording8 (Today view, widgets, resize)
 
-| ID | Was | Wert | Status |
+| ID | What | Value | Status |
 |---|---|---|---|
-| T-WIDGET | Widget-Größen | klein 164 × 164, breit 349,33, groß 349,33 × 364,67; ragt 3,67 pt über die Icon-Kanten; Eckenradius ≈ 22 (continuous); rasten nur in Spalte 0/2 ein | [GEMESSEN] |
-| T-TODAY | Heute-Ansicht (12,5 s) | Widgets ohne Label, oben 91,67, Rand 26,33, Abstand 21,33; Wallpaper stark verwischt; Batterien-Widget = dunkles getöntes Glas (innen ≈ 35 % der Hintergrundhelligkeit) | [GEMESSEN] |
-| T-WIDGET-HANDLE | Größengriff (39,55 s) | gebogene Glas-Bohne ≈ 13 pt dick, Mittellinie 3 pt innerhalb der Kante, Schenkel ≈ 26 pt | [GEMESSEN] |
-| M-WIDGET-RESIZE | Resize per Griff (39,5–48 s) | Rahmen folgt dem Finger, Icons fließen live um (immer vom Ausgangslayout aus), Unschärfe = Abstand zur nächsten Größe (Nutzer-Beobachtung), Einrasten Feder 0,35/0,86 [GESCHÄTZT] | [GEMESSEN]/[GESCHÄTZT] |
-| T-WIDGET-MENU | Widget-Kontextmenü (15,2 s) | Größenleiste oben (klein · mittel · groß · extragroß ausgegraut), aktuelle grau hinterlegt; Menü mittig unter dem Widget | [GEMESSEN] |
-| T-PICKER | Widget-Picker (26,5 s) | Blatt ab 123 pt, Suchfeld Weiß 11 % (Feld 57 vs. Blatt 32 Helligkeit), Widgets in Originalgröße, Titel fett + Untertitel grau | [GEMESSEN] |
-
+| T-WIDGET | widget sizes | small 164 × 164, wide 349.33, large 349.33 × 364.67; extends 3.67 pt beyond the icon edges; corner radius ≈ 22 (continuous); snap only into column 0/2 | [MEASURED] |
+| T-TODAY | Today view (12.5 s) | widgets without labels, top 91.67, margin 26.33, gap 21.33; wallpaper strongly blurred; Batteries widget = dark tinted glass (inside ≈ 35 % of the background brightness) | [MEASURED] |
+| T-WIDGET-HANDLE | size handle (39.55 s) | curved glass bean ≈ 13 pt thick, centre line 3 pt inside the edge, legs ≈ 26 pt | [MEASURED] |
+| M-WIDGET-RESIZE | resize via the handle (39.5–48 s) | frame follows the finger, icons reflow live (always from the starting layout), blur = distance to the next size (user observation), snap spring 0.35/0.86 [ESTIMATED] | [MEASURED]/[ESTIMATED] |
+| T-WIDGET-MENU | widget context menu (15.2 s) | size bar at the top (small · medium · large · extra large greyed out), current one with a grey background; menu centred below the widget | [MEASURED] |
+| T-PICKER | widget picker (26.5 s) | sheet from 123 pt, search field white 11 % (field 57 vs. sheet 32 brightness), widgets at their real size, title bold + grey subtitle | [MEASURED] |
