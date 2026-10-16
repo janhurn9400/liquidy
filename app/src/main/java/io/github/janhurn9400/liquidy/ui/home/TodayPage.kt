@@ -142,8 +142,10 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
             Box(
                 Modifier
                     // touched widget (resize / drag) lies above the ones making way
-                    .zIndex(if (dragged || model.resize?.key == key) 1f else 0f)
-                    .offset { val p = if (dragged) r.topLeft else pos.value; IntOffset(p.x.roundToInt(), p.y.roundToInt()) }
+                    .zIndex(if (dragged || model.resize?.key == key || model.todayLiftKey == key) 1f else 0f)
+                    // first frame after release: still at the finger position (dropFrom) until the spring has taken over —
+                    // otherwise the widget flashed for one frame at its target slot
+                    .offset { val p = if (dragged) r.topLeft else dropFrom.value ?: pos.value; IntOffset(p.x.roundToInt(), p.y.roundToInt()) }
                     .graphicsLayer {
                         if (dragged) {
                             // dragged widget follows the finger (from its original slot), lifted like a dragged icon (T-DRAG.scale)
