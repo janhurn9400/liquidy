@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
@@ -197,6 +198,11 @@ fun AndroidWidget(spec: WidgetSpec, modifier: Modifier) {
         return
     }
     val density = LocalDensity.current.density
+    // Tinted icon style: like iOS for third-party widgets the whole widget is mapped by brightness — dark → deep tint,
+    // middle → muted tint, light → almost white (measured on the user's iPhone 10-18, Spotify/Tesla widgets)
+    val ia = io.github.janhurn9400.liquidy.design.IconAppearance
+    val tinted = ia.effective == io.github.janhurn9400.liquidy.design.IconStyle.Tinted && !ia.dark
+    val tintEffect = if (!tinted) null else remember(ia.hue, ia.saturation) { widgetTintEffect(ia.hue, ia.saturation) }
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val slotW = constraints.maxWidth / density
         val slotH = constraints.maxHeight / density
@@ -237,6 +243,7 @@ fun AndroidWidget(spec: WidgetSpec, modifier: Modifier) {
                 val k = scale * fit.first
                 scaleX = k; scaleY = k
                 translationX = k * fit.second; translationY = k * fit.third
+                renderEffect = tintEffect
             }.onGloballyPositioned { c -> view?.let { AndroidWidgetTaps.register(spec.appWidgetId, it, c) } },
         )
     }
@@ -345,6 +352,42 @@ private fun drawsOutside(root: android.view.View, bg: android.view.View): Boolea
     }
     return walk(root)
 }
+
+/**
+ * Tinted third-party widget (iOS 27): brightness → HSV in the chosen hue. Fitted to the user's iPhone 10-18
+ * (Spotify/Tesla, purple tint): L 0.02 → V 0.31 S 1.0, L 0.42 → V 0.57 S 0.51, light → V 1.0 S ≈ 0.03.
+ */
+private fun widgetTintEffect(hue: Float, saturation: Float): androidx.compose.ui.graphics.RenderEffect {
+    val sh = android.graphics.RuntimeShader(WIDGET_TINT_AGSL)
+    sh.setFloatUniform("hue", hue / 360f)
+    sh.setFloatUniform("sat", saturation)
+    sh.setFloatUniform("v", TINT_V_DARK, 1f - TINT_V_DARK)
+    sh.setFloatUniform("s", TINT_S_DARK, TINT_S_FALL, TINT_S_EXP)
+    return android.graphics.RenderEffect.createRuntimeShaderEffect(sh, "content").asComposeRenderEffect()
+}
+
+private const val WIDGET_TINT_AGSL = """
+uniform shader content;
+uniform float hue;
+uniform float sat;
+uniform float2 v;   // value = v.x + v.y · L
+uniform float3 s;   // saturation = (s.x − s.y · L^s.z) · sat
+half4 main(float2 p) {
+    half4 c = content.eval(p);
+    if (c.a < 0.004) return c;
+    float3 col = float3(c.rgb) / float(c.a);
+    float l = dot(col, float3(0.299, 0.587, 0.114));
+    float val = clamp(v.x + v.y * l, 0.0, 1.0);
+    float sa = clamp((s.x - s.y * pow(l, s.z)) * sat, 0.0, 1.0);
+    float3 k = clamp(abs(fract(hue + float3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
+    float3 rgb = val * mix(float3(1.0), k, sa);
+    return half4(half3(rgb) * c.a, c.a);
+}
+"""
+private const val TINT_V_DARK = 0.3f   // value of black content
+private const val TINT_S_DARK = 1.15f  // saturation curve: S = 1.15 − 1.12 · L^0.8 (clamped)
+private const val TINT_S_FALL = 1.12f
+private const val TINT_S_EXP = 0.8f
 
 /** The widget area is scaled up at most this far to compensate for the launcher margin. */
 private const val MAX_FILL_SCALE = 1.3f
