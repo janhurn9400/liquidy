@@ -146,7 +146,15 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
     val s = geo.search
     val m = model.libFieldMorph.value
     val fullW = s.width / density
-    val listW = (if (geo.duo) geo.duoFieldRight else DesignTokens.libListFieldRight.value) - s.left / density
+    // Localised "Cancel": measured against the English word the layout was measured with
+    val cancelMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val cancelText = stringResource(R.string.cancel)
+    val cancelStyle = TextStyle(fontFamily = Inter, fontSize = DesignTokens.libSearchFont.value.sp)
+    val cancelShift = remember(cancelText, cancelStyle) {
+        (cancelMeasurer.measure(cancelText, cancelStyle).size.width - cancelMeasurer.measure(CANCEL_MEASURED, cancelStyle).size.width) / density
+    }.coerceAtLeast(0f)
+    androidx.compose.runtime.SideEffect { model.libCancelShift = cancelShift }
+    val listW = (if (geo.duo) geo.duoFieldRight else DesignTokens.libListFieldRight.value - cancelShift) - s.left / density
     val wDp = fullW + (listW - fullW) * m
     val textColor = lerp(DesignTokens.libSearchTextColor, DesignTokens.libListPlaceholder, (model.libListDim.value).coerceIn(0f, 1f))
     val style = TextStyle(fontFamily = Inter, fontSize = DesignTokens.libSearchFont.value.sp, color = Color.White)
@@ -228,7 +236,7 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
             Modifier
                 .offset {
                     IntOffset(
-                        ((DesignTokens.libCancelX.value + (1f - m) * CANCEL_SLIDE) * density).roundToInt(),
+                        ((DesignTokens.libCancelX.value - cancelShift + (1f - m) * CANCEL_SLIDE) * density).roundToInt(),
                         (s.top + (s.height - CANCEL_LINE * density) / 2 + model.libListPull.value * Motion.libListFieldFollow.value * density).roundToInt(),
                     )
                 }
@@ -252,6 +260,8 @@ private const val DUO_EDGE_FADE_X = 48f   // pt soft fade-out on the left
 private const val EDGE_SOLID = 0.6f       // gradient: fully blurred up to 60 % of the edge height [ESTIMATED] recording2 6.0 s
 private const val EDGE_FADE_IN = 24f      // pt of scroll travel until the edge is fully there [ESTIMATED]
 private const val CANCEL_SLIDE = 24f
+/** The word T-LIB-LIST.cancelX / fieldRight were measured with (iPhone in English). */
+private const val CANCEL_MEASURED = "Cancel"
 private const val DUO_CLOSE_SLIDE = 30f   // pt [MEASURED video 2, 17.24 → 17.30 s]      // pt, "Cancel" follows from the right [ESTIMATED]
 private const val CANCEL_LINE = 22f       // line height for vertical centring
 private const val PLACEHOLDER_W = 100f    // "App Library" at 17 pt [MEASURED] ≈ 100 pt

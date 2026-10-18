@@ -164,8 +164,8 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
     if (active) {
         val noRipple = remember { MutableInteractionSource() }
         // Duo: round × button (column x 375 ± 22) instead of "Cancel"
-        val cancelX = if (duo) geo.duoCloseX - LIB_DUO_CLOSE_D / 2 else DesignTokens.libCancelX.value
-        val cancelW = if (duo) LIB_DUO_CLOSE_D else geo.width / density - DesignTokens.libCancelX.value
+        val cancelX = if (duo) geo.duoCloseX - LIB_DUO_CLOSE_D / 2 else DesignTokens.libCancelX.value - model.libCancelShift
+        val cancelW = if (duo) LIB_DUO_CLOSE_D else geo.width / density - cancelX
         Box(
             Modifier
                 .offset { IntOffset((cancelX * density + offsetX()).roundToInt() - CANCEL_SLOP.dp.roundToPx(), geo.search.top.roundToInt()) }
@@ -176,7 +176,7 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
         Box(
             Modifier
                 .offset { IntOffset((geo.search.left + offsetX()).roundToInt(), geo.search.top.roundToInt()) }
-                .size(((if (duo) geo.duoFieldRight else DesignTokens.libListFieldRight.value) - geo.search.left / density).dp, (geo.search.height / density).dp)
+                .size(((if (duo) geo.duoFieldRight else DesignTokens.libListFieldRight.value - model.libCancelShift) - geo.search.left / density).dp, (geo.search.height / density).dp)
                 .clickable(interactionSource = noRipple, indication = null) {}
         )
     }

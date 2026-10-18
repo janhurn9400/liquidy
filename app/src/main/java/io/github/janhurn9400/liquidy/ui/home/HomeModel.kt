@@ -1368,6 +1368,11 @@ class HomeModel(
      * far away). Every item evaluates the spring itself with its own response (staggered by distance from the centre).
      * Interruptible: prepare/play/cancel restart or stop the clock at any time.
      */
+    /**
+     * App Library list: how much wider the localised "Cancel" is than the English one the layout was measured with (pt) —
+     * "Cancel" and the field's right edge move left by this (iOS shrinks the field for longer words, e.g. "Abbrechen").
+     */
+    var libCancelShift by androidx.compose.runtime.mutableFloatStateOf(0f)
     /** Window size in px (set by HomeScreen) — centre of the unlock zoom. */
     var screenSize = androidx.compose.ui.geometry.Size.Zero
     var unlockT by androidx.compose.runtime.mutableFloatStateOf(UNLOCK_IDLE)
