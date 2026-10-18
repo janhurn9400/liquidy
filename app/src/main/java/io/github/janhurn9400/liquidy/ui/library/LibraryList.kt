@@ -157,7 +157,8 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
         if (listBackdrop != null) ListEdge(listBackdrop, state, geo, density)
         if (model.libQuery.isEmpty()) IndexBar(state, entries, enabled = active, lay = lay,
             // Duo: index in the dock column (screen − 47 pt), relative to the shifted list
-            x = { if (duo) geo.width / density - DUO_INDEX_FROM_RIGHT - offsetX() / density else DesignTokens.fromRight(DesignTokens.libIndexX.value, geo.width / density) })
+            x = { if (duo) geo.width / density - DUO_INDEX_FROM_RIGHT - offsetX() / density else DesignTokens.fromRight(DesignTokens.libIndexX.value, geo.width / density) },
+            centreInHeight = if (duo) null else geo.height / density)
     }
 
     // Hit areas above the field: "Cancel" closes, the field itself stays focused
@@ -236,7 +237,8 @@ private fun AppRow(app: AppEntry, separator: Boolean, enabled: Boolean, lay: Lis
 
 /** A–Z/# index on the right; tapping or dragging jumps to the section (or the next existing one). */
 @Composable
-private fun IndexBar(state: LazyListState, entries: List<Entry>, enabled: Boolean, lay: ListLayout, x: () -> Float) {
+private fun IndexBar(state: LazyListState, entries: List<Entry>, enabled: Boolean, lay: ListLayout, x: () -> Float,
+                     centreInHeight: Float? = null) {
     val scope = rememberCoroutineScope()
     // Jump target per letter: the header (iPhone) or the first row with the letter (Duo, without headers)
     val headerIndex = remember(entries) {
@@ -254,9 +256,19 @@ private fun IndexBar(state: LazyListState, entries: List<Entry>, enabled: Boolea
     }
     val pitchDp = DesignTokens.libIndexPitch.dp
     val widthDp = INDEX_W.dp
+    val imeInsets = WindowInsets.ime
     Box(
         Modifier
-            .offset { IntOffset((x().dp - widthDp / 2).roundToPx(), lay.indexTop.dp.roundToPx()) }
+            .offset {
+                // iPhone: vertically centred in the visible list area (list top … keyboard top or screen bottom), so it
+                // moves down to the middle of the right edge when the keyboard closes [MEASURED user iPhone 10-18
+                // 15-45-21: keyboard open 21–63 % = T-LIB-LIST.indexTop, closed ≈ 37–79 %]; never above indexTop
+                val top = centreInHeight?.let { h ->
+                    val bottom = h - imeInsets.getBottom(this) / density
+                    maxOf(lay.indexTop, lay.top + (bottom - lay.top - DesignTokens.libIndexPitch.value * INDEX.length) / 2)
+                } ?: lay.indexTop
+                IntOffset((x().dp - widthDp / 2).roundToPx(), top.dp.roundToPx())
+            }
             .size(widthDp, pitchDp * INDEX.length)
             .then(
                 if (!enabled) Modifier else Modifier
