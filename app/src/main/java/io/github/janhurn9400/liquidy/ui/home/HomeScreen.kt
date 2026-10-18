@@ -571,7 +571,9 @@ fun HomeScreen(
                 // M-CTXMENU: icon grows while holding (around the icon centre, not the cell centre with label)
                 val s = if (model.pressedKey == key || model.pressScaleKey == key) model.pressScale.value else 1f
                 scaleX = s; scaleY = s
-                transformOrigin = TransformOrigin(0.5f, DesignTokens.iconSize.value / 2 / (size.height / density))
+                // around the icon / widget body centre, not the cell centre with the label
+                val bodyH = model.widgets[key]?.let { w -> geo.widgetRect(Offset.Zero, w.cols, w.rows).height } ?: (DesignTokens.iconSize.value * density)
+                transformOrigin = TransformOrigin(0.5f, bodyH / 2 / size.height)
             }) {
             if (isWidget(key)) {
                 val spec = model.widgets[key] ?: return@Box
@@ -1148,6 +1150,22 @@ fun HomeScreen(
                             // Today widget: capture the image for the return flight on touch down (like on the home screen)
                             todayWidgetAt(down.position)?.let { (k, r) ->
                                 window?.let { io.github.janhurn9400.liquidy.data.AppLaunchTransition.snapshotWidget(it, k, android.graphics.RectF(r.left, r.top, r.right, r.bottom)) }
+                                // the same press as on the home screen (M-CTXMENU): darken, grow slowly, fade the dark, then the menu
+                                model.pressedKey = k; model.pressScaleKey = k
+                                pressJob = scope.launch {
+                                    launch {
+                                        delay(Motion.ctxGrowDelay.value.toLong())
+                                        model.pressScale.animateTo(Motion.ctxPressScale.value,
+                                            androidx.compose.animation.core.tween(Motion.ctxGrowDuration.value.roundToInt(), easing = androidx.compose.animation.core.LinearEasing))
+                                    }
+                                    delay(Motion.ctxPressFadeDelay.value.toLong())
+                                    if (model.pressedKey == k) model.pressAlpha.animateTo(0f, androidx.compose.animation.core.tween(Motion.ctxPressFade.value.roundToInt()))
+                                }
+                                scope.launch {
+                                    val d = Motion.pressInDelay.value.roundToInt()
+                                    if (d > 0) delay(d.toLong())
+                                    if (model.pressedKey == k && model.widgets[k]?.type != "android") model.pressAlpha.snapTo(DesignTokens.pressDarkAlpha.value)
+                                }
                             }
                         }
                         if (hit is Hit.Library && !model.editing && !wasAnimating) {
@@ -1189,8 +1207,8 @@ fun HomeScreen(
                             model.prefetchShortcuts(hit.key, density)
                             // M-CTXMENU: grow slowly, then fade out the dark (before the menu)
                             pressJob = scope.launch {
-                                // Widgets don't grow while holding (recording8 12.3–13.3 s: scale stays 1.0)
-                                if (!isWidget(hit.key)) launch {
+                                // widgets grow while holding too (user's iPhone, iOS 27, 10-18; recording8 had shown 1.0)
+                                launch {
                                     delay(Motion.ctxGrowDelay.value.toLong())
                                     model.pressScale.animateTo(Motion.ctxPressScale.value,
                                         androidx.compose.animation.core.tween(Motion.ctxGrowDuration.value.roundToInt(), easing = androidx.compose.animation.core.LinearEasing))

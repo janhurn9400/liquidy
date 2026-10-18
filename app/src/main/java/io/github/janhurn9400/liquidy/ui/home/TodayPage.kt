@@ -157,6 +157,8 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
                             applyJiggle(model.jiggleAmount.value * WIDGET_JIGGLE_TODAY, clockSeconds(), phases)
                             // just dropped: springs back from the lifted size
                             if (model.todayLiftKey == key) { val l = model.todayLift.value; scaleX *= l; scaleY *= l }
+                            // held: grows slowly like on the home screen (M-CTXMENU), around the widget centre
+                            if (model.pressScaleKey == key) { val p = model.pressScale.value; scaleX *= p; scaleY *= p }
                         }
                     }
                     // Duo unfolded: clipped at the top and bottom at the glass surface (even if it's hidden) — the
@@ -200,6 +202,10 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
                     }) {
                         if (spec.type == "android") AndroidWidget(spec, Modifier.fillMaxSize())
                         else WithWallpaperGlass(wallpaper) { IosWidget(spec.type, spec.cols, spec.rows, Modifier.fillMaxSize(), spec.config) }
+                    }
+                    // held: darkened like on the home screen
+                    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                        if (model.pressedKey == key) drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = model.pressAlpha.value))
                     }
                 }
                 // Duo: name below the widget (like on the home screen; the iPhone Today page has none) [MEASURED] 31 s
