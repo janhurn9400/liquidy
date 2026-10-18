@@ -162,16 +162,17 @@ private fun ClockWidget(modifier: Modifier, city: io.github.janhurn9400.liquidy.
             for (i in 0 until 60) {
                 val a = Math.toRadians(i * 6.0)
                 val long = i % 5 == 0
-                val o = r * 0.96f; val inner = if (long) r * 0.88f else r * 0.9f
+                val o = r * 0.945f; val inner = r * 0.88f // hour and minute ticks equally long, minute ticks grey [MEASURED]
                 drawLine(if (long) ink else minorTick,
                     Offset(c.x + (sin(a) * inner).toFloat(), c.y - (cos(a) * inner).toFloat()),
                     Offset(c.x + (sin(a) * o).toFloat(), c.y - (cos(a) * o).toFloat()),
-                    if (long) r * 0.022f else r * 0.03f, StrokeCap.Round)
+                    r * 0.017f, StrokeCap.Round)
             }
             for (h in 1..12) {
                 val a = Math.toRadians(h * 30.0)
-                text(h.toString(), r * 0.2f, ink, Offset(c.x + (sin(a) * r * 0.71f).toFloat(), c.y - (cos(a) * r * 0.71f).toFloat()),
-                    androidx.compose.ui.text.font.FontWeight.SemiBold)
+                // [MEASURED] cap height 0.16 r → font 0.22 r, bold, centres on 0.72 r
+                text(h.toString(), r * 0.22f, ink, Offset(c.x + (sin(a) * r * 0.72f).toFloat(), c.y - (cos(a) * r * 0.72f).toFloat()),
+                    androidx.compose.ui.text.font.FontWeight.Bold)
             }
             if (label != null) text(label, r * 0.2f, soft, Offset(c.x, c.y - r * 0.34f), androidx.compose.ui.text.font.FontWeight.SemiBold)
             if (offset != null) text(offset, r * 0.18f, soft, Offset(c.x, c.y + r * 0.38f), androidx.compose.ui.text.font.FontWeight.SemiBold)
@@ -181,7 +182,7 @@ private fun ClockWidget(modifier: Modifier, city: io.github.janhurn9400.liquidy.
                 drawLine(ink, Offset(c.x, c.y - r * 0.17f), Offset(c.x, c.y - r * len), r * 0.075f, StrokeCap.Round)
             }
             hand(((now.hour % 12) + now.minute / 60f) * 30f, 0.52f)
-            hand((now.minute + now.second / 60f) * 6f, 0.9f)
+            hand((now.minute + now.second / 60f) * 6f, 0.93f)
             drawCircle(ink, r * 0.07f, c)
             rotate(now.second * 6f, c) { drawLine(CLOCK_SECOND, Offset(c.x, c.y + r * 0.17f), Offset(c.x, c.y - r * 0.98f), r * 0.012f) }
             drawCircle(CLOCK_SECOND, r * 0.045f, c)
@@ -314,11 +315,11 @@ private fun batteryLevel(context: Context): Int {
 private val RED = Color(0xFFFF3B30)
 private const val WIDGET_PAD = 16f   // [ESTIMATED] padding of iOS widgets
 private const val MEDIUM_DATE_W = 110f
-private const val CLOCK_DIAL_SHARE = 0.403f // dial radius ÷ widget edge [MEASURED 10-18: 211 / 524 px]
+private const val CLOCK_DIAL_SHARE = 0.434f // dial radius ÷ widget edge [MEASURED 10-18: 182 / 420 px, side by side]
 private val CLOCK_NIGHT_PLATE_TOP = Color(0xFF3A3A3C)    // [MEASURED] plate 58 at the top …
 private val CLOCK_NIGHT_PLATE_BOTTOM = Color(0xFF2A2A2C) // … 42 at the bottom
 private val CLOCK_NIGHT_DIAL = Color(0xFF39393B)         // [MEASURED] 57
-private val CLOCK_NIGHT_MINOR = Color(0xFF6E6E72)        // grey minute ticks
+private val CLOCK_NIGHT_MINOR = Color(0xFF8A8A8E)        // grey minute ticks
 private val CLOCK_NIGHT_LABEL = Color(0xFFB4B4B8)        // [MEASURED] city/offset ≈ 180
 private val CLOCK_DAY_MINOR = Color(0xFF9A9A9A)
 private val CLOCK_DAY_LABEL = Color(0xFF8E8E93)

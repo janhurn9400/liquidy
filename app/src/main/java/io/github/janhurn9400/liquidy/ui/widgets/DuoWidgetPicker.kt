@@ -1,5 +1,8 @@
 package io.github.janhurn9400.liquidy.ui.widgets
 
+import kotlinx.coroutines.launch
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.foundation.gestures.draggable
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -94,6 +97,7 @@ internal fun DuoWidgetPicker(
 ) {
     var detail by remember { mutableStateOf<List<PickerEntry>?>(null) }
     var detailOut by remember { mutableStateOf(false) }
+    val drag = remember { Animatable(0f) } // px the sheet is pulled down by the finger (grabber / list at the top)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current.density
         val screenW = constraints.maxWidth / density
@@ -106,8 +110,9 @@ internal fun DuoWidgetPicker(
             .pointerInput(Unit) { detectTapGestures { close() } })
         Box(
             Modifier
-                .offset { IntOffset((left * density).roundToInt(), ((top + (1f - appear()) * (screenH - top)) * density).roundToInt()) }
+                .offset { IntOffset((left * density).roundToInt(), ((top + (1f - appear()) * (screenH - top)) * density + drag.value).roundToInt()) }
                 .width(Dp(sheetW)).height(Dp(screenH - top + CORNER))
+                .sheetDismiss(drag, close)
                 .shadow(16.dp, RoundedCornerShape(CORNER.dp), clip = false)
                 .clip(RoundedCornerShape(CORNER.dp))
                 .pointerInput(Unit) { detectTapGestures { } }
@@ -141,6 +146,43 @@ internal fun DuoWidgetPicker(
                 onAdd = { e -> PickerLaunch.added = true; onAdd(e) { detailOut = true } })
         }
     }
+}
+
+/**
+ * iOS sheet drag-to-dismiss: the sheet follows the finger downwards (upwards only with strong resistance), released far
+ * or fast enough it closes, otherwise it springs back. Works from anywhere on the sheet; a list inside hands the pull
+ * over once it is scrolled to the top (nested scroll).
+ */
+@Composable
+private fun Modifier.sheetDismiss(drag: Animatable<Float, androidx.compose.animation.core.AnimationVector1D>, onDismiss: () -> Unit): Modifier {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val density = LocalDensity.current.density
+    val dismissPx = DISMISS_DISTANCE * density
+    fun moveBy(d: Float) = scope.launch {
+        val next = drag.value + d
+        drag.snapTo(if (next >= 0f) next else drag.value + d * DISMISS_UP_RESIST) // above the rest position: strong resistance
+    }
+    fun release(v: Float) = scope.launch {
+        if (drag.value > dismissPx || (v > DISMISS_VELOCITY * density && drag.value > 0f)) onDismiss()
+        else drag.animateTo(0f, Motion.wpeSheet.spec(), initialVelocity = v)
+    }
+    val nested = remember(drag) {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            // sheet pulled down: an upward scroll first pushes the sheet back up
+            override fun onPreScroll(available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset =
+                if (drag.value > 0f && available.y < 0f) { val d = maxOf(available.y, -drag.value); moveBy(d); Offset(0f, d) } else Offset.Zero
+            // list at the top and still pulling down → the sheet follows
+            override fun onPostScroll(consumed: Offset, available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset =
+                if (available.y > 0f && source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) { moveBy(available.y); Offset(0f, available.y) } else Offset.Zero
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity =
+                if (drag.value > 0f) { release(available.y); available } else androidx.compose.ui.unit.Velocity.Zero
+        }
+    }
+    return this.nestedScroll(nested).draggable(
+        androidx.compose.foundation.gestures.rememberDraggableState { moveBy(it) },
+        androidx.compose.foundation.gestures.Orientation.Vertical,
+        onDragStopped = { v -> release(v) },
+    )
 }
 
 @Composable
@@ -245,7 +287,14 @@ private fun DetailSheet(
 ) {
     androidx.compose.runtime.DisposableEffect(Unit) { PickerLaunch.added = false; onDispose { } }
     val appear = remember { Animatable(0f) }
-    LaunchedEffect(out) { appear.animateTo(if (out) 0f else 1f, Motion.wpeSheet.spec()) }
+    var closing by remember { mutableStateOf(false) }
+    // closing slides the sheet down like opening (it used to vanish with a hard cut), then removes it
+    LaunchedEffect(out, closing) {
+        appear.animateTo(if (out || closing) 0f else 1f, Motion.wpeSheet.spec())
+        if (closing) onClose()
+    }
+    val close = { closing = true }
+    val drag = remember { Animatable(0f) }
     val pager = rememberPagerState { entries.size }
     val e = entries[pager.currentPage.coerceIn(0, entries.lastIndex)]
     val density = LocalDensity.current.density
@@ -253,8 +302,9 @@ private fun DetailSheet(
     val buttonY = minOf(BUTTON_Y, screenH - top - BUTTON_H - BUTTON_BOTTOM)
     Box(
         Modifier
-            .offset { IntOffset((left * density).roundToInt(), ((top + (1f - appear.value) * (screenH - top)) * density).roundToInt()) }
+            .offset { IntOffset((left * density).roundToInt(), ((top + (1f - appear.value) * (screenH - top)) * density + drag.value).roundToInt()) }
             .width(Dp(sheetW)).height(Dp(screenH - top + CORNER))
+            .sheetDismiss(drag, close)
             .shadow(20.dp, RoundedCornerShape(CORNER.dp), clip = false)
             .clip(RoundedCornerShape(CORNER.dp)).background(SHEET_BG)
             .pointerInput(Unit) { detectTapGestures { } }
@@ -268,7 +318,7 @@ private fun DetailSheet(
         }
         Canvas(
             Modifier.align(Alignment.TopEnd).padding(top = (HEAD_Y - 14f).dp, end = (CLOSE_RIGHT - 14f).dp).size(28.dp)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = close)
         ) {
             val a = size.width * 0.3f; val sw = 2.dp.toPx()
             drawLine(Color.Black, Offset(a, a), Offset(size.width - a, size.height - a), sw, StrokeCap.Round)
@@ -340,6 +390,9 @@ private fun widgetDescription(e: PickerEntry): String = when (e.iosType) {
 
 // Dimensions [MEASURED] recording 10:40, 0.634 pt/px (display edges x 90–1590, y 108–1160 px)
 private const val SHEET_W = 461f
+private const val DISMISS_DISTANCE = 140f // pt pulled down → closes on release [ESTIMATED]
+private const val DISMISS_VELOCITY = 900f // pt/s downwards → closes even if pulled less far [ESTIMATED]
+private const val DISMISS_UP_RESIST = 0.15f
 private const val MIN_SIDE = 4f
 private const val SHEET_TOP = 92f
 private const val CORNER = 30f
