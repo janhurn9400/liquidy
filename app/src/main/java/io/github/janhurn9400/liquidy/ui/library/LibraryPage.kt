@@ -198,8 +198,9 @@ private fun LibraryTile(cat: LibraryCategory, geo: LibraryGeometry, wallpaper: I
         modifier = modifier,
         content = {
             // The same Liquid Glass as dock/folder — source is only the wallpaper (the tiles themselves lie in the glass source)
-            io.github.janhurn9400.liquidy.ui.home.WithWallpaperGlass(wallpaper) {
-            io.github.janhurn9400.liquidy.glass.LiquidGlass(
+            // Fast variant (no per-frame backdrop layers) — swiping into the App Library stuttered with ~10 Kyant tiles
+            io.github.janhurn9400.liquidy.glass.WallpaperGlass(
+                wallpaper = wallpaper,
                 shape = io.github.janhurn9400.liquidy.glass.glassRect(DesignTokens.libTileCorner.dp),
                 modifier = Modifier.size(tileDp),
                 thickness = DesignTokens.glassThicknessLarge.value,
@@ -234,7 +235,6 @@ private fun LibraryTile(cat: LibraryCategory, geo: LibraryGeometry, wallpaper: I
                         }
                     }
                 }
-            }
             }
             BasicText(
                 cat.name,

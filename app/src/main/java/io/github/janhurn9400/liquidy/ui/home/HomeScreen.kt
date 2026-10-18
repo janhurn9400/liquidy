@@ -727,7 +727,9 @@ fun HomeScreen(
 
         // ── App Library ─────────────────────────────────────────────────────────
         // Duo: draw the App Library only AFTER the dock (below) — the dock lies behind it and blurs along
-        if (libEnabledNow() && libIndexNow() in visiblePages && !geo.duo) {
+        // Stays composed while off screen (only not drawn): composing ~10 tiles with ~70 icons on every swipe into the
+        // App Library cost several janky frames each time (measured on a Snapdragon 780G, 10-18)
+        if (libEnabledNow() && !geo.duo) Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (libIndexNow() in visiblePages) 1f else 0f }) {
             io.github.janhurn9400.liquidy.ui.library.LibraryPage(model, libGeo, wallpaper, density) { geo.libraryOffset(libIndexNow() - pager.position.value) }
         }
         } // end glass source
