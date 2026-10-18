@@ -80,10 +80,11 @@
     <string name="welcome_home_button">Set as Default</string>
     <string name="welcome_later">Not Now</string>
     <string name="welcome_continue">Continue</string>
-    <string name="welcome_perm_title">Photos &amp; Calendar</string>
-    <string name="welcome_perm_body">Your photos for wallpapers and your calendar for the calendar widget. Everything stays on your device.</string>
+    <string name="welcome_perm_title">Photos, Calendar &amp; More</string>
+    <string name="welcome_perm_body">Your photos for wallpapers, your calendar for the calendar widget, and access to your wallpaper so glass and blur show the real image. Everything stays on your device.</string>
     <string name="welcome_perm_photos">Photos</string>
     <string name="welcome_perm_calendar">Calendar</string>
+    <string name="welcome_perm_wallpaper">Wallpaper for Glass Effects</string>
     <string name="welcome_perm_badges">Notification Badges</string>
     <string name="welcome_haptics">Haptic Feedback</string>
     <string name="haptics_on">Turn Haptics On</string>

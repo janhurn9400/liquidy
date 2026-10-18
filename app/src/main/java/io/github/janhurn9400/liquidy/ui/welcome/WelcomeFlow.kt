@@ -329,6 +329,9 @@ private fun PermissionCard() {
     var photos by remember { mutableStateOf(granted(photoPerm)) }
     var calendar by remember { mutableStateOf(granted(calPerm)) }
     var badges by remember { mutableStateOf(io.github.janhurn9400.liquidy.data.NotificationBadges.hasAccess(context)) }
+    // "All files access": the only way to read the Android wallpaper's pixels (glass, blur) — without it Liquidy draws
+    // its own neutral image instead of the real wallpaper. Granted later the wallpaper is picked up on return (MainActivity.onResume)
+    var wallpaperAccess by remember { mutableStateOf(io.github.janhurn9400.liquidy.glass.SystemWallpaper.canRead()) }
     val askPhotos = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { photos = it }
     val askCalendar = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { calendar = it }
     val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
@@ -337,6 +340,7 @@ private fun PermissionCard() {
             if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 photos = granted(photoPerm); calendar = granted(calPerm)
                 badges = io.github.janhurn9400.liquidy.data.NotificationBadges.hasAccess(context)
+                wallpaperAccess = io.github.janhurn9400.liquidy.glass.SystemWallpaper.canRead()
             }
         }
         owner.lifecycle.addObserver(obs); onDispose { owner.lifecycle.removeObserver(obs) }
@@ -368,6 +372,25 @@ private fun PermissionCard() {
             drawCircle(Color(0xFFFF3B30), size.width * 0.1f, Offset(size.width * 0.7f, size.height * 0.3f))
         }) {
             GlassToggle(badges, { on -> if (on) io.github.janhurn9400.liquidy.data.NotificationBadges.requestAccess(context) else { badges = false; io.github.janhurn9400.liquidy.data.NotificationBadges.requestAccess(context) } })
+        }
+        Box(Modifier.padding(start = 60.dp).fillMaxWidth().height(0.5.dp).background(Color(0x1F000000)))
+        CardRow(stringResource(R.string.welcome_perm_wallpaper), Color(0xFF5E5CE6), {
+            // landscape: sun over two hills
+            drawCircle(Color.White, size.width * 0.09f, Offset(size.width * 0.66f, size.height * 0.34f))
+            val hills = androidx.compose.ui.graphics.Path().apply {
+                moveTo(size.width * 0.2f, size.height * 0.74f)
+                lineTo(size.width * 0.42f, size.height * 0.44f); lineTo(size.width * 0.56f, size.height * 0.62f)
+                lineTo(size.width * 0.66f, size.height * 0.52f); lineTo(size.width * 0.8f, size.height * 0.74f); close()
+            }
+            drawPath(hills, Color.White)
+        }) {
+            // the system page toggles it (granting and revoking), the state is re-read on return
+            GlassToggle(wallpaperAccess, { _ ->
+                runCatching {
+                    context.startActivity(Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.fromParts("package", context.packageName, null)))
+                }
+            })
         }
     }
 }

@@ -80,10 +80,11 @@
     <string name="welcome_home_button">Als Standard festlegen</string>
     <string name="welcome_later">Später</string>
     <string name="welcome_continue">Weiter</string>
-    <string name="welcome_perm_title">Fotos &amp; Kalender</string>
-    <string name="welcome_perm_body">Deine Fotos für Hintergrundbilder und dein Kalender für das Kalender-Widget. Alles bleibt auf deinem Gerät.</string>
+    <string name="welcome_perm_title">Fotos, Kalender &amp; mehr</string>
+    <string name="welcome_perm_body">Deine Fotos für Hintergrundbilder, dein Kalender für das Kalender-Widget und Zugriff auf dein Hintergrundbild, damit Glas und Unschärfe das echte Bild zeigen. Alles bleibt auf deinem Gerät.</string>
     <string name="welcome_perm_photos">Fotos</string>
     <string name="welcome_perm_calendar">Kalender</string>
+    <string name="welcome_perm_wallpaper">Hintergrundbild für Glaseffekte</string>
     <string name="welcome_perm_badges">Mitteilungs-Zähler</string>
     <string name="welcome_haptics">Haptisches Feedback</string>
     <string name="haptics_on">Haptik einschalten</string>
