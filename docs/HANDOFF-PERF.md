@@ -74,3 +74,13 @@ directly on the GPU — one pass, no app-side work. Android apps cannot read wha
 re-draw everything behind each glass element again into an offscreen buffer every frame (CPU work on main + RenderThread).
 Games are fast because they render their whole scene in one GPU pipeline they fully control. Fix = avoid re-drawing:
 sample a wallpaper texture in one shader (what WallpaperGlass does).
+
+## Open bug: wallpaper "zooms" when entering Today view / App Library (phone)
+Not caused by the glass work (wallpaper crop/copy code unchanged since v0.4.2, verified by git diff and by building
+21140b1 on the phone — same jump; before, the phone had Android's plain grey wallpaper, so it was invisible).
+Our own wallpaper copy (shown blurred for Today/App Library, `glass/WallpaperCropModel.kt`) is **≈ 3 % larger than
+Android's image, centred** on the Mi 11 Lite (LineageOS 23.2, 1080×2400, non-foldable). Measured by screenshot
+registration: `DBG.wallpaperCopy = 1` (draws our sharp copy on top) vs. Android's image → best match scale 1.03, offset 0.
+The model was only verified on the emulator Pixel Fold. Find what AOSP does differently on a normal phone (getCrop
+parallax / zoom `config_wallpaperMaxScale`), fix it generally (no per-device constant), re-measure the same way.
+
