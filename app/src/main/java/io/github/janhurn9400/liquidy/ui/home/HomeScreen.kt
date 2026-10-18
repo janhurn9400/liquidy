@@ -1373,7 +1373,9 @@ fun HomeScreen(
                                     val shown = when { raw < 0f -> -rb(-raw); raw > max -> max + rb(raw - max); else -> raw }
                                     scope.launch { model.todayScroll.snapTo(shown) }
                                 }
-                                Mode.LibPull -> model.libListPullTo((change.position.y - down.position.y - slop).coerceAtLeast(0f) / density)
+                                // iOS: the list is pulled with the scroll view's rubber band (M-RUBBER, d = screen height) —
+                                // it follows less and less instead of 1:1 [user iPhone 10-18 15-45-21: field ≤ ≈ 57 pt]
+                                Mode.LibPull -> model.libListPullTo(Motion.rubberBand((change.position.y - down.position.y - slop).coerceAtLeast(0f) / density, h / density))
                                 Mode.Vertical -> {
                                     // Finger → home offset with UIScrollView rubber band (M-RUBBER, d = screen height)
                                     val pull = (change.position.y - down.position.y - slop).coerceAtLeast(0f) / density

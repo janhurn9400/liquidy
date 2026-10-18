@@ -18,6 +18,8 @@ object Motion {
 
     // M-RUBBER — rubber band at the first/last page edge: (x·d·c)/(d + c·x). [SOURCED] UIScrollView c = 0.55
     val rubberBandC = tunable("M-RUBBER.c", "Rubber band constant", "Motion", 0.55f, 0.1f, 1.0f)
+    /** M-RUBBER for a finger travel [x] over a dimension [d] (same unit): (x·d·c)/(d + c·x). */
+    fun rubberBand(x: Float, d: Float): Float { val c = rubberBandC.value; return (x * d * c) / (d + c * x) }
 
     // M-PRESS — icon dimming on touch down: immediate (≤ 1 frame). [MEASURED]
     val pressInDelay = tunable("M-PRESS.delay", "Dimming – delay", "Motion", 0f, 0f, 200f, "ms")
