@@ -52,6 +52,13 @@ object Motion {
     val dragLift = iosSpring("M-DRAG-LIFT", "Lift icon", response = 0.3f, dampingFraction = 0.75f)
     // M-REFLOW — other icons make way. [ESTIMATED] close to the measured system springs (0.34 s, critical)
     val reflow = iosSpring("M-REFLOW", "Reflow", response = 0.4f, dampingFraction = 0.9f)
+    /**
+     * Unlock: the whole home content (icons, widgets, dock) zooms in from far away around the screen centre once the
+     * lock screen is gone. Spring on the "distance" 1/scale [MEASURED user iPhone 10-18 15-17-40, 2 unlocks, 60 fps:
+     * first visible frame ≈ 4.4×, 1.0 after ≈ 12 frames, fit ±0.05 → ω 16.8 rad/s, ζ 0.8, start 1/14 2.5 frames earlier].
+     */
+    val unlock = iosSpring("M-UNLOCK", "Unlock zoom", response = 0.374f, dampingFraction = 0.8f)
+    val unlockStartDistance = tunable("M-UNLOCK.start", "Unlock zoom – start distance (1/scale)", "Motion", 0.07f, 0.02f, 1f)
     /** Today view: widgets make way springily when resizing/moving (iOS: slight overshoot) [ESTIMATED]. */
     /** Page overview open/close: page shrinks into its card in about 0.25 s (recording 10-08 09:55, frame 357–370) [MEASURED roughly]. */
     /** Widget stack settle: measured ≈ 0.27 s to rest, no overshoot (recording 10-08 09:56, frame 858–874). */

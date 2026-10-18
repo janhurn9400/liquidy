@@ -179,6 +179,7 @@ Compose `Animatable.animateTo()` starts with `initialVelocity = velocity` → re
 | T-FOLDER-PANEL (rev.) | folder panel is clear glass | IMG_3130: inside ≈ outside (132 vs. 136) → lightening 0.03, blur = background blur 14, darkening as tint | [MEASURED] |
 | M-LAUNCH | opening an app | window grows from the icon to full screen in ≈ **0.23 s**, home screen behind blurs | [MEASURED] roughly (phase 6) |
 | M-DRAG-LIFT / M-REFLOW / M-DROP / M-BADGE / M-MENU | phase 2 | not in the material yet | [ESTIMATED] (phase-0 values remain the starting point) |
+| M-UNLOCK | unlock → home | home content (icons, widgets, dock) zooms in around the screen centre after the lock screen is gone; spring on distance 1/scale, response 0.374 s, damping 0.8, start 1/14 (first visible frame ≈ 4.4×, rest after ≈ 12 frames, no visible overshoot; lock screen fade is the system's) | [MEASURED] user iPhone 10-18 15-17-40, 2 unlocks at 60 fps, badge/icon tracking, fit ±0.05 |
 
 ### 3.4 Scroll physics [SOURCED]
 Deceleration `UIScrollView.DecelerationRate.normal` = 0.998/ms, `.fast` = 0.99/ms ([Apple](https://developer.apple.com/documentation/uikit/uiscrollview/decelerationrate-swift.struct/normal)) — for App Library/Today view.

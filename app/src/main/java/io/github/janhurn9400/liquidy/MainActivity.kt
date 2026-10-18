@@ -59,6 +59,9 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        registerReceiver(screenReceiver, android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_USER_PRESENT)
+        })
         // Started as a normal app (app icon, adb am start -n) although we're the default launcher: forward into the ONE
         // home task — otherwise a second instance runs with its own state and an empty card shows
         // in recent apps.
@@ -423,8 +426,33 @@ class MainActivity : ComponentActivity() {
     private var pendingLaunch: (() -> Unit)? = null
     private fun runPendingLaunch() { pendingLaunch?.let { pendingLaunch = null; returnAnimating = false; it() } }
 
+    /**
+     * Unlock animation (M-UNLOCK): screen off with the home screen in front → home content waits far away; once the
+     * keyguard is gone and our window has focus again it zooms in. Unlocked into another app → reset without animating.
+     */
+    private var unlockArmed = false
+    private val unlockHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val unlockTimeout = Runnable { if (unlockArmed && !hasWindowFocus()) { unlockArmed = false; model?.cancelUnlock() } }
+    private val screenReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> if (hasWindowFocus() || lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                    unlockArmed = true; model?.prepareUnlock()
+                }
+                Intent.ACTION_USER_PRESENT -> if (unlockArmed) {
+                    if (hasWindowFocus()) playUnlockIfReady() else { unlockHandler.removeCallbacks(unlockTimeout); unlockHandler.postDelayed(unlockTimeout, UNLOCK_FOCUS_WAIT_MS) }
+                }
+            }
+        }
+    }
+    private fun playUnlockIfReady() {
+        if (!unlockArmed || getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked) return
+        unlockArmed = false; unlockHandler.removeCallbacks(unlockTimeout); model?.playUnlock()
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) playUnlockIfReady()
         // Focus back = the system's return animation is done (it now resets the wallpaper zoom) → our transition
         if (hasFocus) { returnAnimating = false; runPendingLaunch(); applyStatusBar(statusHidden); applyWallpaperLayout(); model?.onHomeVisible() }
     }
@@ -513,6 +541,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(screenReceiver) }
+        unlockHandler.removeCallbacksAndMessages(null)
         if (::repository.isInitialized) {
             repository.stop()
             android.app.WallpaperManager.getInstance(this).removeOnColorsChangedListener(colorsListener)
@@ -525,3 +555,6 @@ private const val WELCOME_EXIT_MS = 450
 
 /** Longest wait for the system close animation before an app launch goes ahead anyway (ms). */
 private const val RETURN_WAIT_MS = 700L
+
+/** Longest wait after USER_PRESENT for our window to get focus (else another app is in front). */
+private const val UNLOCK_FOCUS_WAIT_MS = 1500L

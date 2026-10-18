@@ -1363,6 +1363,15 @@ class HomeModel(
     }
 
     /** From MainActivity.onWindowFocusChanged: the system's return animation is done → sharpen. */
+    /** Unlock zoom (M-UNLOCK): distance = 1/scale of the home content, 1 = at rest. */
+    val unlockDistance = Animatable(1f)
+    fun unlockScale(): Float = 1f / unlockDistance.value.coerceAtLeast(UNLOCK_MIN_DISTANCE)
+    /** Screen went off with the home screen in front: start far away, so the first frame after unlocking is already zoomed. */
+    fun prepareUnlock() { scope.launch { unlockDistance.snapTo(Motion.unlockStartDistance.value) } }
+    fun playUnlock() { scope.launch { unlockDistance.animateTo(1f, Motion.unlock.spec()) } }
+    /** Unlocked into another app (or no unlock followed): back to rest without animating. */
+    fun cancelUnlock() { scope.launch { unlockDistance.snapTo(1f) } }
+
     fun onHomeVisible() {
         smartRotateStacks()
         // App not launched after all (or cancelled): don't stay stuck blurred
@@ -1920,3 +1929,5 @@ class HomeModel(
 
 /** Run-out threshold of the page overview (share 0…1): card glides into place down to fractions of a pixel. */
 private const val OVERVIEW_SETTLE = 0.0005f
+
+private const val UNLOCK_MIN_DISTANCE = 0.01f

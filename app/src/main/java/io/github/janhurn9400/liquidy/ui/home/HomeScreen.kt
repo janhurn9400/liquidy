@@ -681,10 +681,13 @@ fun HomeScreen(
                     val r = maxOf(backgroundBlurPx(withSearch = !geo.duo), foldBlur)
                     renderEffect = if (r > 0.5f) BlurEffect(r, r, TileMode.Decal) else null
                     alpha = overviewHide()
+                    // Unlock (M-UNLOCK): icons, widgets and dock zoom in from far away around the screen centre
+                    val unlock = model.unlockScale()
+                    scaleX = unlock; scaleY = unlock
                     if (!geo.duo) {
                         val hs = model.searchProgress.value // home offset h (pt)
                         translationY = hs * density
-                        val sc = model.searchContentScale()
+                        val sc = model.searchContentScale() * unlock
                         scaleX = sc; scaleY = sc
                     }
                 }
