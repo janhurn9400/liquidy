@@ -174,7 +174,11 @@ fun LibraryPage(model: HomeModel, geo: LibraryGeometry, wallpaper: ImageBitmap, 
                 renderEffect = if (r > 0.5f) BlurEffect(r, r, TileMode.Decal) else null
             }
     ) {
-        Box(Modifier.fillMaxSize().graphicsLayer { translationY = -model.libraryScroll.value }) {
+        // iPhone: while pulling down to the A–Z list the tiles follow the finger 1:1 (like the list; the field only ⅓) as
+        // they blur [MEASURED user iPhone 10-18 15-45-21, 2.5–2.95 s: tiles +8 px vs field +3 px per frame step]
+        Box(Modifier.fillMaxSize().graphicsLayer {
+            translationY = -model.libraryScroll.value + if (geo.duo) 0f else model.libListPull.value * density
+        }) {
             model.library.forEachIndexed { i, cat ->
                 val tl = geo.tileTopLeft(i)
                 LibraryTile(model, cat, geo, wallpaper, density, hideCluster = model.openCategory?.tileIndex == i, modifier = Modifier.offset { IntOffset(tl.x.roundToInt(), tl.y.roundToInt()) })

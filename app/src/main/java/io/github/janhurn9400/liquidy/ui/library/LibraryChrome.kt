@@ -154,10 +154,13 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
         (cancelMeasurer.measure(cancelText, cancelStyle).size.width - cancelMeasurer.measure(CANCEL_MEASURED, cancelStyle).size.width) / density
     }.coerceAtLeast(0f)
     androidx.compose.runtime.SideEffect { model.libCancelShift = cancelShift }
-    val listW = (if (geo.duo) geo.duoFieldRight else DesignTokens.libListFieldRight.value - cancelShift) - s.left / density
+    val listW = (if (geo.duo) geo.duoFieldRight else DesignTokens.fromRight(DesignTokens.libListFieldRight.value, geo.width / density) - cancelShift) - s.left / density
     val wDp = fullW + (listW - fullW) * m
     val textColor = lerp(DesignTokens.libSearchTextColor, DesignTokens.libListPlaceholder, (model.libListDim.value).coerceIn(0f, 1f))
     val style = TextStyle(fontFamily = Inter, fontSize = DesignTokens.libSearchFont.value.sp, color = Color.White)
+    // Placeholder width of the real (localised) text — centring with a fixed English width let it jump when the list opened
+    val placeholderText = stringResource(R.string.app_library)
+    val placeholderPx = remember(placeholderText, style) { cancelMeasurer.measure(placeholderText, style).size.width.toFloat() }
 
     Box(Modifier.offset { IntOffset(s.left.roundToInt(), (s.top + model.libListPull.value * Motion.libListFieldFollow.value * density).roundToInt()) }) {
         LiquidGlass(
@@ -199,7 +202,7 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
                 val row = ms[0].measure(Constraints(maxWidth = c.maxWidth))
                 layout(c.maxWidth, c.maxHeight) {
                     val placeholderW = row.width.coerceAtMost(c.maxWidth)
-                    val centered = (c.maxWidth - groupWidth(placeholderW, model)) / 2f
+                    val centered = (c.maxWidth - groupWidth(placeholderW, model, placeholderPx)) / 2f
                     val inset = DesignTokens.libListFieldInset.dp.toPx()
                     val x = centered + (inset - centered) * m
                     row.place(x.roundToInt(), (c.maxHeight - row.height) / 2)
@@ -236,7 +239,7 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
             Modifier
                 .offset {
                     IntOffset(
-                        ((DesignTokens.libCancelX.value - cancelShift + (1f - m) * CANCEL_SLIDE) * density).roundToInt(),
+                        ((DesignTokens.fromRight(DesignTokens.libCancelX.value, geo.width / density) - cancelShift + (1f - m) * CANCEL_SLIDE) * density).roundToInt(),
                         (s.top + (s.height - CANCEL_LINE * density) / 2 + model.libListPull.value * Motion.libListFieldFollow.value * density).roundToInt(),
                     )
                 }
@@ -248,10 +251,10 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
 }
 
 /** Width of magnifier + "App Library" (for centring at rest), independent of the wide input field. */
-private fun androidx.compose.ui.unit.Density.groupWidth(rowWidth: Int, model: HomeModel): Float {
+private fun androidx.compose.ui.unit.Density.groupWidth(rowWidth: Int, model: HomeModel, placeholderPx: Float): Float {
     // With the input field the row is as wide as the field; only magnifier + placeholder are centred.
     if (!model.libListOpen) return rowWidth.toFloat()
-    return (DesignTokens.libSearchIcon.dp + DesignTokens.libSearchIconGap.dp).toPx() + PLACEHOLDER_W.dp.toPx()
+    return (DesignTokens.libSearchIcon.dp + DesignTokens.libSearchIconGap.dp).toPx() + placeholderPx
 }
 
 private const val DUO_SEARCH_TINT = 0.06f
@@ -264,4 +267,3 @@ private const val CANCEL_SLIDE = 24f
 private const val CANCEL_MEASURED = "Cancel"
 private const val DUO_CLOSE_SLIDE = 30f   // pt [MEASURED video 2, 17.24 → 17.30 s]      // pt, "Cancel" follows from the right [ESTIMATED]
 private const val CANCEL_LINE = 22f       // line height for vertical centring
-private const val PLACEHOLDER_W = 100f    // "App Library" at 17 pt [MEASURED] ≈ 100 pt

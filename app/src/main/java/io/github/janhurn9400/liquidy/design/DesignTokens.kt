@@ -216,6 +216,10 @@ object DesignTokens {
     val libListTextX = dpToken("T-LIB-LIST.textX", "Name left", "App Library", 91f, 60f, 120f)
     val libListSepRight = dpToken("T-LIB-LIST.sepRight", "Separator until", "App Library", 371f, 300f, 402f)
     val libListFont = tunable("T-LIB-LIST.font", "Name font", "App Library", 17f, 12f, 22f, "sp")
+    /** Width of the measured iPhone (pt): values measured from its right edge are anchored to OUR right edge via [fromRight]. */
+    const val IPHONE_WIDTH = 402f
+    /** x of an iPhone value [x] (pt from the left on a 402 pt screen) on a screen [screenW] pt wide, kept at the same distance from the right edge. */
+    fun fromRight(x: Float, screenW: Float): Float = screenW - (IPHONE_WIDTH - x)
     val libIndexX = dpToken("T-LIB-LIST.indexX", "Index centre", "App Library", 394.33f, 360f, 402f)
     val libIndexTop = dpToken("T-LIB-LIST.indexTop", "Index top", "App Library", 180f, 100f, 260f)
     val libIndexPitch = dpToken("T-LIB-LIST.indexPitch", "Index line pitch", "App Library", 13.6f, 8f, 20f)

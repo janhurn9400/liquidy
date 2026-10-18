@@ -85,7 +85,7 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
     // icon 44 pt at column x 66, name from 130, separator until 400, first row centre 168 pt, A–Z in the dock column
     val lay = if (duo) ListLayout(side = 66f, icon = 44f, textX = 130f, sepRight = geo.duoSepRight, top = 132f, indexTop = 214f)
         else ListLayout(DesignTokens.libListSide.value, DesignTokens.libListIcon.value, DesignTokens.libListTextX.value,
-            DesignTokens.libListSepRight.value, DesignTokens.libListTop.value, DesignTokens.libIndexTop.value)
+            DesignTokens.fromRight(DesignTokens.libListSepRight.value, geo.width / density), DesignTokens.libListTop.value, DesignTokens.libIndexTop.value)
     val entries = remember(apps, model.libQuery.isEmpty()) {
         buildList {
             if (model.libQuery.isNotEmpty()) apps.forEachIndexed { i, a -> add(Entry.Row(a, i == apps.lastIndex)) }
@@ -157,14 +157,14 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
         if (listBackdrop != null) ListEdge(listBackdrop, state, geo, density)
         if (model.libQuery.isEmpty()) IndexBar(state, entries, enabled = active, lay = lay,
             // Duo: index in the dock column (screen − 47 pt), relative to the shifted list
-            x = { if (duo) geo.width / density - DUO_INDEX_FROM_RIGHT - offsetX() / density else DesignTokens.libIndexX.value })
+            x = { if (duo) geo.width / density - DUO_INDEX_FROM_RIGHT - offsetX() / density else DesignTokens.fromRight(DesignTokens.libIndexX.value, geo.width / density) })
     }
 
     // Hit areas above the field: "Cancel" closes, the field itself stays focused
     if (active) {
         val noRipple = remember { MutableInteractionSource() }
         // Duo: round × button (column x 375 ± 22) instead of "Cancel"
-        val cancelX = if (duo) geo.duoCloseX - LIB_DUO_CLOSE_D / 2 else DesignTokens.libCancelX.value - model.libCancelShift
+        val cancelX = if (duo) geo.duoCloseX - LIB_DUO_CLOSE_D / 2 else DesignTokens.fromRight(DesignTokens.libCancelX.value, geo.width / density) - model.libCancelShift
         val cancelW = if (duo) LIB_DUO_CLOSE_D else geo.width / density - cancelX
         Box(
             Modifier
@@ -176,7 +176,7 @@ fun LibraryList(model: HomeModel, geo: LibraryGeometry, density: Float, offsetX:
         Box(
             Modifier
                 .offset { IntOffset((geo.search.left + offsetX()).roundToInt(), geo.search.top.roundToInt()) }
-                .size(((if (duo) geo.duoFieldRight else DesignTokens.libListFieldRight.value - model.libCancelShift) - geo.search.left / density).dp, (geo.search.height / density).dp)
+                .size(((if (duo) geo.duoFieldRight else DesignTokens.fromRight(DesignTokens.libListFieldRight.value, geo.width / density) - model.libCancelShift) - geo.search.left / density).dp, (geo.search.height / density).dp)
                 .clickable(interactionSource = noRipple, indication = null) {}
         )
     }
