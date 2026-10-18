@@ -98,7 +98,7 @@ private fun loadPhoto(context: Context, px: Int, slot: Long, album: String? = nu
     if (ids.isEmpty()) return PhotoState.Empty
     val id = ids[(Math.floorMod(slot * 2654435761L, ids.size.toLong())).toInt()]
     return runCatching {
-        PhotoState.Photo(context.contentResolver.loadThumbnail(ContentUris.withAppendedId(uri, id), android.util.Size(px, px), null).asImageBitmap())
+        PhotoState.Photo(with(io.github.janhurn9400.liquidy.data.IconRendererFreeze) { context.contentResolver.loadThumbnail(ContentUris.withAppendedId(uri, id), android.util.Size(px, px), null).frozenCopy() }.asImageBitmap())
     }.getOrDefault(PhotoState.Empty)
 }
 

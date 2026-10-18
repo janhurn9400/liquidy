@@ -40,7 +40,7 @@ object IconRenderer {
             drawable.setBounds(o, o, o + s, o + s)
             drawable.draw(canvas)
         }
-        return bmp.asImageBitmap()
+        return bmp.frozen().asImageBitmap()
     }
 
     /**
@@ -75,7 +75,7 @@ object IconRenderer {
             }
         } else glyph.copy(Bitmap.Config.ARGB_8888, true)
         Canvas(mono).drawColor(android.graphics.Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN)
-        return IconLayers(glyph.asImageBitmap(), mono.asImageBitmap())
+        return IconLayers(glyph.frozen().asImageBitmap(), mono.frozen().asImageBitmap())
     }
 
     /**
@@ -104,7 +104,7 @@ object IconRenderer {
         val dst = android.graphics.RectF((sizePx - dw) / 2, (sizePx - dh) / 2, (sizePx + dw) / 2, (sizePx + dh) / 2)
         oc.drawBitmap(bmp, box, dst, android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
         oc.drawColor(android.graphics.Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN)
-        return out.asImageBitmap()
+        return out.frozen().asImageBitmap()
     }
 
     private fun alphaBounds(bmp: Bitmap): android.graphics.Rect? {
@@ -224,3 +224,12 @@ object IconRenderer {
     private const val GLYPH_FILL = 0.92f   // the motif fills the box (glyphs in recording4 ≈ 16 pt in a 16.33 pt box)
     private const val ALPHA_MIN = 40
 }
+
+/**
+ * Immutable copy (if mutable): Skia keeps immutable bitmaps on the GPU, a mutable one is uploaded again every time a
+ * layer containing it is redrawn — every icon, every frame while swiping (simpleperf: ≈ 25 % of the RenderThread).
+ */
+internal fun Bitmap.frozen(): Bitmap = if (isMutable) copy(config ?: Bitmap.Config.ARGB_8888, false) else this
+
+/** [frozen] for callers outside this file (photo widget thumbnails etc.). */
+object IconRendererFreeze { fun Bitmap.frozenCopy(): Bitmap = frozen() }

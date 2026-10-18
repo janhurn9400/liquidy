@@ -137,6 +137,7 @@ fun WallpaperGlass(
 private object SharedGlassShaders {
     val fill by lazy { RuntimeShader(FILL_SHADER) }
     val highlight by lazy { RuntimeShader(HIGHLIGHT_SHADER) }
+    val shadow by lazy { RuntimeShader(SHADOW_SHADER) }
     var inputs: Triple<ImageBitmap, ImageBitmap, ImageBitmap?>? = null
 }
 
@@ -203,27 +204,29 @@ private class FastGlassState {
 }
 
 /**
- * Kyant Shadow(radius, color) with its default offset (radius / 6 down), only outside the shape. Drawn as a circular
- * rounded rect (radius = the shape's corner): 6 % black blurred by 16 dp looks the same as the continuous shape, and Skia
- * blurs and clips a rounded rect analytically on the GPU (no CPU mask, no upload, no layer).
+ * Kyant Shadow(radius, color) with its default offset (radius / 6 down): black × alpha blurred by BlurMaskFilter(radius)
+ * (σ = 0.57735·r + 0.5), evaluated per pixel by a shader on the rounded-rect distance (Gaussian edge profile) — every
+ * Skia mask/blur variant (free path, rounded rect, clip-out) allocated render targets per element per frame
+ * (phone 10-18: 34 → 158 render targets, 5 % → 17 % janky). No clip: the opaque glass fill covers the inside.
  */
 private fun DrawScope.drawGlassShadow(shape: RoundedRectangularShape, thickness: Float) {
     val alpha = DesignTokens.glassShadowAlpha.value
     val radius = (DesignTokens.glassShadowRadius.dp * thickness).toPx()
     if (alpha <= 0f || radius <= 0f) return
     val k = shape.corners(size, layoutDirection, this)
-    val r = minOf(k.topLeft, k.topRight, k.bottomLeft, k.bottomRight)
-    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.Black.copy(alpha = alpha).toArgb()
-        maskFilter = BlurMaskFilter(radius, BlurMaskFilter.Blur.NORMAL)
+    val sigma = BLUR_RADIUS_TO_SIGMA * radius + BLUR_SIGMA_BIAS
+    val pad = ceil(sigma * SHADOW_EXTENT_SIGMAS)
+    val dy = radius / SHADOW_OFFSET_DIV
+    val sh = SharedGlassShaders.shadow.apply {
+        setFloatUniform("size", size.width, size.height)
+        setFloatUniform("pad", pad)
+        setFloatUniform("dy", dy)
+        setFloatUniform("cornerRadius", minOf(k.topLeft, k.topRight, k.bottomLeft, k.bottomRight))
+        setFloatUniform("sigma", sigma)
+        setFloatUniform("alpha", alpha)
     }
-    drawIntoCanvas { c ->
-        val nc = c.nativeCanvas
-        nc.save()
-        nc.clipOutPath(android.graphics.Path().apply { addRoundRect(0f, 0f, size.width, size.height, r, r, android.graphics.Path.Direction.CW) })
-        val dy = radius / SHADOW_OFFSET_DIV
-        nc.drawRoundRect(0f, dy, size.width, size.height + dy, r, r, paint)
-        nc.restore()
+    translate(-pad, -pad) {
+        drawRect(ShaderBrush(sh), size = androidx.compose.ui.geometry.Size(size.width + 2 * pad, size.height + 2 * pad + dy))
     }
 }
 
@@ -264,6 +267,7 @@ private const val SHADOW_OFFSET_DIV = 6f // Kyant Shadow default offset = radius
 private const val HIGHLIGHT_STYLE_ALPHA = 0.5f // Kyant HighlightStyle.Default colour alpha
 private const val BLUR_RADIUS_TO_SIGMA = 0.57735f // Skia: BlurMaskFilter radius → Gaussian sigma
 private const val BLUR_SIGMA_BIAS = 0.5f
+private const val SHADOW_EXTENT_SIGMAS = 3f // the Gaussian is ≈ 0 beyond 3σ
 
 private const val SDF = """
 float radiusAt(float2 coord, float4 radii) {
@@ -379,5 +383,26 @@ half4 main(float2 coord) {
     float d = dot(grad, normal);
     float intensity = pow(abs(d), falloff);
     return color * intensity;
+}
+"""
+
+// Blurred rounded rect (drop shadow): Gaussian edge profile on the signed distance, premultiplied black
+private const val SHADOW_SHADER = """
+uniform float2 size;
+uniform float pad;
+uniform float dy;
+uniform float cornerRadius;
+uniform float sigma;
+uniform float alpha;
+float sdRR(float2 p, float2 h, float r) {
+    float2 q = abs(p) - (h - float2(r));
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+half4 main(float2 coord) {
+    float2 halfSize = size * 0.5;
+    float2 p = coord - float2(pad, pad + dy) - halfSize;
+    float sd = sdRR(p, halfSize, min(cornerRadius, min(halfSize.x, halfSize.y)));
+    float a = alpha / (1.0 + exp(1.702 * sd / sigma));
+    return half4(0.0, 0.0, 0.0, half(a));
 }
 """

@@ -163,7 +163,7 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
             val dir = java.io.File(context.cacheDir, "iconlayers").apply { mkdirs() }
             val gf = java.io.File(dir, "${name}_g.png"); val mf = java.io.File(dir, "${name}_m.png")
             val cached = if (gf.exists() && mf.exists()) runCatching {
-                IconLayers(android.graphics.BitmapFactory.decodeFile(gf.path).asImageBitmap(), android.graphics.BitmapFactory.decodeFile(mf.path).asImageBitmap())
+                IconLayers(android.graphics.BitmapFactory.decodeFile(gf.path).frozen().asImageBitmap(), android.graphics.BitmapFactory.decodeFile(mf.path).frozen().asImageBitmap())
             }.getOrNull() else null
             val layers = cached ?: runCatching {
                 val orig = info.getIcon(0)

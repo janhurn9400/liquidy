@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -162,8 +163,17 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
     val placeholderText = stringResource(R.string.app_library)
     val placeholderPx = remember(placeholderText, style) { cancelMeasurer.measure(placeholderText, style).size.width.toFloat() }
 
+    // Fast glass while only the wallpaper lies behind the field (not scrolled, no list/category); the live backdrop
+    // re-rendered the field's offscreen layers every frame while paging (layer-update overlay, phone 10-18)
+    val fieldOnWallpaper by remember(geo) {
+        androidx.compose.runtime.derivedStateOf {
+            model.libraryScroll.value < (geo.tileTopLeft(0).y - geo.search.bottom).coerceAtLeast(0f) &&
+                !model.libListOpen && model.openCategory == null
+        }
+    }
     Box(Modifier.offset { IntOffset(s.left.roundToInt(), (s.top + model.libListPull.value * Motion.libListFieldFollow.value * density).roundToInt()) }) {
         LiquidGlass(
+            onWallpaper = fieldOnWallpaper,
             shape = glassCapsule(),
             thickness = DesignTokens.libSearchHeight.value / DesignTokens.dockHeight.value,
             blur = DesignTokens.libSearchBlur.dp,
