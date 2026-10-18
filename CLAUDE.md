@@ -26,6 +26,7 @@ Goal: an Android launcher (Kotlin + Compose, minSdk 33) that feels 1:1 like the 
   Two displays → screenshots only with a display ID: `adb exec-out screencap -p -d 4619827259835644672 > shot.png` (inner, unfolded).
   After every reinstall the emulator hangs at first (shader compilation, ANR dialog possible) — wait briefly, not an app bug.
 - `./gradlew :app:assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk`
+- **Releases ship the release build** (`./gradlew :app:assembleRelease` → `app/build/outputs/apk/release/app-release.apk`, signed with the debug key so it updates earlier installs). Debug builds run largely interpreted (no AOT) and stutter on real phones — judge performance only on a release build (`adb shell cmd package compile -m speed -f io.github.janhurn9400.liquidy` after install).
   Set as home: `adb shell cmd package set-home-activity io.github.janhurn9400.liquidy/.MainActivity`
 - Debug panel: 3-finger long press (device), key **D** (emulator), or
   `adb shell am start -n io.github.janhurn9400.liquidy/.MainActivity --ez debug true`.

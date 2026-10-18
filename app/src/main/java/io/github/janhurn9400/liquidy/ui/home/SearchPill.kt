@@ -191,6 +191,22 @@ fun SearchPill(
     val fieldContentAlpha = ((fieldMix - Motion.searchMorphFieldIn.value) / (1f - Motion.searchMorphFieldIn.value)).coerceIn(0f, 1f)
 
     if (duoButton != null && fieldMix < 0.001f && !model.searchOpen) return // Duo: field only during search
+    // Fast glass also while searching: the live backdrop re-recorded the whole (blurring) home screen every frame of the
+    // pull-down (release build: 27 % → 9 % janky frames on the phone, 10-18). Behind the field we show the pre-blurred
+    // wallpaper faded in with the search blur instead of the blurred home content (visually near-identical).
+    val wb = io.github.janhurn9400.liquidy.glass.LocalWallpaperBlur.current
+    val searchSoft = remember(wb) {
+        io.github.janhurn9400.liquidy.glass.WallpaperBlur(wb.blurred) {
+            val ramp = (model.searchProgress.value / io.github.janhurn9400.liquidy.motion.Motion.searchBlurRamp.value).coerceIn(0f, 1f) *
+                DesignTokens.searchBlur.value / DesignTokens.searchBlurOpen.value
+            val atRelease = (model.searchReleaseH / io.github.janhurn9400.liquidy.motion.Motion.searchBlurRamp.value).coerceIn(0f, 1f) *
+                DesignTokens.searchBlur.value / DesignTokens.searchBlurOpen.value
+            val openA = model.searchOpenAmount.value.coerceIn(0f, 1f)
+            val handoff = if (model.searchOpen) atRelease + (1f - atRelease) * openA else 0f
+            maxOf(wb.amount(), ramp, openA, handoff)
+        }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalWallpaperBlur provides searchSoft) {
     LiquidGlass(
         shape = glassCapsule(),
         thickness = DesignTokens.pillHeight.value / DesignTokens.dockHeight.value,
@@ -198,8 +214,7 @@ fun SearchPill(
         // search dimming → the same dimming as tint, otherwise the field looks light instead of dark-clear.
         whiteTint = DesignTokens.glassWhiteTint.value + (DesignTokens.searchFieldTint.value - DesignTokens.glassWhiteTint.value) * fieldMix,
         blackTint = (DesignTokens.glassTint.value + model.searchDim()).coerceAtMost(1f),
-        // at rest only the wallpaper lies behind the pill; during search the (blurred) home content does
-        onWallpaper = !model.searchVisible,
+        onWallpaper = true,
         modifier = Modifier
             .offset { androidx.compose.ui.unit.IntOffset((centerX - width / 2).roundToPx(), topPx().roundToInt()) }
             .size(width, height),
@@ -273,6 +288,7 @@ fun SearchPill(
             }
         }
     }
+    } // LocalWallpaperBlur (search)
 }
 
 private const val DUO_LUPE = 19f // magnifier in the round Duo button (pt)

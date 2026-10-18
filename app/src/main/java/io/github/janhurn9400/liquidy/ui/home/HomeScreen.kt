@@ -618,7 +618,12 @@ fun HomeScreen(
             val pf = model.openFolder?.progress?.value ?: 0f
             val hs = model.searchProgress.value
             val ramp = (hs / Motion.searchBlurRamp.value).coerceIn(0f, 1f)
-            val searchBlur = maxOf(ramp * DesignTokens.searchBlur.value, model.searchOpenAmount.value.coerceIn(0f, 1f) * DesignTokens.searchBlurOpen.value)
+            val openA = model.searchOpenAmount.value.coerceIn(0f, 1f)
+            // opening after release: blend from the blur at release to the open blur (the max of the falling pull blur and
+            // the rising open blur dipped halfway → visible brightening of the blurred background)
+            val atRelease = (model.searchReleaseH / Motion.searchBlurRamp.value).coerceIn(0f, 1f) * DesignTokens.searchBlur.value
+            val handoff = if (model.searchOpen) atRelease + (DesignTokens.searchBlurOpen.value - atRelease) * openA else 0f
+            val searchBlur = maxOf(ramp * DesignTokens.searchBlur.value, openA * DesignTokens.searchBlurOpen.value, handoff)
             val cat = (model.openCategory?.progress?.value ?: 0f) * DesignTokens.libCatBlur.value
             // Today view/App Library blur only the wallpaper, not the icons sliding out (recording8 4.2 s)
             val today = if (includeToday) sideBlur() * DesignTokens.todayBlur.value else 0f

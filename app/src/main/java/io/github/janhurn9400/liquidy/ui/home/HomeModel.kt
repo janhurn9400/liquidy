@@ -1758,8 +1758,17 @@ class HomeModel(
         return pull * (1f - o) + DesignTokens.searchOpenScale.value * o
     }
 
-    fun searchDim(): Float = maxOf(DesignTokens.searchDimPerPt.value * searchProgress.value, DesignTokens.searchDimMax.value * searchOpenAmount.value)
-        .coerceIn(0f, DesignTokens.searchDimMax.value)
+    fun searchDim(): Float {
+        val pull = DesignTokens.searchDimPerPt.value * searchProgress.value
+        val open = DesignTokens.searchDimMax.value * searchOpenAmount.value
+        // Opening after release: pull dim falls while open dim rises on the same spring → their max dipped to ~half halfway
+        // (background flashed brighter, user 10-18). Blend from the dim at release to full instead — monotonic.
+        val handoff = if (searchOpen) {
+            val r = (DesignTokens.searchDimPerPt.value * searchReleaseH).coerceAtMost(DesignTokens.searchDimMax.value)
+            r + (DesignTokens.searchDimMax.value - r) * searchOpenAmount.value.coerceIn(0f, 1f)
+        } else 0f
+        return maxOf(pull, open, handoff).coerceIn(0f, DesignTokens.searchDimMax.value)
+    }
 
     private fun smooth(h: Float, a: Float, b: Float): Float {
         val x = ((h - a) / (b - a)).coerceIn(0f, 1f)
@@ -1767,14 +1776,24 @@ class HomeModel(
     }
 
     /** Blur share of the suggestions block 1 → 0 (M-SEARCH-BLOCK.sharp*); sharp when open. */
-    fun searchBlockBlurFraction(): Float =
-        if (searchOpen) 0f else 1f - smooth(searchProgress.value, Motion.searchBlockSharpStart.value, Motion.searchBlockSharpEnd.value)
+    fun searchBlockBlurFraction(): Float {
+        fun pull(h: Float) = 1f - smooth(h, Motion.searchBlockSharpStart.value, Motion.searchBlockSharpEnd.value)
+        // opening after release: sharpen from the blur at release instead of jumping to sharp in one frame (icons flashed)
+        return if (searchOpen) pull(searchReleaseH) * (1f - searchOpenAmount.value.coerceIn(0f, 1f)) else pull(searchProgress.value)
+    }
 
     /** Visibility of the suggestions block 0…1 (smoothstep over M-SEARCH-BLOCK.fadeStart…End); always 1 when open. */
     fun searchBlockAlpha(): Float {
         val h = searchProgress.value
         val x = ((h - Motion.searchBlockFadeStart.value) / (Motion.searchBlockFadeEnd.value - Motion.searchBlockFadeStart.value)).coerceIn(0f, 1f)
-        return maxOf(x * x * (3f - 2f * x), searchOpenAmount.value.coerceIn(0f, 1f))
+        val open = searchOpenAmount.value.coerceIn(0f, 1f)
+        // opening after release: the falling pull fade and the rising open fade made their max dip halfway (icons flickered)
+        val handoff = if (searchOpen) {
+            val r = ((searchReleaseH - Motion.searchBlockFadeStart.value) / (Motion.searchBlockFadeEnd.value - Motion.searchBlockFadeStart.value))
+                .coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
+            r + (1f - r) * open
+        } else 0f
+        return maxOf(x * x * (3f - 2f * x), open, handoff)
     }
 
     private val suggester = io.github.janhurn9400.liquidy.data.AppSuggestions(repository.context)

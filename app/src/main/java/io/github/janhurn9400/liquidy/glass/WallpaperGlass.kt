@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.findRootCoordinates
@@ -116,6 +117,10 @@ fun WallpaperGlass(
             Modifier
                 .matchParentSize()
                 .onGloballyPositioned { glass.coords = it }
+                // own render layer: the fill is redrawn every frame the element moves (new wallpaper position) — without
+                // this, that invalidation re-recorded the WHOLE parent layer (home page: all icons, labels, widgets) on
+                // the main thread every frame, e.g. while pulling down search
+                .graphicsLayer()
                 .drawBehind {
                     val c = glass.coords ?: return@drawBehind
                     if (!c.isAttached) return@drawBehind

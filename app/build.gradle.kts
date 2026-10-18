@@ -19,6 +19,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Published APKs are release builds (AOT-optimised, much smoother than debug: ~40 % → ~9 % janky frames when
+            // pulling down search on a Snapdragon 780G). Signed with the same key as the earlier debug releases so they
+            // install over existing installs without losing the layout.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
