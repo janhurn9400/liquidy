@@ -68,6 +68,12 @@ fun WallpaperGlass(
     blur: Dp = DesignTokens.glassBlur.dp,
     whiteTint: Float = DesignTokens.glassWhiteTint.value,
     blackTint: Float = DesignTokens.glassTint.value,
+    rimAlpha: Float? = null,
+    /** false = frosted glass: no lens and no light rims (as in [LiquidGlass]). */
+    refraction: Boolean = true,
+    /** Blurred wallpaper blended in by [softAmount] (Today view/App Library); default = [LocalWallpaperBlur]. */
+    soft: ImageBitmap? = LocalWallpaperBlur.current.blurred,
+    softAmount: () -> Float = LocalWallpaperBlur.current.amount,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
     if (io.github.janhurn9400.liquidy.tuning.DebugOptions.glassOff) {
@@ -79,7 +85,6 @@ fun WallpaperGlass(
     val black = blackTint * (1f - tinted)
     val veil = DesignTokens.glassTintedVeil.value * tinted
     val grey = DesignTokens.glassTintedGrey.value
-    val wb = LocalWallpaperBlur.current
     val glass = remember { FastGlassState() }
 
     // Frosted ("Tinted" slider): blurred wallpaper, computed once per radius and shared by all tiles
@@ -102,8 +107,8 @@ fun WallpaperGlass(
                     val c = glass.coords ?: return@drawBehind
                     if (!c.isAttached) return@drawBehind
                     val outline = shape.createOutline(size, layoutDirection, this)
-                    val shader = glass.shader(wallpaper, frosted ?: wallpaper, wb.blurred, wb.amount())
-                    glass.setUniforms(this, c, shape, thickness, tinted)
+                    val shader = glass.shader(wallpaper, frosted ?: wallpaper, soft, softAmount())
+                    glass.setUniforms(this, c, shape, thickness, tinted, refraction)
                     drawOutline(outline, ShaderBrush(shader))
                     if (black > 0f) drawOutline(outline, Color.Black.copy(alpha = black))
                     if (whiteTint > 0f) drawOutline(outline, Color.White.copy(alpha = whiteTint))
@@ -111,10 +116,10 @@ fun WallpaperGlass(
                 }
         )
         // 3 · light rim top/bottom (static, Kyant's highlight shader) — like LiquidGlass(refraction = true)
-        Spacer(Modifier.matchParentSize().drawBehind { drawGlassHighlight(shape, glass) })
+        if (refraction) Spacer(Modifier.matchParentSize().drawBehind { drawGlassHighlight(shape, glass, rimAlpha ?: DesignTokens.glassRimHighlight.value) })
         content()
         // 4 · dark side rim (iOS 27, measured) — same as LiquidGlass
-        GlassRim(shape, Modifier.matchParentSize(), lightAlpha = 0f)
+        if (refraction) GlassRim(shape, Modifier.matchParentSize(), lightAlpha = 0f)
     }
 }
 
@@ -149,7 +154,7 @@ private class FastGlassState {
     }
 
     /** Lens values exactly as in [LiquidGlass]; local → screen mapping of the wallpaper as in [WallpaperBackdrop]. */
-    fun setUniforms(scope: DrawScope, c: LayoutCoordinates, shape: RoundedRectangularShape, thickness: Float, tinted: Float) = with(scope) {
+    fun setUniforms(scope: DrawScope, c: LayoutCoordinates, shape: RoundedRectangularShape, thickness: Float, tinted: Float, refraction: Boolean) = with(scope) {
         m.reset()
         c.findRootCoordinates().transformFrom(c, m) // local → root (= wallpaper pixels)
         val v = m.values
@@ -164,7 +169,7 @@ private class FastGlassState {
         val corner = minOf(k.topLeft, k.topRight, k.bottomLeft, k.bottomRight)
         val height = DesignTokens.glassRefraction.value.dp.toPx().coerceAtMost(corner * DesignTokens.glassRefractionCornerShare.value)
         val amount = (height * DesignTokens.glassRefractionAmount.value * thickness.coerceAtLeast(1f) * (1f - tinted)).coerceAtMost(size.minDimension)
-        val on = height > 0.5f && amount > 0.5f
+        val on = refraction && height > 0.5f && amount > 0.5f
         fill.setFloatUniform("lensOn", if (on) 1f else 0f)
         fill.setFloatUniform("refractionHeight", height.coerceAtLeast(1f))
         fill.setFloatUniform("refractionAmount", -amount) // Kyant passes it negated (samples inwards)
@@ -192,9 +197,8 @@ private fun DrawScope.drawGlassShadow(shape: RoundedRectangularShape, thickness:
  * Kyant Highlight(width = T-GLASS.rim, alpha = T-GLASS.rimLight, style = Default(angle, falloff)): a stroke of twice the
  * width clipped to the shape, Kyant's highlight shader, style colour white × 0.5, blurred by width / 2, blend Plus.
  */
-private fun DrawScope.drawGlassHighlight(shape: RoundedRectangularShape, glass: FastGlassState) {
+private fun DrawScope.drawGlassHighlight(shape: RoundedRectangularShape, glass: FastGlassState, a: Float) {
     val w = DesignTokens.glassRimWidth.dp.toPx()
-    val a = DesignTokens.glassRimHighlight.value
     if (w <= 0f || a <= 0f) return
     val outline = shape.createOutline(size, layoutDirection, this)
     val k = shape.corners(size, layoutDirection, this)

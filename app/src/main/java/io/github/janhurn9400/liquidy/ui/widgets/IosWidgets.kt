@@ -105,7 +105,7 @@ fun IosWidget(type: String, cols: Int, rows: Int = 2, modifier: Modifier = Modif
         Box(modifier.graphicsLayer { renderEffect = effect }) {
             if (io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current != null) io.github.janhurn9400.liquidy.glass.LiquidGlass(
                 shape = io.github.janhurn9400.liquidy.glass.glassRect(io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.dp),
-                modifier = Modifier.fillMaxSize(), blur = WIDGET_GLASS_BLUR.dp, blackTint = TINTED_GLASS_DARK, whiteTint = 0f, refraction = false,
+                modifier = Modifier.fillMaxSize(), blur = WIDGET_GLASS_BLUR.dp, blackTint = TINTED_GLASS_DARK, whiteTint = 0f, refraction = false, onWallpaper = true,
             ) else Box(Modifier.fillMaxSize().background(Color.Black))
             IosWidgetContent(type, cols, rows, Modifier.fillMaxSize(), config)
         }
@@ -300,7 +300,7 @@ private fun BatteryWidget(modifier: Modifier) {
         if (LocalWidgetTinted.current) Unit // tinted: the glass behind comes from IosWidget
         else if (io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current != null) io.github.janhurn9400.liquidy.glass.LiquidGlass(
             shape = io.github.janhurn9400.liquidy.glass.glassRect(io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.dp),
-            modifier = Modifier.fillMaxSize(), blur = WIDGET_GLASS_BLUR.dp, blackTint = WIDGET_GLASS_DARK, whiteTint = 0f,
+            modifier = Modifier.fillMaxSize(), blur = WIDGET_GLASS_BLUR.dp, blackTint = WIDGET_GLASS_DARK, whiteTint = 0f, onWallpaper = true,
         ) else Box(Modifier.fillMaxSize().background(Color(0xFF1C1C1E)))
         Canvas(Modifier.fillMaxSize().padding(BATTERY_PAD.dp)) {
             val sw = size.minDimension * 0.09f

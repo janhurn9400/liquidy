@@ -766,6 +766,7 @@ fun HomeScreen(
             shape = glassRect(if (geo.duo) androidx.compose.ui.unit.Dp(DUO_DOCK_CORNER) else DesignTokens.dockCorner.dp),
             // Duo: clear light rim all around (reference 10:40, 13 s)
             rimAlpha = if (geo.duo) DUO_DOCK_RIM else null,
+            onWallpaper = true, // nothing moves under the dock
             // Read the rect only in layout: the spring then runs without recomposing the home screen
             modifier = Modifier.layout { m, _ ->
                 val r = geo.dockRectFor(dockSlots.value)

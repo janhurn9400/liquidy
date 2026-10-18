@@ -42,11 +42,15 @@ force-stop, restart, and `cat` it to verify. Delete it afterwards (user prefs = 
    position (local→root matrix as uniform, trigger via onGloballyPositioned like GlassSurface), shadow/highlight drawn
    without layers, frosted (Tinted slider) via a cached `softBlur` copy. Library tiles use it; the library stays
    composed while off screen — commit 863ae1e.
-3. **UNCOMMITTED (builds, not yet measured/verified on the phone):** `LiquidGlass(onWallpaper = true)` and automatic
+3. **Committed, runs on the phone, NOT yet compared visually:** `LiquidGlass(onWallpaper = true)` and automatic
    delegation when the backdrop is a `WallpaperBackdrop` → WallpaperGlass. Applied to: dock (HomeScreen), search pill
    (only while search is not visible), Duo magnifier (DuoChrome), tinted widget glass + battery widget glass
    (IosWidgets), and automatically folder icons / merge hint (Folder.kt uses WallpaperBackdrop).
    `WallpaperGlass` got `rimAlpha`, `refraction`, `soft`/`softAmount` params; `WallpaperBackdrop` fields are now public.
+
+Note: the user then switched the phone to **90 Hz** (FPS overlay visible top-left) → frame budget 11.1 ms, so jank %
+is no longer comparable with the 60 Hz numbers above (first 90 Hz run with step 3: 28 % janky, median 24 ms). Re-measure
+the baselines (glass on/off) at 90 Hz before judging.
 
 ## Next steps
 1. Install on the phone, measure (same method), and compare screenshots before/after (dock, pill, folder icons,

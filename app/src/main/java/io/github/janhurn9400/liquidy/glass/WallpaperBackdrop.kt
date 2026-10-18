@@ -16,9 +16,9 @@ import com.kyant.backdrop.Backdrop
  * screen → glass surface (incl. jiggle/page swipe), so the background stands still.
  */
 class WallpaperBackdrop(
-    private val wallpaper: ImageBitmap,
-    private val blurred: ImageBitmap? = null,
-    private val blurAmount: () -> Float = { 0f },
+    val wallpaper: ImageBitmap,
+    val blurred: ImageBitmap? = null,
+    val blurAmount: () -> Float = { 0f },
 ) : Backdrop {
     override val isCoordinatesDependent: Boolean get() = true
 

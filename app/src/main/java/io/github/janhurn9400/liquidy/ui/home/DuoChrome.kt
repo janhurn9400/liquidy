@@ -43,6 +43,7 @@ fun DuoSearchButton(model: HomeModel, geo: HomeGeometry, density: Float) {
         whiteTint = 0.85f * model.duoLupePress.value,
         blackTint = 0f,
         rimAlpha = LUPE_RIM,
+        onWallpaper = true,
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val s = size.width

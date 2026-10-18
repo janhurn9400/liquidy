@@ -52,6 +52,11 @@ fun LiquidGlass(
     rimAlpha: Float? = null,
     /** false = frosted glass: only blur + tint, no refraction and no light rim (e.g. selection sheets). */
     refraction: Boolean = true,
+    /**
+     * true = only the wallpaper lies behind this glass (dock, pill, widgets …) → fast [WallpaperGlass] instead of a live
+     * backdrop (the live backdrop re-records + re-renders everything behind every frame; the main cost when swiping).
+     */
+    onWallpaper: Boolean = false,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
     val backdrop = LocalGlassBackdrop.current
@@ -64,6 +69,18 @@ fun LiquidGlass(
     val grey = DesignTokens.glassTintedGrey.value
     if (io.github.janhurn9400.liquidy.tuning.DebugOptions.glassOff) {
         Box(modifier.background(io.github.janhurn9400.liquidy.tuning.DebugOptions.GLASS_OFF_FILL, shape), content = content)
+        return
+    }
+    // Wallpaper-only glass: same look, fast path
+    val wallpaperOnly = backdrop as? WallpaperBackdrop
+    val wp = if (wallpaperOnly == null && onWallpaper) io.github.janhurn9400.liquidy.ui.home.LocalWallpaper.current else null
+    if (wallpaperOnly != null || wp != null) {
+        val wb = LocalWallpaperBlur.current
+        WallpaperGlass(
+            wallpaper = wallpaperOnly?.wallpaper ?: wp!!, shape = shape, modifier = modifier, thickness = thickness, blur = blur,
+            whiteTint = whiteTint, blackTint = blackTint, rimAlpha = rimAlpha, refraction = refraction,
+            soft = wallpaperOnly?.blurred ?: wb.blurred, softAmount = wallpaperOnly?.blurAmount ?: wb.amount, content = content,
+        )
         return
     }
     if (backdrop == null) {

@@ -198,6 +198,8 @@ fun SearchPill(
         // search dimming → the same dimming as tint, otherwise the field looks light instead of dark-clear.
         whiteTint = DesignTokens.glassWhiteTint.value + (DesignTokens.searchFieldTint.value - DesignTokens.glassWhiteTint.value) * fieldMix,
         blackTint = (DesignTokens.glassTint.value + model.searchDim()).coerceAtMost(1f),
+        // at rest only the wallpaper lies behind the pill; during search the (blurred) home content does
+        onWallpaper = !model.searchVisible,
         modifier = Modifier
             .offset { androidx.compose.ui.unit.IntOffset((centerX - width / 2).roundToPx(), topPx().roundToInt()) }
             .size(width, height),
