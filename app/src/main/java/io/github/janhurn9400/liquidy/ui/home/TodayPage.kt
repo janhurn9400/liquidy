@@ -158,7 +158,11 @@ fun TodayPage(model: HomeModel, geo: HomeGeometry, density: Float, wallpaper: an
                             // just dropped: springs back from the lifted size
                             if (model.todayLiftKey == key) { val l = model.todayLift.value; scaleX *= l; scaleY *= l }
                             // held: grows slowly like on the home screen (M-CTXMENU), around the widget centre
-                            if (model.pressScaleKey == key) { val p = model.pressScale.value; scaleX *= p; scaleY *= p }
+                            // (same distance as an icon, not the same factor)
+                            if (model.pressScaleKey == key) {
+                                val p = 1f + (model.pressScale.value - 1f) * DesignTokens.iconSize.value * density / size.width
+                                scaleX *= p; scaleY *= p
+                            }
                         }
                     }
                     // Duo unfolded: clipped at the top and bottom at the glass surface (even if it's hidden) — the

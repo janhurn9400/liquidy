@@ -569,10 +569,13 @@ fun HomeScreen(
             val merge = model.drag?.mergeTarget == key
             Box(Modifier.graphicsLayer {
                 // M-CTXMENU: icon grows while holding (around the icon centre, not the cell centre with label)
-                val s = if (model.pressedKey == key || model.pressScaleKey == key) model.pressScale.value else 1f
+                val held = if (model.pressedKey == key || model.pressScaleKey == key) model.pressScale.value else 1f
+                // widgets grow by the same distance as an icon, not by the same factor (a 2×2 widget grew ≈ 40 pt — user 10-18)
+                val wr = model.widgets[key]?.let { w -> geo.widgetRect(Offset.Zero, w.cols, w.rows) }
+                val s = if (wr == null) held else 1f + (held - 1f) * DesignTokens.iconSize.value * density / wr.width
                 scaleX = s; scaleY = s
                 // around the icon / widget body centre, not the cell centre with the label
-                val bodyH = model.widgets[key]?.let { w -> geo.widgetRect(Offset.Zero, w.cols, w.rows).height } ?: (DesignTokens.iconSize.value * density)
+                val bodyH = wr?.height ?: (DesignTokens.iconSize.value * density)
                 transformOrigin = TransformOrigin(0.5f, bodyH / 2 / size.height)
             }) {
             if (isWidget(key)) {
