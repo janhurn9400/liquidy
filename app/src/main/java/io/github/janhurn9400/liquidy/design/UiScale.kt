@@ -28,14 +28,28 @@ object UiScale {
     private const val DUO_FOLDED_HEIGHT_PT = 678f
     /** Larger displays (tablets): enlarge up to 125 % so it doesn't look lost (iPad: larger icons). */
     private const val MAX_FACTOR = 1.25f
+    /** Within 3 % of the reference: unchanged. */
+    private const val SAME_SIZE_TOLERANCE = 0.03f
+
+    /**
+     * Phones: the layout is measured on a 402 × 874 pt iPhone. Narrower/shorter screens (e.g. 360 dp at 480 dpi, ColorOS
+     * port 10-18: 4th column and 6th row ran off the screen) are scaled down uniformly like the Duo; about equally sized
+     * phones stay unchanged (Mi 11 Lite LineageOS 393 dp), larger phones keep the original size (iPhone Pro Max = larger screen, same sizes).
+     */
+    private const val PHONE_WIDTH_PT = 402f
+    private const val PHONE_HEIGHT_PT = 874f
 
     fun compute(duo: Boolean, widthPx: Int, heightPx: Int, density: Float): Float {
-        if (!duo || widthPx <= 0 || heightPx <= 0) return 1f
+        if (widthPx <= 0 || heightPx <= 0) return 1f
+        if (!duo) {
+            val f = minOf(minOf(widthPx, heightPx) / density / PHONE_WIDTH_PT, maxOf(widthPx, heightPx) / density / PHONE_HEIGHT_PT)
+            return if (f >= 1f - SAME_SIZE_TOLERANCE) 1f else f.coerceAtLeast(MIN_FACTOR)
+        }
         val landscape = widthPx > heightPx
         val f = minOf(widthPx / density / (if (landscape) DUO_WIDTH_PT else DUO_FOLDED_WIDTH_PT),
             heightPx / density / (if (landscape) DUO_HEIGHT_PT else DUO_FOLDED_HEIGHT_PT))
         // The Duo itself and almost equally sized displays: unchanged
-        return if (kotlin.math.abs(f - 1f) < 0.03f) 1f else f.coerceIn(MIN_FACTOR, MAX_FACTOR)
+        return if (kotlin.math.abs(f - 1f) < SAME_SIZE_TOLERANCE) 1f else f.coerceIn(MIN_FACTOR, MAX_FACTOR)
     }
 
     fun update(f: Float) { factor = f }

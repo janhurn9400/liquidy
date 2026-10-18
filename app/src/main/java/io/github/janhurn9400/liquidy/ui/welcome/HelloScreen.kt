@@ -91,7 +91,15 @@ fun HelloScreen(onContinue: () -> Unit) {
     var leaving by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) { val t0 = withFrameNanos { it }; while (true) withFrameNanos { time = (it - t0) / 1e9f } }
+    // The light field stands still while the sheet is lifted: then the glass panes have nothing to re-render and the
+    // whole page only moves (it re-recorded and re-refracted everything every frame — the swipe up stuttered)
+    LaunchedEffect(Unit) {
+        val t0 = withFrameNanos { it }; var paused = 0L; var last = t0
+        while (true) withFrameNanos { now ->
+            if (lift.value < -0.5f || lift.isRunning) paused += now - last else time = (now - t0 - paused) / 1e9f
+            last = now
+        }
+    }
     LaunchedEffect(Unit) {
         delay(START_DELAY_MS)
         while (true) {
@@ -202,6 +210,7 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
     // redrawn only when the line has changed
     val mask = remember { arrayOfNulls<android.graphics.Bitmap>(2) }
     val maskState = remember { IntArray(1) }        // index of the current mask
+    val frozenMask = remember { arrayOfNulls<Triple<android.graphics.Bitmap, Any, android.graphics.Bitmap>>(1) }
     val maskKey = remember { arrayOfNulls<Any>(1) } // (progress, size) of the current mask
     val gMax = remember { floatArrayOf(0.6f) }      // height at the line centre (measured)
     val sharpPaint = remember { android.graphics.Paint().apply { isAntiAlias = true; style = android.graphics.Paint.Style.STROKE
@@ -292,7 +301,13 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
                         gMax[0] = ((bmp.getPixel(mx, my) shr 8) and 0xFF).coerceAtLeast(20) / 255f
                     }
                     }
-                    shader.setInputShader("mask", android.graphics.BitmapShader(bmp, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP))
+                    // immutable copy per mask change: a mutable bitmap in a shader is uploaded to the GPU on every draw
+                    // (only once the word is written — while it is being written the mask changes every frame anyway)
+                    val maskBmp = if (progress() < 1f) bmp else {
+                        if (frozenMask[0]?.first !== bmp || frozenMask[0]?.second != key) frozenMask[0] = Triple(bmp, key, bmp.copy(android.graphics.Bitmap.Config.ARGB_8888, false))
+                        frozenMask[0]!!.third
+                    }
+                    shader.setInputShader("mask", android.graphics.BitmapShader(maskBmp, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP))
                     shader.setFloatUniform("halfW", halfW)
                     shader.setFloatUniform("amount", halfW * REFRACTION)
                     shader.setFloatUniform("gMax", gMax[0])
