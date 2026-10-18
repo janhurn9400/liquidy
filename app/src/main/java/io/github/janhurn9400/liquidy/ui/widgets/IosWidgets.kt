@@ -124,46 +124,68 @@ private fun IosWidgetContent(type: String, cols: Int, rows: Int, modifier: Modif
     }
 }
 
-// ── Clock (analogue, white dial, red second hand — "Clock · City" in the picker, recording7 8.4 s) ────────────
+// ── Clock (analogue, "Clock · City" in the picker, recording7 8.4 s; night look [MEASURED] user iPhone 10-18) ───────
+// Night: grey plate with a slight gradient (58 → 42), slightly lighter dial (57), white numbers 1–12 and hour ticks, grey
+// minute ticks, grey city abbreviation above and the hour offset ("-9") below the centre, white hands with a thin neck,
+// orange second hand, white ring with an orange dot in the centre. Day: the same layout, white dial, black ink.
 @Composable
 private fun ClockWidget(modifier: Modifier, city: io.github.janhurn9400.liquidy.data.WorldClock.City? = null) {
-    // City chosen → its time zone; at night (18–6 h there) a dark dial like on iOS, city abbreviation on the dial
     val zone = city?.zoneId ?: java.time.ZoneId.systemDefault()
     val now by produceState(LocalTime.now(zone), zone) { while (true) { value = LocalTime.now(zone); delay(1000L - System.currentTimeMillis() % 1000) } }
     val night = city != null && (now.hour < CLOCK_DAY_FROM || now.hour >= CLOCK_NIGHT_FROM)
-    val face = if (night) Color.Black else Color.White
-    val ink = if (night || LocalWidgetTinted.current) Color.White else Color.Black
-    val minorTick = if (night) Color(0xFF6E6E73) else Color(0xFF9A9A9A)
-    val label = city?.name?.filter { it.isLetter() }?.take(3)?.uppercase()
-    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
     val tinted = LocalWidgetTinted.current
-    Box(modifier.background(widgetBackground(Color(0xFF1C1C1E))), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize().padding(CLOCK_PAD.dp)) {
-            val r = size.minDimension / 2
+    val dark = night || tinted
+    val face = if (night) CLOCK_NIGHT_DIAL else Color.White
+    val ink = if (dark) Color.White else Color.Black
+    val minorTick = if (dark) CLOCK_NIGHT_MINOR else CLOCK_DAY_MINOR
+    val soft = if (dark) CLOCK_NIGHT_LABEL else CLOCK_DAY_LABEL
+    val label = city?.name?.filter { it.isLetter() }?.take(3)?.uppercase()
+    val offset = city?.zoneId?.let { z ->
+        val t = java.time.Instant.now()
+        val min = (z.rules.getOffset(t).totalSeconds - java.time.ZoneId.systemDefault().rules.getOffset(t).totalSeconds) / 60
+        if (min == 0) null else (if (min > 0) "+" else "-") + kotlin.math.abs(min / 60) + (if (min % 60 != 0) ":%02d".format(kotlin.math.abs(min % 60)) else "")
+    }
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val plate = if (tinted) Modifier.background(Color.Black)
+        else if (night) Modifier.background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(CLOCK_NIGHT_PLATE_TOP, CLOCK_NIGHT_PLATE_BOTTOM)))
+        else Modifier.background(Color(0xFF1C1C1E))
+    Box(modifier.then(plate), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val r = size.minDimension * CLOCK_DIAL_SHARE
             val c = center
             if (!tinted) drawCircle(face, r, c) // tinted: the dial is part of the plate, ticks/hands light (iOS 27)
-            if (label != null) {
-                val t = measurer.measure(label, androidx.compose.ui.text.TextStyle(fontFamily = io.github.janhurn9400.liquidy.ui.Inter,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = (r * 0.2f / density).sp, color = minorTick))
-                drawText(t, topLeft = Offset(c.x - t.size.width / 2f, c.y - r * 0.5f - t.size.height / 2f))
+            fun text(t: String, size: Float, color: Color, at: Offset, weight: androidx.compose.ui.text.font.FontWeight) {
+                val m = measurer.measure(t, androidx.compose.ui.text.TextStyle(fontFamily = io.github.janhurn9400.liquidy.ui.Inter,
+                    fontWeight = weight, fontSize = (size / density / fontScale).sp, color = color))
+                drawText(m, topLeft = Offset(at.x - m.size.width / 2f, at.y - m.size.height / 2f))
             }
             for (i in 0 until 60) {
                 val a = Math.toRadians(i * 6.0)
                 val long = i % 5 == 0
-                val o = r * 0.94f; val inner = if (long) r * 0.84f else r * 0.89f
+                val o = r * 0.96f; val inner = if (long) r * 0.88f else r * 0.9f
                 drawLine(if (long) ink else minorTick,
                     Offset(c.x + (sin(a) * inner).toFloat(), c.y - (cos(a) * inner).toFloat()),
                     Offset(c.x + (sin(a) * o).toFloat(), c.y - (cos(a) * o).toFloat()),
-                    if (long) r * 0.025f else r * 0.012f)
+                    if (long) r * 0.022f else r * 0.03f, StrokeCap.Round)
             }
-            fun hand(deg: Float, len: Float, w: Float, color: Color, tail: Float = 0.08f) = rotate(deg, c) {
-                drawLine(color, Offset(c.x, c.y + r * tail), Offset(c.x, c.y - r * len), w, StrokeCap.Round)
+            for (h in 1..12) {
+                val a = Math.toRadians(h * 30.0)
+                text(h.toString(), r * 0.2f, ink, Offset(c.x + (sin(a) * r * 0.71f).toFloat(), c.y - (cos(a) * r * 0.71f).toFloat()),
+                    androidx.compose.ui.text.font.FontWeight.SemiBold)
             }
-            hand(((now.hour % 12) + now.minute / 60f) * 30f, 0.5f, r * 0.07f, ink)
-            hand((now.minute + now.second / 60f) * 6f, 0.78f, r * 0.05f, ink)
-            hand(now.second * 6f, 0.86f, r * 0.018f, Color(0xFFFF9500), tail = 0.18f)
-            drawCircle(Color(0xFFFF9500), r * 0.045f, c)
-            drawCircle(face, r * 0.018f, c)
+            if (label != null) text(label, r * 0.2f, soft, Offset(c.x, c.y - r * 0.34f), androidx.compose.ui.text.font.FontWeight.SemiBold)
+            if (offset != null) text(offset, r * 0.18f, soft, Offset(c.x, c.y + r * 0.38f), androidx.compose.ui.text.font.FontWeight.SemiBold)
+            // hour/minute hand: thin neck from the centre, then the wide rounded body (iOS)
+            fun hand(deg: Float, len: Float) = rotate(deg, c) {
+                drawLine(ink, c, Offset(c.x, c.y - r * 0.17f), r * 0.025f)
+                drawLine(ink, Offset(c.x, c.y - r * 0.17f), Offset(c.x, c.y - r * len), r * 0.075f, StrokeCap.Round)
+            }
+            hand(((now.hour % 12) + now.minute / 60f) * 30f, 0.52f)
+            hand((now.minute + now.second / 60f) * 6f, 0.9f)
+            drawCircle(ink, r * 0.07f, c)
+            rotate(now.second * 6f, c) { drawLine(CLOCK_SECOND, Offset(c.x, c.y + r * 0.17f), Offset(c.x, c.y - r * 0.98f), r * 0.012f) }
+            drawCircle(CLOCK_SECOND, r * 0.045f, c)
+            drawCircle(if (dark) CLOCK_NIGHT_DIAL else Color.White, r * 0.015f, c)
         }
     }
 }
@@ -292,7 +314,15 @@ private fun batteryLevel(context: Context): Int {
 private val RED = Color(0xFFFF3B30)
 private const val WIDGET_PAD = 16f   // [ESTIMATED] padding of iOS widgets
 private const val MEDIUM_DATE_W = 110f
-private const val CLOCK_PAD = 10f
+private const val CLOCK_DIAL_SHARE = 0.403f // dial radius ÷ widget edge [MEASURED 10-18: 211 / 524 px]
+private val CLOCK_NIGHT_PLATE_TOP = Color(0xFF3A3A3C)    // [MEASURED] plate 58 at the top …
+private val CLOCK_NIGHT_PLATE_BOTTOM = Color(0xFF2A2A2C) // … 42 at the bottom
+private val CLOCK_NIGHT_DIAL = Color(0xFF39393B)         // [MEASURED] 57
+private val CLOCK_NIGHT_MINOR = Color(0xFF6E6E72)        // grey minute ticks
+private val CLOCK_NIGHT_LABEL = Color(0xFFB4B4B8)        // [MEASURED] city/offset ≈ 180
+private val CLOCK_DAY_MINOR = Color(0xFF9A9A9A)
+private val CLOCK_DAY_LABEL = Color(0xFF8E8E93)
+private val CLOCK_SECOND = Color(0xFFFF9F0A)
 private const val CLOCK_DAY_FROM = 6     // iOS: light dial from 6 h …
 private const val CLOCK_NIGHT_FROM = 18  // … dark from 18 h (local time of the city) [ESTIMATED]
 private const val BATTERY_PAD = 30f
