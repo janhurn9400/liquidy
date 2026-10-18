@@ -40,6 +40,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import io.github.janhurn9400.liquidy.data.AppEntry
@@ -211,6 +212,11 @@ fun HomeScreen(
         // Home screen is fully there BEFORE the card above fades out → no dark in-between frame (PageOverview: FOCUS_FADE_*)
         fun overviewHide(): Float = if (!model.pagesOverviewOpen) 1f
             else ((OVERVIEW_HOME_HIDDEN - model.pagesOverview.value) / (OVERVIEW_HOME_HIDDEN - OVERVIEW_HOME_FULL)).coerceIn(0f, 1f)
+        /** iPhone layout: dock and page dots move with the pages towards Today (right) / App Library (left), px. */
+        fun homeSlideX(): Float {
+            val pos = pager.position.value; val last = (libIndexNow() - 1).coerceAtLeast(0).toFloat()
+            return when { pos < 0f -> geo.pageShift(-pos); libEnabledNow() && pos > last -> geo.pageShift(last - pos); else -> 0f }
+        }
         fun homeChromeAlpha(): Float {
             // Duo: dock + magnifier sit in the right column and stay visible next to the App Library (recording 35.5 s)
             val lib = if (!libEnabledNow() || geo.duo) 1f else (libIndexNow() - pager.position.value).coerceIn(0f, 1f)
@@ -750,14 +756,16 @@ fun HomeScreen(
         // page next to it – it lies BELOW the incoming App Library layer; category open (16.79–16.92 s): dock slides out to the right
         Box(Modifier.fillMaxSize().graphicsLayer {
             // Duo: with the A–Z list open the index sits in the dock column → dock away [video 2, 18 s]
-            alpha = homeChromeAlpha() * (1f - duoWpeHide) * (if (geo.duo && model.libListOpen) (1f - model.libList.value).coerceIn(0f, 1f) else 1f)
+            // iPhone layout: the dock does NOT fade or blur towards Today / App Library — it slides away with the home icons
+            // like a part of the page (user's iPhone comparison 10-18); Duo keeps its right column (recordings above)
+            alpha = (if (geo.duo) homeChromeAlpha() else 1f) * (1f - duoWpeHide) * (if (geo.duo && model.libListOpen) (1f - model.libList.value).coerceIn(0f, 1f) else 1f)
             val lib = duoLibAmount(); val cat = duoCatAmount()
             // Category or (folded) open search push the dock away to the right
             // unfolded: dock slides out to the right immediately when pulling down to search (follows the finger, fully out at
             // half dimming) and back on close [Duo, user 10-11]; folded only delayed (duoSearchDockOut)
             val unfoldedSearch = if (geo.duo && geo.unfolded && model.searchVisible)
                 (model.searchDim() / (DesignTokens.searchDimMax.value * DUO_SEARCH_DOCK_FULL_AT)).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) } else 0f
-            translationX = maxOf(cat, duoSearchDockOut.value, unfoldedSearch) * (size.width - geo.dockRect.left + DUO_DOCK_OUT_MARGIN * density).coerceAtLeast(DUO_CAT_DOCK_SHIFT * density)
+            translationX = if (!geo.duo) homeSlideX() else maxOf(cat, duoSearchDockOut.value, unfoldedSearch) * (size.width - geo.dockRect.left + DUO_DOCK_OUT_MARGIN * density).coerceAtLeast(DUO_CAT_DOCK_SHIFT * density)
             val b = lib * DUO_LIB_PAGE_BLUR * density
             renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
         }) {
@@ -829,8 +837,12 @@ fun HomeScreen(
                 .fillMaxSize()
                 .graphicsLayer {
                     // In the Today view the pill is gone, but the search field appears when pulling down (morph)
-                    alpha = maxOf(homeChromeAlpha(), model.searchMorph.value.coerceIn(0f, 1f)) * overviewHide() *
+                    // iPhone layout: page dots / pill slide away with the page like the dock (user's iPhone 10-18) instead of
+                    // fading; while search is pulled down the search field morphs in place as before
+                    val slide = !geo.duo && !model.searchVisible
+                    alpha = (if (slide) 1f else maxOf(homeChromeAlpha(), model.searchMorph.value.coerceIn(0f, 1f))) * overviewHide() *
                         (1f - model.stackEdit.value.coerceIn(0f, 1f)) // Edit Stack: pill gone
+                    if (slide) translationX = homeSlideX()
                     // blurred with the home screen when a folder is open (IMG_3130)
                     val r = (model.openFolder?.progress?.value ?: 0f) * DesignTokens.folderBgBlur.value * density
                     renderEffect = if (r > 0.5f) BlurEffect(r, r, TileMode.Decal) else null
@@ -1045,7 +1057,15 @@ fun HomeScreen(
                             }
                         }
                         if (hit is Hit.Library && !model.editing && !wasAnimating) {
-                            (hit.hit as? io.github.janhurn9400.liquidy.ui.library.LibraryHit.App)?.let { model.prefetchShortcuts(libraryMenuKey(it.app.key), density) }
+                            (hit.hit as? io.github.janhurn9400.liquidy.ui.library.LibraryHit.App)?.let { la ->
+                                model.prefetchShortcuts(libraryMenuKey(la.app.key), density)
+                                // press feedback like on the home screen: icon darkens while held (LibraryPage reads pressedKey)
+                                model.pressedKey = libraryMenuKey(la.app.key)
+                                scope.launch {
+                                    val d = Motion.pressInDelay.value.roundToInt(); if (d > 0) delay(d.toLong())
+                                    if (model.pressedKey == libraryMenuKey(la.app.key)) model.pressAlpha.snapTo(DesignTokens.pressDarkAlpha.value)
+                                }
+                            }
                         }
                         // Android widget: forward the touch from the start (pressed state, scrolling); launcher can still take over
                         if (hit is Hit.Icon && !model.editing && !wasAnimating && model.widgets[hit.key]?.type == "android") {
@@ -1115,7 +1135,10 @@ fun HomeScreen(
                                     hit is Hit.Library && hit.hit is io.github.janhurn9400.liquidy.ui.library.LibraryHit.App && !model.editing -> {
                                         val a = hit.hit as io.github.janhurn9400.liquidy.ui.library.LibraryHit.App
                                         // own menu key: otherwise the same icon on the home screen disappears while the menu is open
-                                        model.openContextMenu(libraryMenuKey(a.app.key), a.screenRect.topLeft, density, fromLibrary = true)
+                                        // library icons are smaller than grid icons → lifted icon starts/ends at the real size and place
+                                        val k = a.screenRect.width / geo.icon
+                                        model.openContextMenu(libraryMenuKey(a.app.key), a.screenRect.center - Offset(geo.icon / 2, geo.icon / 2), density,
+                                            fromLibrary = true, iconScale = k)
                                         mode = Mode.Menu
                                     }
                                     hit is Hit.Library -> Unit
@@ -1215,7 +1238,10 @@ fun HomeScreen(
                                 releasePress(animated = true)
                                 break
                             }
-                            tracker.addPosition(change.uptimeMillis, change.position)
+                            // all samples incl. the batched historical ones: when a frame is slow, Android delivers a whole
+                            // flick as ONE move event — with only its last position the tracker saw too few samples and
+                            // returned 0 → short fast swipes snapped back (measured on the phone 10-18)
+                            tracker.addPointerInputChange(change)
                             val delta = change.positionChange()
                             when (mode) {
                                 // Menu open and finger keeps dragging → menu away, edit mode + drag icon (like iOS)
@@ -1679,7 +1705,7 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.han
             return
         }
         val change = event.changes.firstOrNull { it.id == down.id } ?: return
-        tracker.addPosition(change.uptimeMillis, change.position)
+        tracker.addPointerInputChange(change)
         if (!change.pressed) {
             scope.launch { model.pressAlpha.snapTo(0f); model.pressedKey = null }
             if (paging) {

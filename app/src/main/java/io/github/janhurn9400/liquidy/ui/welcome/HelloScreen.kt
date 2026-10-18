@@ -1,5 +1,6 @@
 package io.github.janhurn9400.liquidy.ui.welcome
 
+import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import android.graphics.Typeface
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -132,7 +133,7 @@ fun HelloScreen(onContinue: () -> Unit) {
                     onDragCancel = { scope.launch { lift.animateTo(0f, spring(SNAP_BACK_DAMPING, SNAP_BACK_STIFFNESS)) } },
                 ) { change, dy ->
                     change.consume()
-                    tracker.addPosition(change.uptimeMillis, change.position)
+                    tracker.addPointerInputChange(change) // incl. batched historical samples
                     // upwards 1:1 (like iOS), downwards strongly damped
                     val step = if (dy < 0f || lift.value < 0f) dy else dy * 0.15f
                     scope.launch { lift.snapTo((lift.value + step).coerceAtMost(40f)) }

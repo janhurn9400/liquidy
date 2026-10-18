@@ -155,6 +155,7 @@ private fun LibrarySearchField(model: HomeModel, geo: LibraryGeometry, density: 
         LiquidGlass(
             shape = glassCapsule(),
             thickness = DesignTokens.libSearchHeight.value / DesignTokens.dockHeight.value,
+            blur = DesignTokens.libSearchBlur.dp,
             // Duo: almost clear glass, just a touch lighter than the surroundings [video 2, 3.5 s]; iPhone: milkier (recording2)
             whiteTint = if (geo.duo) DUO_SEARCH_TINT + (DUO_LIST_FIELD_TINT - DUO_SEARCH_TINT) * model.libListDim.value
                 else DesignTokens.libSearchTint.value + (DesignTokens.libListFieldTint.value - DesignTokens.libSearchTint.value) * model.libListDim.value,

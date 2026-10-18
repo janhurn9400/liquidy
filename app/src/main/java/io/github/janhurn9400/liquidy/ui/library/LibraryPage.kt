@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -176,7 +177,7 @@ fun LibraryPage(model: HomeModel, geo: LibraryGeometry, wallpaper: ImageBitmap, 
         Box(Modifier.fillMaxSize().graphicsLayer { translationY = -model.libraryScroll.value }) {
             model.library.forEachIndexed { i, cat ->
                 val tl = geo.tileTopLeft(i)
-                LibraryTile(cat, geo, wallpaper, density, hideCluster = model.openCategory?.tileIndex == i, modifier = Modifier.offset { IntOffset(tl.x.roundToInt(), tl.y.roundToInt()) })
+                LibraryTile(model, cat, geo, wallpaper, density, hideCluster = model.openCategory?.tileIndex == i, modifier = Modifier.offset { IntOffset(tl.x.roundToInt(), tl.y.roundToInt()) })
             }
         }
     }
@@ -190,7 +191,7 @@ fun LibraryPage(model: HomeModel, geo: LibraryGeometry, wallpaper: ImageBitmap, 
 }
 
 @Composable
-private fun LibraryTile(cat: LibraryCategory, geo: LibraryGeometry, wallpaper: ImageBitmap, density: Float, hideCluster: Boolean, modifier: Modifier) {
+private fun LibraryTile(model: io.github.janhurn9400.liquidy.ui.home.HomeModel, cat: LibraryCategory, geo: LibraryGeometry, wallpaper: ImageBitmap, density: Float, hideCluster: Boolean, modifier: Modifier) {
     val tileDp = Dp(geo.tile / density)
     val iconShape = ContinuousRoundedShape(DesignTokens.iconCorner.dp * (geo.quadrant / density / DesignTokens.iconSize.value))
     val miniShape = ContinuousRoundedShape(DesignTokens.iconCorner.dp * (geo.mini / density / DesignTokens.iconSize.value))
@@ -222,7 +223,13 @@ private fun LibraryTile(cat: LibraryCategory, geo: LibraryGeometry, wallpaper: I
                             .offset { IntOffset(q.x.roundToInt(), q.y.roundToInt()) }
                             .graphicsLayer { alpha = if (io.github.janhurn9400.liquidy.ui.home.LibraryFlying.key == app.key) 0f else 1f }
                             .size(Dp(geo.quadrant / density))
-                            .clip(iconShape))
+                            .clip(iconShape)
+                            // held: darkens like a home screen icon (pressedKey set by the gesture arena)
+                            .drawWithContent {
+                                drawContent()
+                                if (model.pressedKey == io.github.janhurn9400.liquidy.ui.home.libraryMenuKey(app.key))
+                                    drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = model.pressAlpha.value))
+                            })
                     }
                     // Open category: the cluster is empty — its icons have flown into the grid
                     if (cat.apps.size > 4 && !hideCluster) {

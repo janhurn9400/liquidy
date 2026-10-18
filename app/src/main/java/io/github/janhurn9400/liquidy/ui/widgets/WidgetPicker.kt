@@ -136,7 +136,9 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
     }
 
     // Duo style (unfolded and folded): light sheet with app list + detail sheet with size carousel [recording 10:40, 31–46 s]
-    if (io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle) {
+    // One gallery for every layout: the newer sheet (size carousel, light sheet, glass only on the search field — the old
+    // full-screen glass sheet re-recorded the whole home screen every frame and lagged on real phones)
+    run {
         DuoWidgetPicker(
             // separated by app: don't mix own iOS widgets and an Android app of the same name (e.g. "Clock")
             groups = shown.groupBy { it.title to it.provider?.provider?.packageName }.entries.map { it.key.first to it.value }.sortedBy { it.first.lowercase() },

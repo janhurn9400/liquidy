@@ -12,7 +12,8 @@ object Motion {
     val page = iosSpring("M-PAGE", "Page settle", response = 0.36f, dampingFraction = 0.90f)
 
     // M-PAGE-THRESH — page change from this finger velocity or this offset. [ESTIMATED]
-    val pageFlingVelocity = tunable("M-PAGE-THRESH.velocity", "Page change from velocity", "Motion", 300f, 50f, 1500f, "pt/s")
+    // 300 → 120 pt/s: on the iPhone a short little flick already changes the page (user 10-18, real phone vs. iPhone)
+    val pageFlingVelocity = tunable("M-PAGE-THRESH.velocity", "Page change from velocity", "Motion", 120f, 50f, 1500f, "pt/s")
     val pageDistanceFraction = tunable("M-PAGE-THRESH.distance", "Page change from offset", "Motion", 0.5f, 0.2f, 0.8f, "×width")
 
     // M-RUBBER — rubber band at the first/last page edge: (x·d·c)/(d + c·x). [SOURCED] UIScrollView c = 0.55

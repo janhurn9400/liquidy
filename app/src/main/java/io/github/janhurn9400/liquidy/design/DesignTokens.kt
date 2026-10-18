@@ -66,7 +66,7 @@ object DesignTokens {
     val glassBlur = dpToken("T-GLASS.blur", "Glass blur radius", "Glass", 0.6f, 0f, 40f) // [MEASURED] recording7 (cat): blades of grass in the dock almost sharp → 0.6 dp (was 1.5)
     // Lens (Kyant lens, docs/GLASS.md) [ESTIMATED] — the reference wallpaper is plain, refraction is barely measurable there
     val glassRefraction = dpToken("T-GLASS.refraction", "Refraction height (edge zone)", "Glass", 16f, 0f, 40f) // Kyant example 16 dp
-    val glassRefractionAmount = tunable("T-GLASS.amount", "Refraction amount (× height)", "Glass", 3f, 0f, 6f, "×") // user: refraction was barely visible
+    val glassRefractionAmount = tunable("T-GLASS.amount", "Refraction amount (× height)", "Glass", 1.05f, 0f, 6f, "×") // 3 → 1.05: user's iPhone comparison 10-18 (App Library field, Liquid Glass 100 %) — iPhone refracts far less, applies everywhere
     val glassRefractionCornerShare = tunable("T-GLASS.cornerShare", "Refraction zone max. share of corner radius", "Glass", 0.8f, 0.2f, 1f)
     val glassDepth = tunable("T-GLASS.depth", "Depth effect (0/1)", "Glass", 1f, 0f, 1f)
     val glassSaturation = tunable("T-GLASS.saturation", "Saturation boost", "Glass", 1.2f, 0.5f, 2.5f, "×") // [MEASURED] recording7: saturation in the dock ≈ 1.28× outside (was 1.5 → too orange)
@@ -178,6 +178,9 @@ object DesignTokens {
     // ── App Library (T-LIB) [MEASURED] recording2 (still frames 3x, rest position t = 9.9 s) ─────
     val libSearchTop = dpToken("T-LIB.searchTop", "App Library search field top", "App Library", 90f, 20f, 140f)
     val libSearchHeight = dpToken("T-LIB.searchH", "App Library search field height", "App Library", 47.33f, 30f, 60f)
+    // App Library field over moving tiles: iPhone (user screenshot 10-18, Liquid Glass 100 %) shows the icons below as soft
+    // colour smears with only a thin refracted edge — ours mirrored them several times and stayed sharp
+    val libSearchBlur = dpToken("T-LIB.searchBlur", "App Library field: blur", "App Library", 7f, 0f, 20f) // [ESTIMATED from screenshot]
     val libSearchSide = dpToken("T-LIB.searchSide", "App Library search field side", "App Library", 26f, 0f, 48f)
     val libSearchIcon = dpToken("T-LIB.searchIcon", "App Library search field magnifier", "App Library", 18f, 10f, 30f)
     val libSearchIconGap = dpToken("T-LIB.searchIconGap", "Magnifier → text", "App Library", 10.5f, 0f, 24f)
@@ -242,7 +245,7 @@ object DesignTokens {
     val todaySide = dpToken("T-TODAY.side", "Today: side margin", "Widgets", 26.33f, 0f, 48f)
     val todayGap = dpToken("T-TODAY.gap", "Today: gap between widgets", "Widgets", 21.33f, 4f, 40f)
     val todayBottom = dpToken("T-TODAY.bottom", "Today: space at the bottom", "Widgets", 40f, 0f, 200f)
-    val todayBlur = dpToken("T-TODAY.blur", "Today: wallpaper blur", "Widgets", 30f, 0f, 60f) // visual comparison: colour patches only
+    val todayBlur = dpToken("T-TODAY.blur", "Today: wallpaper blur", "Widgets", 20f, 0f, 60f) // 30 → 20: user's iPhone comparison 10-18 (Today + App Library too strong) [ESTIMATED]
     val widgetResizeBlur = dpToken("T-WIDGET.resizeBlur", "Content blur while resizing", "Widgets", 14f, 0f, 40f) // [ESTIMATED] visual comparison
     val widgetHandle = dpToken("T-WIDGET.handle", "Resize handle (arc) radius", "Widgets", 15f, 6f, 30f) // recording8 39.6 s
     val widgetHandleHit = dpToken("T-WIDGET.handleHit", "Resize handle hit radius", "Widgets", 26f, 10f, 50f)
