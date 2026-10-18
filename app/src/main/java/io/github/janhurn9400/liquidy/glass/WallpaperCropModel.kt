@@ -33,6 +33,7 @@ object WallpaperCropModel {
 
     /** Displayed area (in pixels of the set image of size [bmpW]×[bmpH]) or null if Android doesn't crop anything. */
     fun shownRegion(context: Context, screenW: Int, screenH: Int, bmpW: Int, bmpH: Int): RectF? {
+        if (isMiuiWallpaper(context) && screenW > 0 && screenH > 0 && bmpW > 0 && bmpH > 0) return miuiRegion(context, screenW, screenH, bmpW, bmpH)
         if (Build.VERSION.SDK_INT < 35 || screenW <= 0 || screenH <= 0 || bmpW <= 0 || bmpH <= 0) return null
         val helper = helper(context) ?: return null
         val rtl = context.resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
@@ -62,6 +63,7 @@ object WallpaperCropModel {
 
     /** Area relative to the (trimmed) file saved by Android — for WallpaperManager.getDrawable(). */
     fun shownRegionInCroppedFile(context: Context, screenW: Int, screenH: Int, fileW: Int, fileH: Int): RectF? {
+        if (isMiuiWallpaper(context)) return miuiRegion(context, screenW, screenH, fileW, fileH)
         if (Build.VERSION.SDK_INT < 35) return null
         val helper = helper(context) ?: return null
         val rtl = context.resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
@@ -80,6 +82,36 @@ object WallpaperCropModel {
         val cx = vis.centerX(); val cy = vis.centerY(); val hw = vis.width() / 2 / z; val hh = vis.height() / 2 / z
         return RectF(cx - hw, cy - hh, cx + hw, cy + hh)
     }
+
+    /**
+     * HyperOS/MIUI draws the wallpaper with its own service (com.miui.miwallpaper), not AOSP's ImageWallpaper: the file
+     * fills the screen centred (no AOSP multi-crop/parallax), zoomed by only a third of config_wallpaperMaxScale and
+     * shifted down slightly [MEASURED HyperOS 3.0 port, Mi 11 Lite 5G, 10-18: file 1200×2608, maxScale 1.2 → shown zoom
+     * 1.067, centre +1.5 % of the shown height; screenshot registration of Android's image vs our copy].
+     */
+    private fun miuiRegion(context: Context, screenW: Int, screenH: Int, fileW: Int, fileH: Int): RectF {
+        val sr = screenW.toFloat() / screenH
+        val fill = if (fileW.toFloat() / fileH >= sr) RectF((fileW - fileH * sr) / 2, 0f, (fileW + fileH * sr) / 2, fileH.toFloat())
+            else RectF(0f, (fileH - fileW / sr) / 2, fileW.toFloat(), (fileH + fileW / sr) / 2)
+        val z = 1f + (maxScale(context) - 1f) * MIUI_ZOOM_SHARE
+        val hw = fill.width() / 2 / z; val hh = fill.height() / 2 / z
+        val cx = fill.centerX(); val cy = fill.centerY() + MIUI_Y_SHIFT * hh * 2
+        return RectF(cx - hw, cy - hh, cx + hw, cy + hh)
+    }
+
+    private const val MIUI_ZOOM_SHARE = 1f / 3f
+    private const val MIUI_Y_SHIFT = 0.0155f
+
+    /** HyperOS/MIUI wallpaper service active (it crops and zooms differently from AOSP). */
+    fun isMiuiWallpaper(context: Context): Boolean = runCatching {
+        android.app.WallpaperManager.getInstance(context).wallpaperInfo?.packageName == MIUI_WALLPAPER_PACKAGE ||
+            (android.app.WallpaperManager.getInstance(context).wallpaperInfo == null && hasMiuiWallpaperService(context))
+    }.getOrDefault(false)
+
+    private fun hasMiuiWallpaperService(context: Context): Boolean =
+        runCatching { context.packageManager.getPackageInfo(MIUI_WALLPAPER_PACKAGE, 0); true }.getOrDefault(false)
+
+    private const val MIUI_WALLPAPER_PACKAGE = "com.miui.miwallpaper"
 
     /**
      * Zoom Android puts on the visible crop: unfolded or on normal displays config_wallpaperMaxScale,
