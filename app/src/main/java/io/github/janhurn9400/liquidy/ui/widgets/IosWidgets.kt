@@ -90,7 +90,7 @@ internal val LocalWidgetTinted = androidx.compose.runtime.staticCompositionLocal
 
 /** Background of an own widget: [normal], or black in the Tinted style (becomes the tint plate). */
 @Composable
-internal fun widgetBackground(normal: Color): Color = if (LocalWidgetTinted.current) Color.Black else normal
+internal fun widgetBackground(normal: Color): Color = if (LocalWidgetTinted.current) Color.Transparent else normal
 
 @Composable
 fun IosWidget(type: String, cols: Int, rows: Int = 2, modifier: Modifier = Modifier, config: String? = null) {
@@ -99,8 +99,16 @@ fun IosWidget(type: String, cols: Int, rows: Int = 2, modifier: Modifier = Modif
     if (ia.effective != io.github.janhurn9400.liquidy.design.IconStyle.Tinted || ia.dark || type == IosWidgetTypes.PHOTOS) { IosWidgetContent(type, cols, rows, modifier, config); return }
     val plate = ia.tintPlate(); val glyph = ia.tintGlyph()
     val effect = androidx.compose.runtime.remember(plate, glyph) { tintEffect(plate, glyph) }
+    // Tinted widgets are translucent like on iOS (the user's video 10-18: the wallpaper stripes show through the plate):
+    // their own background is replaced by dark glass over the wallpaper, and the whole result is mapped into the tint
     androidx.compose.runtime.CompositionLocalProvider(LocalWidgetTinted provides true) {
-        IosWidgetContent(type, cols, rows, modifier.graphicsLayer { renderEffect = effect }, config)
+        Box(modifier.graphicsLayer { renderEffect = effect }) {
+            if (io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current != null) io.github.janhurn9400.liquidy.glass.LiquidGlass(
+                shape = io.github.janhurn9400.liquidy.glass.glassRect(io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.dp),
+                modifier = Modifier.fillMaxSize(), blur = WIDGET_GLASS_BLUR.dp, blackTint = TINTED_GLASS_DARK, whiteTint = 0f, refraction = false,
+            ) else Box(Modifier.fillMaxSize().background(Color.Black))
+            IosWidgetContent(type, cols, rows, Modifier.fillMaxSize(), config)
+        }
     }
 }
 
@@ -146,7 +154,7 @@ private fun ClockWidget(modifier: Modifier, city: io.github.janhurn9400.liquidy.
         if (min == 0) null else (if (min > 0) "+" else "-") + kotlin.math.abs(min / 60) + (if (min % 60 != 0) ":%02d".format(kotlin.math.abs(min % 60)) else "")
     }
     val measurer = androidx.compose.ui.text.rememberTextMeasurer()
-    val plate = if (tinted) Modifier.background(Color.Black)
+    val plate = if (tinted) Modifier
         else if (night) Modifier.background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(CLOCK_NIGHT_PLATE_TOP, CLOCK_NIGHT_PLATE_BOTTOM)))
         else Modifier.background(Color(0xFF1C1C1E))
     Box(modifier.then(plate), contentAlignment = Alignment.Center) {
@@ -289,7 +297,7 @@ private fun BatteryWidget(modifier: Modifier) {
     val level by produceState(batteryLevel(context)) { while (true) { value = batteryLevel(context); delay(60_000) } }
     Box(modifier, contentAlignment = Alignment.Center) {
         // Tinted glass like iOS "Batteries" (recording8 12.5 s: inside ≈ 35 % of the background brightness, colour stays)
-        if (LocalWidgetTinted.current) Box(Modifier.fillMaxSize().background(Color.Black))
+        if (LocalWidgetTinted.current) Unit // tinted: the glass behind comes from IosWidget
         else if (io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current != null) io.github.janhurn9400.liquidy.glass.LiquidGlass(
             shape = io.github.janhurn9400.liquidy.glass.glassRect(io.github.janhurn9400.liquidy.design.DesignTokens.widgetCorner.dp),
             modifier = Modifier.fillMaxSize(), blur = WIDGET_GLASS_BLUR.dp, blackTint = WIDGET_GLASS_DARK, whiteTint = 0f,
@@ -328,4 +336,5 @@ private const val CLOCK_DAY_FROM = 6     // iOS: light dial from 6 h …
 private const val CLOCK_NIGHT_FROM = 18  // … dark from 18 h (local time of the city) [ESTIMATED]
 private const val BATTERY_PAD = 30f
 private const val WIDGET_GLASS_BLUR = 24f
+private const val TINTED_GLASS_DARK = 0.55f // tinted widgets: glass over the wallpaper, darkened so text stays legible [ESTIMATED]
 private const val WIDGET_GLASS_DARK = 0.22f // Duo [reference 10_today/01_home]: translucent glass, not opaque

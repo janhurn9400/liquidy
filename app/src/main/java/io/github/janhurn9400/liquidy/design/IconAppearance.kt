@@ -12,6 +12,9 @@ enum class IconStyle { Default, Dark, Clear, Tinted }
 /** Light/dark variant: Dark → Always/Auto, Clear/Tinted → Light/Dark/Auto. */
 enum class IconVariant { Light, Dark, Auto }
 
+/** Where the Tinted colour comes from (iOS 27 Customise: phone / wallpaper / eyedropper). */
+enum class TintSource { Device, Wallpaper, Custom }
+
 /**
  * Chosen icon style (global, Compose state → all icons redraw immediately). Saved in SharedPreferences.
  * [hue] 0…360, [saturation] 0…1 for Tinted.
@@ -21,6 +24,11 @@ object IconAppearance {
     var variant by mutableStateOf(IconVariant.Auto)
     var hue by mutableStateOf(DEFAULT_HUE)
     var saturation by mutableStateOf(DEFAULT_SAT)
+    var tintSource by mutableStateOf(TintSource.Custom)
+    /** Customise › sun: dim the wallpaper while the system is in dark mode (iOS). */
+    var dimWallpaper by mutableStateOf(false)
+    /** Customise › size toggle: large icons without labels (iOS 18+). */
+    var largeIcons by mutableStateOf(false)
     /** System in dark mode (for Auto), set from MainActivity. */
     var systemDark by mutableStateOf(false)
 
@@ -65,14 +73,39 @@ object IconAppearance {
         variant = runCatching { IconVariant.valueOf(p.getString("variant", null) ?: "") }.getOrDefault(IconVariant.Auto)
         hue = p.getFloat("hue", DEFAULT_HUE)
         saturation = p.getFloat("sat", DEFAULT_SAT)
+        tintSource = runCatching { TintSource.valueOf(p.getString("source", null) ?: "") }.getOrDefault(TintSource.Custom)
+        dimWallpaper = p.getBoolean("dim", false)
+        largeIcons = p.getBoolean("large", false)
+    }
+
+    /**
+     * Tint colour from [source]: Device = the system accent colour (Material You — Android's counterpart of "matches the
+     * phone"), Wallpaper = the wallpaper's primary colour, Custom = keep the slider values. Sets [hue]/[saturation].
+     */
+    fun applySource(context: Context, source: TintSource) {
+        tintSource = source
+        val c: Int? = when (source) {
+            TintSource.Device -> runCatching { context.getColor(android.R.color.system_accent1_500) }.getOrNull()
+            TintSource.Wallpaper -> runCatching {
+                android.app.WallpaperManager.getInstance(context).getWallpaperColors(android.app.WallpaperManager.FLAG_SYSTEM)?.primaryColor?.toArgb()
+            }.getOrNull()
+            TintSource.Custom -> null
+        }
+        if (c != null) {
+            val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(c, it) }
+            hue = hsv[0]; saturation = hsv[1].coerceIn(MIN_SOURCE_SAT, 1f)
+        }
+        save(context)
     }
 
     fun save(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString("style", style.name).putString("variant", variant.name).putFloat("hue", hue).putFloat("sat", saturation).apply()
+            .putString("style", style.name).putString("variant", variant.name).putFloat("hue", hue).putFloat("sat", saturation)
+            .putString("source", tintSource.name).putBoolean("dim", dimWallpaper).putBoolean("large", largeIcons).apply()
     }
 
     private const val PREFS = "icons"
     private const val DEFAULT_HUE = 290f  // purple like in the video (recording7 22.4 s)
     private const val DEFAULT_SAT = 0.6f
+    private const val MIN_SOURCE_SAT = 0.35f // grey wallpapers/accents would give an almost colourless tint
 }

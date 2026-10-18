@@ -336,6 +336,10 @@ object DesignTokens {
     const val TINT_GLYPH_V = 0.95f
     /** Widgets: content brightness → plate…glyph; × this so light content (≈ 0.85) already reaches the glyph colour. */
     const val TINT_WIDGET_GAIN = 1.15f
+    /** Customise › sun: wallpaper dimming in dark mode [ESTIMATED]. */
+    const val WALLPAPER_DARK_DIM = 0.3f
+    /** Customise › large icons: icon scale (labels hidden, the icon grows into their space) [ESTIMATED]. */
+    const val LARGE_ICON_SCALE = 1.2f
     /** Icons: motif brightness gain and minimum lift towards the glyph colour (iOS glyphs are clearly lighter than the
      *  plate everywhere, mostly near white) [DERIVED from the side-by-side comparison with the user's iPhone 10-16;
      *  the user preferred this over flat glyphs and over the icon pack's monochrome icons]. */

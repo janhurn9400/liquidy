@@ -652,6 +652,10 @@ fun HomeScreen(
             if (k > 0f) drawRect(Color.Black.copy(alpha = io.github.janhurn9400.liquidy.glass.WallpaperRenderer.PREVIEW_DIM * k))
         }
 
+        // Customise › sun: wallpaper dimmed in dark mode (iOS) — below everything else
+        val ia = io.github.janhurn9400.liquidy.design.IconAppearance
+        if (ia.dimWallpaper && ia.systemDark) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = DesignTokens.WALLPAPER_DARK_DIM)))
+
         // Home content (icons, dock, pill): blurred + shifted/shrunk for search. Decal = transparent outside.
         Box(
             Modifier

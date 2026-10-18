@@ -242,18 +242,23 @@ fun IconCell(
         val baseline = DesignTokens.labelBaseline.dp.roundToPx()
         val height = if (labelP != null) baseline + (labelP.height - labelP[FirstBaseline]) else iconPx
         val iconX = (cellW - iconPx) / 2
+        // Large icons (Customise): no label, the icon grows around its centre and moves down into the label space
+        val large = labelP != null && io.github.janhurn9400.liquidy.design.IconAppearance.largeIcons
+        val k = io.github.janhurn9400.liquidy.design.DesignTokens.LARGE_ICON_SCALE
+        val grow = if (large) ((k - 1f) * iconPx / 2f).let { kotlin.math.round(it).toInt() } else 0
+        val drop = if (large) ((height - iconPx) / 2f).let { kotlin.math.round(it).toInt() } else 0
         layout(cellW, height) {
-            icon.place(iconX, 0)
-            labelP?.place((cellW - labelP.width) / 2, baseline - labelP[FirstBaseline])
+            if (large) icon.placeWithLayer(iconX, drop) { scaleX = k; scaleY = k } else icon.place(iconX, 0)
+            if (!large) labelP?.place((cellW - labelP.width) / 2, baseline - labelP[FirstBaseline])
             badge?.place(
-                iconX + DesignTokens.badgeOffsetX.dp.roundToPx() - badge.width / 2,
-                DesignTokens.badgeOffsetY.dp.roundToPx() - badge.height / 2,
+                iconX + DesignTokens.badgeOffsetX.dp.roundToPx() - badge.width / 2 - grow,
+                DesignTokens.badgeOffsetY.dp.roundToPx() - badge.height / 2 - grow + drop,
                 zIndex = 1f,
             )
             // the right edge reaches beyond the icon, centre just below the top; wider numbers grow to the left
             count?.place(
-                iconX + iconPx + NOTIF_OVERHANG.dp.roundToPx() - count.width,
-                NOTIF_CENTER_Y.dp.roundToPx() - count.height / 2,
+                iconX + iconPx + NOTIF_OVERHANG.dp.roundToPx() - count.width + grow,
+                NOTIF_CENTER_Y.dp.roundToPx() - count.height / 2 - grow + drop,
                 zIndex = 1f,
             )
         }

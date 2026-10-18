@@ -71,7 +71,7 @@ internal fun WeatherWidget(cols: Int, rows: Int, modifier: Modifier, place: Weat
             }
         }
     }
-    BoxWithConstraints(modifier.background(if (LocalWidgetTinted.current) Brush.verticalGradient(listOf(Color.Black, Color.Black)) else Brush.verticalGradient(*SKY_STOPS))) {
+    BoxWithConstraints(modifier.background(if (LocalWidgetTinted.current) Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)) else Brush.verticalGradient(*SKY_STOPS))) {
         val s = maxHeight.value / (if (rows >= 4) REF_LARGE_H else REF_SMALL_H)
         val w = (state as? WeatherRepository.State.Ready)?.w
         if (w == null) {

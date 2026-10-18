@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
@@ -105,6 +106,11 @@ fun CustomiseSheet(model: HomeModel, sample: AppEntry?, wallpaper: ImageBitmap, 
             Centered(width, { y(629f, 441f) }) {
                 BasicText(stringResource(R.string.customise), style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Color.White))
             }
+            // Header [MEASURED user iPhone 10-18]: left the sun (dim wallpaper in dark mode), right small/large icons, 27 pt in
+            HeaderButton(HEADER_INSET, { y(629f, 441f) }, if (IconAppearance.dimWallpaper) 1f else UNSELECTED_ALPHA,
+                onClick = { IconAppearance.dimWallpaper = !IconAppearance.dimWallpaper; save() }) { c -> drawSunGlyph(c) }
+            HeaderButton(width - HEADER_INSET, { y(629f, 441f) }, 1f,
+                onClick = { IconAppearance.largeIcons = !IconAppearance.largeIcons; save() }) { c -> drawSizeGlyph(c, IconAppearance.largeIcons) }
             // Style previews
             IconStyle.entries.forEachIndexed { i, st ->
                 val cx = STYLE_X[i] - side + contentDx
@@ -129,9 +135,16 @@ fun CustomiseSheet(model: HomeModel, sample: AppEntry?, wallpaper: ImageBitmap, 
             // Tinted: hue + saturation
             if (tall.value > 0.01f) {
                 Box(Modifier.fillMaxSize().graphicsLayer { alpha = tall.value }) {
-                    Slider(width, { y(0f, 643f) }, Brush.horizontalGradient(HUES), IconAppearance.hue / 360f) { IconAppearance.hue = it * 360f; save() }
+                    Slider(width, { y(0f, 643f) }, Brush.horizontalGradient(HUES), IconAppearance.hue / 360f) {
+                        IconAppearance.hue = it * 360f; IconAppearance.tintSource = io.github.janhurn9400.liquidy.design.TintSource.Custom; save() }
                     Slider(width, { y(0f, 697f) }, Brush.horizontalGradient(listOf(Color.White, IconAppearance.tint(1f, 1f / IconAppearance.saturation.coerceAtLeast(0.01f)))),
-                        IconAppearance.saturation) { IconAppearance.saturation = it; save() }
+                        IconAppearance.saturation) { IconAppearance.saturation = it; IconAppearance.tintSource = io.github.janhurn9400.liquidy.design.TintSource.Custom; save() }
+                    // Colour source [MEASURED 10-18]: phone (system accent) · wallpaper · eyedropper (sliders), 78 pt apart, Ø 47 pt
+                    io.github.janhurn9400.liquidy.design.TintSource.entries.forEachIndexed { i, src ->
+                        SourceButton(width / 2 + (i - 1) * SOURCE_PITCH, { y(0f, 757.5f) }, src, IconAppearance.tintSource == src) {
+                            IconAppearance.applySource(context, src)
+                        }
+                    }
                 }
             }
             // Light/dark: Dark → Always | Auto, otherwise Light | Dark | Auto
@@ -144,6 +157,82 @@ fun CustomiseSheet(model: HomeModel, sample: AppEntry?, wallpaper: ImageBitmap, 
                     val selected = IconAppearance.variant == v
                     CenteredAt(cx, { y(836.6f, 823f) }, selected, onClick = { IconAppearance.variant = v; save() }) { LabelText(stringResource(res), selected) }
                 }
+            }
+        }
+    }
+}
+
+/** Round tappable glyph in the sheet header, centred at ([cx], [y]). */
+@Composable
+private fun HeaderButton(cx: Float, y: () -> Float, alpha: Float, onClick: () -> Unit, glyph: androidx.compose.ui.graphics.drawscope.DrawScope.(Color) -> Unit) {
+    Canvas(
+        Modifier
+            .offset { IntOffset(((cx - HEADER_HIT / 2) * density).roundToInt(), ((y() - HEADER_HIT / 2) * density).roundToInt()) }
+            .size(HEADER_HIT.dp)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
+    ) { glyph(Color.White.copy(alpha = alpha)) }
+}
+
+/** Brightness glyph: circle, left half filled, eight short rays (≈ 23 pt). */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSunGlyph(c: Color) {
+    val r = size.minDimension * 0.17f; val ctr = center; val sw = size.minDimension * 0.055f
+    drawCircle(c, r, ctr, style = Stroke(sw))
+    drawArc(c, 90f, 180f, true, Offset(ctr.x - r, ctr.y - r), Size(2 * r, 2 * r))
+    for (k in 0 until 8) {
+        val a = Math.toRadians(k * 45.0)
+        val p0 = r * 1.55f; val p1 = r * 2.05f
+        drawLine(c, ctr + Offset((kotlin.math.cos(a) * p0).toFloat(), (kotlin.math.sin(a) * p0).toFloat()),
+            ctr + Offset((kotlin.math.cos(a) * p1).toFloat(), (kotlin.math.sin(a) * p1).toFloat()), sw, StrokeCap.Round)
+    }
+}
+
+/** Icon size glyph: small square (≈ 8 pt) next to a large one (≈ 16 pt), bottom-aligned; the chosen size is filled. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSizeGlyph(c: Color, large: Boolean) {
+    val u = size.minDimension / HEADER_HIT // px per pt
+    val big = 16f * u; val small = 8f * u; val gap = 2.5f * u; val sw = 1.6f * u
+    val total = small + gap + big
+    val x0 = center.x - total / 2; val bottom = center.y + big / 2
+    val sTop = Offset(x0, bottom - small); val bTop = Offset(x0 + small + gap, bottom - big)
+    if (large) {
+        drawRoundRect(c, sTop, Size(small, small), CornerRadius(2.5f * u), style = Stroke(sw))
+        drawRoundRect(c, bTop, Size(big, big), CornerRadius(4.5f * u))
+    } else {
+        drawRoundRect(c, sTop, Size(small, small), CornerRadius(2.5f * u))
+        drawRoundRect(c, bTop, Size(big, big), CornerRadius(4.5f * u), style = Stroke(sw))
+    }
+}
+
+/** Tint colour source: phone (dark glass, white phone), wallpaper (white, grey flower), eyedropper (tint colour). */
+@Composable
+private fun SourceButton(cx: Float, y: () -> Float, src: io.github.janhurn9400.liquidy.design.TintSource, selected: Boolean, onClick: () -> Unit) {
+    val tint = IconAppearance.tint(1f)
+    Canvas(
+        Modifier
+            .offset { IntOffset(((cx - SOURCE_D / 2 - 4f) * density).roundToInt(), ((y() - SOURCE_D / 2 - 4f) * density).roundToInt()) }
+            .size((SOURCE_D + 8f).dp)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
+    ) {
+        val r = SOURCE_D / 2 * density; val c = center; val u = density
+        val fill = when (src) {
+            io.github.janhurn9400.liquidy.design.TintSource.Device -> Color.White.copy(alpha = 0.14f)
+            io.github.janhurn9400.liquidy.design.TintSource.Wallpaper -> Color(0xFFEDEDED)
+            io.github.janhurn9400.liquidy.design.TintSource.Custom -> tint
+        }
+        drawCircle(fill, r, c)
+        if (selected) drawCircle(Color.White, r - 1.6f * u, c, style = Stroke(3.2f * u))
+        when (src) {
+            io.github.janhurn9400.liquidy.design.TintSource.Device -> // phone: rounded rect with a camera dot
+                drawRoundRect(Color.White, Offset(c.x - 5f * u, c.y - 8.5f * u), Size(10f * u, 17f * u), CornerRadius(2.5f * u)).also {
+                    drawCircle(Color.Black.copy(alpha = 0.5f), 1.3f * u, Offset(c.x - 1.8f * u, c.y - 5.6f * u))
+                }
+            io.github.janhurn9400.liquidy.design.TintSource.Wallpaper -> for (k in 0 until 8) { // flower outline
+                val a = Math.toRadians(k * 45.0); val d = 5.2f * u
+                drawCircle(Color(0xFFB0B0B5), 3.6f * u, c + Offset((kotlin.math.cos(a) * d).toFloat(), (kotlin.math.sin(a) * d).toFloat()), style = Stroke(1.2f * u))
+            }
+            io.github.janhurn9400.liquidy.design.TintSource.Custom -> { // eyedropper: diagonal stem + bulb
+                drawLine(Color.White, c + Offset(-7f * u, 7f * u), c + Offset(3f * u, -3f * u), 2.2f * u, StrokeCap.Round)
+                drawLine(Color.White, c + Offset(3.5f * u, -3.5f * u), c + Offset(7f * u, -7f * u), 4.5f * u, StrokeCap.Round)
+                drawLine(Color.White, c + Offset(1f * u, -6f * u), c + Offset(6f * u, -1f * u), 2f * u, StrokeCap.Round)
             }
         }
     }
@@ -213,12 +302,16 @@ private const val SHEET_BLUR = 14f     // icons behind only colour patches
 private const val SHEET_TINT = 0.06f
 private val STYLE_X = floatArrayOf(67.5f, 156f, 244.6f, 333f)
 private const val PREVIEW = 61f
-private const val SEG_PITCH = 90f
+private const val SEG_PITCH = 72f // [MEASURED user iPhone 10-18: Light 129 · Dark 201 · Auto 273 pt]
 private const val CAPSULE_H = 30f
 private const val CAPSULE_PAD = 14f
 private val CAPSULE_FILL = Color(0x33FFFFFF)
 private const val UNSELECTED_ALPHA = 0.7f
 private const val SLIDER_X = 38.6f
+private const val HEADER_INSET = 27f  // [MEASURED 10-18] sun / size toggle centres from the sheet edges
+private const val HEADER_HIT = 30f
+private const val SOURCE_PITCH = 78f  // [MEASURED 10-18] colour source buttons, centre to centre
+private const val SOURCE_D = 47f
 private const val TRACK = 30f
 private const val THUMB = 22f
 private const val THUMB_R = 15f

@@ -1,5 +1,8 @@
 package io.github.janhurn9400.liquidy.data
 
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.LauncherApps
@@ -154,10 +157,23 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
             val info = runCatching {
                 launcherApps.resolveActivity(android.content.Intent().setComponent(app.component), app.user)
             }.getOrNull() ?: continue
-            val layers = runCatching {
+            // computing a glyph (plate removal at 4× supersampling) is slow → cached on disk per app version, pack and size
+            val version = runCatching { context.packageManager.getPackageInfo(app.component.packageName, 0).longVersionCode }.getOrDefault(0L)
+            val name = (app.key + "|" + version + "|" + (IconPacks.selected ?: "") + "|" + px + "|" + LAYER_CACHE_VERSION).hashCode().toUInt().toString(16)
+            val dir = java.io.File(context.cacheDir, "iconlayers").apply { mkdirs() }
+            val gf = java.io.File(dir, "${name}_g.png"); val mf = java.io.File(dir, "${name}_m.png")
+            val cached = if (gf.exists() && mf.exists()) runCatching {
+                IconLayers(android.graphics.BitmapFactory.decodeFile(gf.path).asImageBitmap(), android.graphics.BitmapFactory.decodeFile(mf.path).asImageBitmap())
+            }.getOrNull() else null
+            val layers = cached ?: runCatching {
                 val orig = info.getIcon(0)
                 val pack = IconPacks.icon(context, info.componentName, orig, px)
-                IconRenderer.layers(pack ?: orig, px, fullBleed = pack != null)
+                IconRenderer.layers(pack ?: orig, px, fullBleed = pack != null).also { l ->
+                    runCatching {
+                        gf.outputStream().use { l.glyph.asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                        mf.outputStream().use { l.mono.asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                    }
+                }
             }.getOrNull() ?: continue
             kotlinx.coroutines.withContext(Dispatchers.Main) { IconLayerCache.map[app.key] = layers }
         }
@@ -203,3 +219,6 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
         const val ICON_OVERSAMPLE = 1.5f
     } // Launcher3: at most 4 shortcuts in the popup
 }
+
+/** Bump when the glyph computation changes, so old cached layers are recomputed. */
+private const val LAYER_CACHE_VERSION = 1
