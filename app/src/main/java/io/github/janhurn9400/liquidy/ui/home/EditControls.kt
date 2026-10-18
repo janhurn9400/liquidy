@@ -74,6 +74,9 @@ fun EditButtons(geo: HomeGeometry, wallpaper: ImageBitmap, density: Float, showL
             whiteTint = if (geo.duo) DUO_BTN_WHITE else if (DesignTokens.wallpaperIsDark) FROST_WHITE_DARK else FROST_WHITE,
             blackTint = 0f,
             rimAlpha = if (geo.duo) DUO_BTN_RIM else null,
+            // ✓ / brush lie on the wallpaper; in edit mode the jiggling icons change the home screen every frame, which made
+            // every live-backdrop glass re-record everything each frame → fast wallpaper glass
+            onWallpaper = true,
             modifier = Modifier
                 .offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }
                 .size(Dp(r.width / density), Dp(r.height / density))

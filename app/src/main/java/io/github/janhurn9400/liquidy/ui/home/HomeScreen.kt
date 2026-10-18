@@ -1063,12 +1063,24 @@ fun HomeScreen(
                         }
                         if (hit is Hit.Library && !model.editing && !wasAnimating) {
                             (hit.hit as? io.github.janhurn9400.liquidy.ui.library.LibraryHit.App)?.let { la ->
-                                model.prefetchShortcuts(libraryMenuKey(la.app.key), density)
-                                // press feedback like on the home screen: icon darkens while held (LibraryPage reads pressedKey)
-                                model.pressedKey = libraryMenuKey(la.app.key)
+                                // exactly the home screen press (M-CTXMENU): darken, grow slowly, fade the dark, then the menu
+                                // (LibraryPage reads pressedKey / pressScaleKey for its icon)
+                                val lk = libraryMenuKey(la.app.key)
+                                model.prefetchShortcuts(lk, density)
+                                model.pressedKey = lk
+                                model.pressScaleKey = lk
+                                pressJob = scope.launch {
+                                    launch {
+                                        delay(Motion.ctxGrowDelay.value.toLong())
+                                        model.pressScale.animateTo(Motion.ctxPressScale.value,
+                                            androidx.compose.animation.core.tween(Motion.ctxGrowDuration.value.roundToInt(), easing = androidx.compose.animation.core.LinearEasing))
+                                    }
+                                    delay(Motion.ctxPressFadeDelay.value.toLong())
+                                    if (model.pressedKey == lk) model.pressAlpha.animateTo(0f, androidx.compose.animation.core.tween(Motion.ctxPressFade.value.roundToInt()))
+                                }
                                 scope.launch {
                                     val d = Motion.pressInDelay.value.roundToInt(); if (d > 0) delay(d.toLong())
-                                    if (model.pressedKey == libraryMenuKey(la.app.key)) model.pressAlpha.snapTo(DesignTokens.pressDarkAlpha.value)
+                                    if (model.pressedKey == lk) model.pressAlpha.snapTo(DesignTokens.pressDarkAlpha.value)
                                 }
                             }
                         }
@@ -1108,7 +1120,8 @@ fun HomeScreen(
                         while (true) {
                             val waitForLongPress = mode == Mode.Pending && !longPressDone && !wasAnimating
                             val event = if (waitForLongPress) {
-                                val hold = if (hit is Hit.Icon && !model.editing) Motion.ctxDelay.value else Motion.longPress.value
+                                val libApp = hit is Hit.Library && hit.hit is io.github.janhurn9400.liquidy.ui.library.LibraryHit.App
+                                val hold = if ((hit is Hit.Icon || libApp) && !model.editing) Motion.ctxDelay.value else Motion.longPress.value
                                 val remaining = hold.toLong() - (System.nanoTime() - t0) / 1_000_000
                                 withTimeoutOrNull(remaining.coerceAtLeast(1)) { awaitPointerEvent() }
                             } else awaitPointerEvent()

@@ -66,3 +66,19 @@ raise Kotlin if needed. Fallback: own AGSL following the recipe above.
 - QWEA0/Liquid-Glass-Android (MIT, View system): ideas for later — refraction falloff `∝ (1 + x/k)^-p`, motion-sensor light reflection,
   brightness measurement behind the glass for adaptive tint. https://github.com/QWEA0/Liquid-Glass-Android
 - Void Launcher: closed source, license forbids reverse engineering → not usable. https://github.com/Navoto01/VoidLauncher
+
+## Fast wallpaper glass (performance on real phones)
+
+Kyant's `drawBackdrop` re-records its backdrop into an own offscreen layer every frame the element moves (for the main
+backdrop that is the whole home screen) and composites the clipped content offscreen too. With ~10 elements on screen
+that cost 31 % janky frames on a Snapdragon 780G — the lens/blur/saturation shaders themselves are nearly free.
+
+`glass/WallpaperGlass.kt` is used for every glass element that only has the wallpaper behind it
+(`LiquidGlass(onWallpaper = true)`, or automatically when the backdrop is a `WallpaperBackdrop`):
+- ONE shared AGSL shader (Kyant's lens + highlight code 1:1, saturation in-shader) samples the wallpaper texture at the
+  element's screen position (local → root matrix as uniform); per frame only uniforms change, no offscreen layers.
+- Shadow and light rim (BlurMaskFilter) are recorded once into cached offscreen `GraphicsLayer`s — re-rasterising
+  them every frame for every element was the last big cost (30 % → 9 % janky at 90 Hz).
+- Frosted glass (Tinted slider, sheets) samples a pre-blurred wallpaper copy (`FrostCache`).
+Only glass with moving content behind it (e.g. menus over icons) still uses the live Kyant backdrop.
+Measure performance only with release builds (debug = interpreted).

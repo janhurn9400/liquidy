@@ -16,11 +16,35 @@ Android allows — sizes, spacing, colours, timing and spring feel. Measured val
 paging with rubber-band, folders that morph out of and back into their icon, apps that fly into a folder's free spot,
 icons that wait before moving out of the way, minus badges that shrink and grow instead of popping.
 
-**Liquid Glass.** Real refraction, rim light and blur on dock, folders, menus and search — reading the content
-behind it, live. Includes the *Clear ↔ Tinted* setting with a preview, matched to the original.
+**Liquid Glass.** Real refraction, rim light and blur on dock, folders, menus and search, fast enough for mid-range
+phones (see below). Includes the *Clear ↔ Tinted* setting with a preview, matched to the original.
 
 **Duo style for foldables and tablets.** Two pages side by side with a vertical dock column, single page when folded,
 scaled so every device keeps the same proportions.
+
+## Tested on a real mid-range phone
+
+Liquidy is developed on an emulator, but performance is checked on real hardware — deliberately not a flagship:
+a **Xiaomi Mi 11 Lite 5G** (Snapdragon 780G, 2021, 1080 × 2400, 90 Hz) running **LineageOS 23.2 (Android 16)**,
+release build.
+
+Janky frames (frames that missed the 11.1 ms budget at 90 Hz, measured with `dumpsys gfxinfo`):
+
+| Interaction | Janky frames |
+|---|---|
+| Swiping between pages, Today view and App Library (full Liquid Glass) | **4 %** |
+| Same, early prototype (live glass backdrop for every element, debug build) | 31 % |
+| Pulling down search and closing it again (keyboard included) | 20 % |
+
+What made the difference: glass that lies on the wallpaper (dock, search pill, App Library tiles, folders, widgets,
+edit buttons) no longer re-draws everything behind it every frame. One shared shader samples the wallpaper directly,
+and shadows/rim light are rendered once and reused — it looks the same, at a fraction of the cost. Only glass with
+moving content behind it still uses a live backdrop. Details in [`GLASS.md`](docs/GLASS.md).
+
+**Overall:** everyday use — paging, folders, Today view, App Library, edit mode, widgets — feels smooth on this
+phone. Opening search with the keyboard is the heaviest moment and still shows some dropped frames. Stock-ROM
+specifics (e.g. vendor wallpaper handling, app-open animations) can differ between manufacturers; the optional
+Animation Module was not part of this test.
 
 ## 🍎 Quirks
 
@@ -61,6 +85,9 @@ Install it in Magisk › Modules and reboot. Status and steps: *Launcher Setting
 ./gradlew :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+Judge performance only with a release build (`./gradlew :app:assembleRelease`) — debug builds run largely
+interpreted and stutter on real phones.
 
 Docs: [`ARCHITECTURE.md`](docs/ARCHITECTURE.md), measured values in [`RESEARCH.md`](docs/RESEARCH.md),
 glass rendering in [`GLASS.md`](docs/GLASS.md).

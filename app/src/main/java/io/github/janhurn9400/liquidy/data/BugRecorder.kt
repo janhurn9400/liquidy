@@ -222,6 +222,13 @@ class BugReportActivity : Activity() {
     /** Email (video attached, for people without GitHub) or GitHub issue (video to attach in the form). */
     private fun choose() {
         val intro = getString(R.string.settings_report_template)
+        if (!Diagnostics.emailEnabled) { // no report address yet → straight to GitHub
+            runCatching {
+                val text = BugRecorder.lastVideo?.let { BugRecorder.introWithVideo(this, intro, it) } ?: intro
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Diagnostics.issueUrl(this, text))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+            finish(); return
+        }
         android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
             .setTitle(R.string.report_choose_title)
             .setItems(arrayOf(getString(R.string.report_choose_email), getString(R.string.settings_report_github))) { _, which ->

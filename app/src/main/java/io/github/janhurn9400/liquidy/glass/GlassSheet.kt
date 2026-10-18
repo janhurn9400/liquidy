@@ -113,8 +113,10 @@ fun BoxWithConstraintsScope.GlassSheet(
         // Area AND content are the glass source for [bottomBar]: the search field refracts the rows running under it
         val surface = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
         Box(Modifier.matchParentSize().layerBackdrop(surface)) {
+            // Fast glass: at 40 dp blur + 60 % dark only colours shine through, so a pre-blurred wallpaper looks the same —
+            // the live backdrop re-recorded and re-blurred the whole home screen every frame while the sheet slid (stutter)
             LiquidGlass(shape = glassRect(SHEET_CORNER.dp), modifier = Modifier.matchParentSize(),
-                blur = SHEET_BLUR.dp, blackTint = SHEET_DARK, whiteTint = SHEET_GREY, refraction = false)
+                blur = SHEET_BLUR.dp, blackTint = SHEET_DARK, whiteTint = SHEET_GREY, refraction = false, onWallpaper = true)
             Column(Modifier.fillMaxSize().padding(bottom = SHEET_CORNER.dp)) {
                 Box(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 16.dp)) {
                     Box(Modifier.align(Alignment.CenterStart).size(44.dp).clip(CircleShape).background(SheetRowColor)

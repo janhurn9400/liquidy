@@ -85,6 +85,7 @@ fun DuoDots(geo: HomeGeometry, pager: PagerState, density: Float, dotCount: Int,
                 .size(Dp(r.width / density), Dp(r.height / density))
                 .graphicsLayer { alpha = e; scaleX = 0.8f + 0.2f * e; scaleY = 0.8f + 0.2f * e },
             whiteTint = 0.08f, blackTint = 0f, rimAlpha = LUPE_RIM,
+            onWallpaper = true, // edit mode only: lies on the wallpaper, jiggling icons would force a live re-record every frame
         )
     }
     Canvas(Modifier.fillMaxSize()) {

@@ -68,7 +68,11 @@ fun openWidgetApp(context: Context, type: String, from: android.graphics.RectF? 
     if (type == IosWidgetTypes.REMINDERS) { RemindersStore.sheetOpen = true; return } // own list instead of a third-party app
     val intent = when (type) {
         IosWidgetTypes.CALENDAR -> Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR)
-        IosWidgetTypes.CLOCK -> Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS)
+        // open the clock APP (its normal start screen), found via the alarm action — only resolved, never sent: sending
+        // SHOW_ALARMS is an alarm API that AOSP/LineageOS DeskClock guards with SET_ALARM (we only show a clock)
+        IosWidgetTypes.CLOCK -> context.packageManager.resolveActivity(Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS), 0)
+            ?.activityInfo?.packageName?.let { context.packageManager.getLaunchIntentForPackage(it) }
+            ?: Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS)
         IosWidgetTypes.PHOTOS -> Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY)
         else -> return
     }
@@ -78,7 +82,9 @@ fun openWidgetApp(context: Context, type: String, from: android.graphics.RectF? 
     widgetKey?.let { k ->
         context.packageManager.resolveActivity(intent, 0)?.activityInfo?.packageName?.let { io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetOrigins[it] = k }
     }
-    runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), opts?.toBundle()) }
+    val ok = runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), opts?.toBundle()) }.isSuccess
+    // nothing opened: show the widget again (the open animation had hidden it and waited for a window that never came)
+    if (!ok) { io.github.janhurn9400.liquidy.data.AppLaunchTransition.launchingKey.value = null; widgetKey?.let { k -> io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetOrigins.values.remove(k) } }
 }
 
 /**

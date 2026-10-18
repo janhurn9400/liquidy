@@ -278,6 +278,7 @@ private fun TodayScrollPanel(model: HomeModel, geo: HomeGeometry, density: Float
             Modifier.offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }
                 .size((r.width / density).dp, (r.height / density).dp),
             blur = 0.dp, whiteTint = TODAY_PANEL_WHITE, blackTint = 0f,
+            onWallpaper = true, // behind the widgets only the (Today-blurred) wallpaper — fast glass follows the scroll for free
         )
         val content = TodayLayout.contentHeight(rects, density, duoUnfolded = true)
         val hPx = geo.height

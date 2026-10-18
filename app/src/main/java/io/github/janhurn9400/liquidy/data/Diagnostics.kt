@@ -46,6 +46,9 @@ object Diagnostics {
     /** Where email bug reports go. TODO: placeholder — replace with the project's own address once it exists. */
     const val REPORT_EMAIL = "liquidy.reports@example.com"
 
+    /** Email reports are offered only once a real address is set (the placeholder would send reports nowhere). */
+    val emailEnabled: Boolean get() = !REPORT_EMAIL.endsWith("@example.com")
+
     /**
      * Bug report by email for people who don't use GitHub: only mail apps are offered (the apps that handle mailto:,
      * each targeted with the attachment-capable ACTION_SEND — the chooser ignores a mailto selector), recipient, subject

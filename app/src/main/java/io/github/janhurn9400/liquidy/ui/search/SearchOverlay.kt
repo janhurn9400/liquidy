@@ -1,5 +1,6 @@
 package io.github.janhurn9400.liquidy.ui.search
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.Canvas
@@ -197,10 +198,28 @@ private fun UniversalResults(model: HomeModel, colMod: Modifier, fullWidth: Bool
     val nav = WindowInsets.navigationBars.getBottom(LocalDensity.current)
     val bottom = with(LocalDensity.current) { maxOf(ime, nav).toDp() } + RESULTS_ABOVE_FIELD.dp
     val noRipple = remember { MutableInteractionSource() }
+    // Swipe up closes search also with text, like without (the arena handles that case): the results list keeps every
+    // vertical drag, so whatever upward drag/fling it can't use itself (short list or already at its end) closes search
+    val closeAfterPx = with(LocalDensity.current) { SWIPE_CLOSE_DP.dp.toPx() }
+    val closeConn = remember(model) {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            var leftover = 0f
+            override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset,
+                                      source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) {
+                    leftover = if (available.y < 0f) leftover - available.y else 0f
+                    if (leftover > closeAfterPx && model.searchOpen) { leftover = 0f; model.closeSearch() }
+                }
+                return androidx.compose.ui.geometry.Offset.Zero
+            }
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity { leftover = 0f; return androidx.compose.ui.unit.Velocity.Zero }
+        }
+    }
     Column(
         colMod.then(if (fullWidth) Modifier.fillMaxWidth() else Modifier)
             .fillMaxSize()
             .padding(top = RESULTS_TOP.dp, bottom = bottom)
+            .nestedScroll(closeConn)
             .androidx_verticalScroll()
             .clickable(interactionSource = noRipple, indication = null) { },
     ) {
@@ -305,3 +324,5 @@ private fun Magnifier(size: Dp) = Canvas(Modifier.size(size)) {
     drawLine(c, Offset(center.x + d, center.y + d), Offset(this.size.width - stroke / 2, this.size.height - stroke / 2), stroke, StrokeCap.Round)
 }
 
+/** Upward drag the results list can't use itself, after which search closes (like swiping up without text). */
+private const val SWIPE_CLOSE_DP = 48f

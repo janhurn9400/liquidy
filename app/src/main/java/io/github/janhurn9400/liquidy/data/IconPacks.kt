@@ -43,6 +43,7 @@ object IconPacks {
         val res: Resources,
         val items: Map<String, String>,       // "package/class" → drawable name
         val byClass: Map<String, String>,     // fully qualified class → drawable name (fallback match)
+        val byPackage: Map<String, String>,   // package → drawable of its first entry (app's launcher activity renamed)
         val calendars: Map<String, String>,   // "package/class" → prefix
         val backs: List<String>, val mask: String?, val upon: String?, val scale: Float,
     )
@@ -87,9 +88,48 @@ object IconPacks {
             ?: l.items["${component.packageName}/${component.shortClassName}"] // some packs write the class relatively (".Main")
             // the same activity under another package name (e.g. com.google.android.documentsui instead of com.android.documentsui)
             ?: l.byClass[component.className]
+            // same app, launcher activity renamed in this ROM version (e.g. LineageOS Dialer main.impl.MainActivity)
+            ?: l.byPackage[component.packageName]
+            // ROM's own apps the pack doesn't know (LineageOS Aperture, Etar, Glimpse, Twelve, Jelly, Messaging …): use the
+            // pack's icon for the same role (default camera → the pack's camera icon), taken from well-known apps of that role
+            ?: roleOf(context, component.packageName)?.let { role -> role.refs.firstNotNullOfOrNull { l.byPackage[it] } }
         name?.let { n -> drawable(l, n)?.let { return it } }
         if (fallback == null || (l.backs.isEmpty() && l.mask == null && l.upon == null)) return null
         return composeUnthemed(context, l, fallback, component, sizePx)
+    }
+
+    /** App roles with well-known reference packages whose pack entry stands in for unknown apps of that role. */
+    private enum class Role(val intent: () -> Intent, vararg val refs: String) {
+        CAMERA({ Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA) },
+            "com.google.android.GoogleCamera", "com.android.camera2", "com.android.camera", "com.sec.android.app.camera"),
+        GALLERY({ Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY) },
+            "com.google.android.apps.photos", "com.android.gallery3d", "com.sec.android.gallery3d", "com.miui.gallery"),
+        CALENDAR({ Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR) },
+            "com.google.android.calendar", "com.android.calendar", "com.samsung.android.calendar"),
+        MUSIC({ Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MUSIC) },
+            "com.google.android.apps.youtube.music", "com.android.music", "com.google.android.music", "com.miui.player"),
+        BROWSER({ Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_BROWSER) },
+            "com.android.chrome", "com.android.browser", "com.sec.android.app.sbrowser"),
+        MESSAGING({ Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_MESSAGING) },
+            "com.google.android.apps.messaging", "com.android.mms", "com.samsung.android.messaging"),
+        DIALER({ Intent(Intent.ACTION_DIAL) }, "com.google.android.dialer", "com.android.dialer", "com.samsung.android.dialer"),
+        CONTACTS({ Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CONTACTS) },
+            "com.google.android.contacts", "com.android.contacts"),
+    }
+
+    /** package → role, from the apps that handle each role's intent (computed once). */
+    @Volatile private var roles: Map<String, Role>? = null
+
+    private fun roleOf(context: Context, pkg: String): Role? {
+        val map = roles ?: HashMap<String, Role>().also { m ->
+            val pm = context.packageManager
+            Role.entries.forEach { role ->
+                runCatching { pm.queryIntentActivities(role.intent(), 0) }.getOrDefault(emptyList())
+                    .forEach { m.putIfAbsent(it.activityInfo.packageName, role) }
+            }
+            roles = m
+        }
+        return map[pkg]
     }
 
     @SuppressLint("DiscouragedApi") // icon packs are only reachable by name
@@ -144,7 +184,9 @@ object IconPacks {
         }
         val byClass = HashMap<String, String>()
         items.forEach { (k, d) -> val cls = k.substringAfter('/'); if (!cls.startsWith(".")) byClass.putIfAbsent(cls, d) }
-        Loaded(pkg, res, items, byClass, calendars, backs, mask, upon, scale)
+        val byPackage = HashMap<String, String>()
+        items.forEach { (k, d) -> byPackage.putIfAbsent(k.substringBefore('/'), d) }
+        Loaded(pkg, res, items, byClass, byPackage, calendars, backs, mask, upon, scale)
     }.getOrNull()
 
     private const val PREFS = "iconpack"

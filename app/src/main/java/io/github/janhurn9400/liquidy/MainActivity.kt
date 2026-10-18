@@ -222,7 +222,7 @@ class MainActivity : ComponentActivity() {
                 }
                 // Draw ourselves only if we neither know nor may read Android's image (otherwise the glass wouldn't match)
                 val drawOwnWallpaper = colorful || (!systemOurs && systemPixels == null)
-                val onLaunch: (io.github.janhurn9400.liquidy.data.AppEntry, androidx.compose.ui.geometry.Rect) -> Unit = { app, bounds ->
+                val launchNow: (io.github.janhurn9400.liquidy.data.AppEntry, androidx.compose.ui.geometry.Rect) -> Unit = { app, bounds ->
                         // without an icon rect (search, A–Z list): no specific home icon
                         if (bounds.isEmpty) homeModel.launchedIconKey = null
                         homeModel.libraryLaunch = null // App Library launches set it again afterwards
@@ -244,6 +244,15 @@ class MainActivity : ComponentActivity() {
                         homeModel.noteLaunch(app.key)
                         io.github.janhurn9400.liquidy.data.AppLaunchTransition.widgetOrigins.remove(app.component.packageName) // now opened via the icon
                         homeModel.onAppLaunching()
+                }
+                // Tapped while the system's close animation (swipe home) is still running: Shell would MERGE our open transition
+                // into the playing recents transition, so our remote animation never ran (logcat "Transition was merged").
+                // Hold the launch until that animation is done (window focus back), at most RETURN_WAIT_MS.
+                val onLaunch: (io.github.janhurn9400.liquidy.data.AppEntry, androidx.compose.ui.geometry.Rect) -> Unit = { app, bounds ->
+                    if (returnAnimating && io.github.janhurn9400.liquidy.data.AppLaunchTransition.enabled) {
+                        pendingLaunch = { launchNow(app, bounds) }
+                        window.decorView.postDelayed({ runPendingLaunch() }, RETURN_WAIT_MS)
+                    } else launchNow(app, bounds)
                 }
                 // Adapt labels/pill text to the wallpaper brightness (the editor preview uses the draft)
                 // Brightness of the ACTUALLY displayed image (Android wallpaper), not of our own launcher image
@@ -409,10 +418,15 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Apply again after system dialogs (e.g. photo permission) or returning from an app. */
+    /** System close animation (GestureNavContract) still playing — from the home intent until our window has focus again. */
+    private var returnAnimating = false
+    private var pendingLaunch: (() -> Unit)? = null
+    private fun runPendingLaunch() { pendingLaunch?.let { pendingLaunch = null; returnAnimating = false; it() } }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         // Focus back = the system's return animation is done (it now resets the wallpaper zoom) → our transition
-        if (hasFocus) { applyStatusBar(statusHidden); applyWallpaperLayout(); model?.onHomeVisible() }
+        if (hasFocus) { returnAnimating = false; runPendingLaunch(); applyStatusBar(statusHidden); applyWallpaperLayout(); model?.onHomeVisible() }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -424,7 +438,7 @@ class MainActivity : ComponentActivity() {
             val alreadyOnHome = hasWindowFocus() && (intent.flags and Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT) == 0
             val contract = io.github.janhurn9400.liquidy.data.GestureNavContract.fromIntent(intent)
             if (alreadyOnHome && contract == null) homePressed.tryEmit(Unit)
-            else model?.onReturnFromApp(contract)
+            else { if (contract != null) returnAnimating = true; model?.onReturnFromApp(contract) }
         }
         handleDebugIntent(intent)
     }
@@ -508,3 +522,6 @@ class MainActivity : ComponentActivity() {
 }
 
 private const val WELCOME_EXIT_MS = 450
+
+/** Longest wait for the system close animation before an app launch goes ahead anyway (ms). */
+private const val RETURN_WAIT_MS = 700L
