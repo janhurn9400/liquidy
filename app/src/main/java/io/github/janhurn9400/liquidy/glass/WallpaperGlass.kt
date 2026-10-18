@@ -356,10 +356,14 @@ half4 main(float2 coord) {
         float radius = radiusAt(coord, cornerRadii);
         float inside = -sdRoundedRect(centeredCoord, halfSize, radius);
         float cov = gaussCdf((rimHalf - inside) / rimSigma) - gaussCdf((-rimHalf - inside) / rimSigma);
-        float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
-        float2 grad = gradSdRoundedRect(centeredCoord, halfSize, gradRadius);
-        float intensity = pow(abs(dot(grad, float2(cos(lightAngle), sin(lightAngle)))), lightFalloff);
-        c.rgb = min(c.rgb + half(rimAlpha * cov * intensity), half3(1.0));
+        // only near the edge: on a capsule's centre line the gradient is normalize(0) = NaN (a visible line through the
+        // page dots); Kyant only evaluates it inside its stroke band
+        if (cov > 0.002) {
+            float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
+            float2 grad = gradSdRoundedRect(centeredCoord, halfSize, gradRadius);
+            float intensity = pow(abs(dot(grad, float2(cos(lightAngle), sin(lightAngle)))), lightFalloff);
+            if (intensity == intensity) c.rgb = min(c.rgb + half(rimAlpha * cov * intensity), half3(1.0)); // skip NaN
+        }
     }
     return c;
 }
