@@ -201,6 +201,7 @@ fun IconCell(
                     .then(if (clipIcon) Modifier.clip(shape) else Modifier)
                     .drawWithContent {
                         drawContent()
+                        if (clipIcon) io.github.janhurn9400.liquidy.glass.drawObjectRim(this, shape)
                         val a = pressAlpha()
                         if (a > 0f) {
                             val outline = shape.createOutline(size, layoutDirection, this)

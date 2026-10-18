@@ -88,6 +88,24 @@ fun GlassSurface(
     }
 }
 
+/**
+ * Liquid Glass edge of app icons and widgets (iOS 27, all icon styles): a hairline of light along the top and bottom
+ * edge with a short glow inwards, the sides almost without (T-OBJ-RIM, measured on the user's iPhone 10-18). Drawn inside
+ * the already clipped shape, so the outer half of each stroke is cut off.
+ */
+fun drawObjectRim(scope: androidx.compose.ui.graphics.drawscope.DrawScope, shape: Shape) = with(scope) {
+    val outline = shape.createOutline(size, layoutDirection, this)
+    fun band(a: Float) = Brush.verticalGradient(0f to Color.White.copy(alpha = a), RIM_FADE to Color.Transparent,
+        1f - RIM_FADE to Color.Transparent, 1f to Color.White.copy(alpha = a * RIM_BOTTOM))
+    drawOutline(outline, band(DesignTokens.objectRimGlow.value), style = Stroke(width = (RIM_GLOW_W * density) * 2f))
+    drawOutline(outline, band(DesignTokens.objectRimLine.value), style = Stroke(width = (RIM_LINE_W * density) * 2f))
+}
+
+private const val RIM_LINE_W = 0.45f // dp: the hairline (×2 because half the stroke lies outside the clip)
+private const val RIM_GLOW_W = 2.6f  // dp: the glow fading inwards
+private const val RIM_FADE = 0.22f   // share of the height over which the light runs out along the sides
+private const val RIM_BOTTOM = 0.9f  // bottom edge slightly weaker than the top
+
 @Composable
 fun GlassRim(shape: Shape, modifier: Modifier, lightAlpha: Float = DesignTokens.glassRimHighlight.value) {
     Canvas(modifier) {

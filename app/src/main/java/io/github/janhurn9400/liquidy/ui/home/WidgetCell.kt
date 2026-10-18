@@ -75,6 +75,7 @@ fun WidgetCell(
                     .clip(shape)
                     .drawWithContent {
                         drawContent()
+                        if (spec.type != STACK) io.github.janhurn9400.liquidy.glass.drawObjectRim(this, shape) // stacks have their own rim
                         val a = pressAlpha()
                         if (a > 0f) drawRect(Color.Black.copy(alpha = a))
                     }

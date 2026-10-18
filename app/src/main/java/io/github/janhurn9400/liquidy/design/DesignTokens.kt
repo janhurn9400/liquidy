@@ -342,6 +342,11 @@ object DesignTokens {
     const val TINT_ICON_GAIN = 1.3f
     const val TINT_ICON_FLOOR = 0.35f
 
+    // ── Object rim (T-OBJ-RIM): light edge of icons and widgets [MEASURED] user iPhone 10-18 (2.29 px/pt): plate 43 → edge
+    // 102 (white α ≈ 0.28) on the top/bottom hairline, then +14/+9/+5 inwards (glow α ≈ 0.07); sides almost none
+    val objectRimLine = tunable("T-OBJ-RIM.line", "Icon/widget rim: light line", "Icon", 0.3f, 0f, 1f)
+    val objectRimGlow = tunable("T-OBJ-RIM.glow", "Icon/widget rim: inner glow", "Icon", 0.07f, 0f, 0.5f)
+
     // ── Wallpaper (own generated gradient; colours sampled from IMG_3123) ───
     val wallpaperBase = Color(0xFFC3C1C0)
     val wallpaperLight = Color(0xFFD4D2CF)
