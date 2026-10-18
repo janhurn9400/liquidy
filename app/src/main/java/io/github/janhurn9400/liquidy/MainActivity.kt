@@ -372,6 +372,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        homeOnTop = true
+        log("resume armed=$unlockArmed locked=${keyguard.isKeyguardLocked}")
+        startUnlockPoll()
         io.github.janhurn9400.liquidy.data.AppLaunchTransition.apply {
             enabled = hasRemoteAnimation
             cardCornerPx = DesignTokens.appLaunchCorner.value * io.github.janhurn9400.liquidy.design.UiScale.density(this@MainActivity)
@@ -427,32 +430,52 @@ class MainActivity : ComponentActivity() {
     private fun runPendingLaunch() { pendingLaunch?.let { pendingLaunch = null; returnAnimating = false; it() } }
 
     /**
-     * Unlock animation (M-UNLOCK): screen off with the home screen in front → home content waits far away; once the
-     * keyguard is gone and our window has focus again it zooms in. Unlocked into another app → reset without animating.
+     * Unlock animation (M-UNLOCK). The home screen waits far away once the screen goes off while it is the top activity
+     * (also if the screen goes off again from the lock screen). It flies in as soon as our window is revealed: resumed,
+     * keyguard gone, display on — checked every frame from onResume, because USER_PRESENT only arrives ≈ 0.4 s after
+     * the lock screen has faded (measured on LineageOS 23.2) and fingerprint "wake and unlock" can resume us while the
+     * display is still off. Another app revealed instead → reset without animating.
      */
     private var unlockArmed = false
+    /** The home screen is the top activity (stays true while only the screen/keyguard paused us). */
+    private var homeOnTop = true
     private val unlockHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val unlockTimeout = Runnable { if (unlockArmed && !hasWindowFocus()) { unlockArmed = false; model?.cancelUnlock() } }
+    private val keyguard by lazy { getSystemService(android.app.KeyguardManager::class.java) }
+    private val power by lazy { getSystemService(android.os.PowerManager::class.java) }
     private val screenReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_SCREEN_OFF -> if (hasWindowFocus() || lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
-                    unlockArmed = true; model?.prepareUnlock()
-                }
-                Intent.ACTION_USER_PRESENT -> if (unlockArmed) {
-                    if (hasWindowFocus()) playUnlockIfReady() else { unlockHandler.removeCallbacks(unlockTimeout); unlockHandler.postDelayed(unlockTimeout, UNLOCK_FOCUS_WAIT_MS) }
+                Intent.ACTION_SCREEN_OFF -> if (homeOnTop && !unlockArmed) { log("screen off → armed"); unlockArmed = true; model?.prepareUnlock() }
+                Intent.ACTION_USER_PRESENT -> {
+                    log("user present resumed=${isResumed()} armed=$unlockArmed")
+                    // unlocked, but not to us (an app was on top) → reset, so returning home later doesn't play it
+                    if (unlockArmed && !isResumed()) { unlockArmed = false; model?.cancelUnlock() } else startUnlockPoll()
                 }
             }
         }
     }
-    private fun playUnlockIfReady() {
-        if (!unlockArmed || getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked) return
-        unlockArmed = false; unlockHandler.removeCallbacks(unlockTimeout); model?.playUnlock()
+    private fun isResumed() = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+    private var unlockPollStart = 0L
+    private val unlockPoll = object : Runnable {
+        override fun run() {
+            playUnlockIfReady()
+            if (unlockArmed && android.os.SystemClock.uptimeMillis() - unlockPollStart < UNLOCK_POLL_MAX_MS) unlockHandler.postDelayed(this, UNLOCK_POLL_MS)
+        }
     }
+    private fun startUnlockPoll() {
+        if (!unlockArmed) return
+        unlockHandler.removeCallbacks(unlockPoll); unlockPollStart = android.os.SystemClock.uptimeMillis(); unlockHandler.post(unlockPoll)
+    }
+    private fun playUnlockIfReady() {
+        if (!unlockArmed || !isResumed() || keyguard.isKeyguardLocked || !power.isInteractive) return
+        if (display?.state != android.view.Display.STATE_ON) return
+        log("play"); unlockArmed = false; unlockHandler.removeCallbacks(unlockPoll); model?.playUnlock()
+    }
+    private fun log(msg: String) = android.util.Log.d("Unlock", msg)
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) playUnlockIfReady()
+        if (hasFocus) { log("focus"); startUnlockPoll() }
         // Focus back = the system's return animation is done (it now resets the wallpaper zoom) → our transition
         if (hasFocus) { returnAnimating = false; runPendingLaunch(); applyStatusBar(statusHidden); applyWallpaperLayout(); model?.onHomeVisible() }
     }
@@ -537,6 +560,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        // paused by another app (not by the screen going off or the keyguard)
+        if (power.isInteractive && !keyguard.isKeyguardLocked) homeOnTop = false
         if (::repository.isInitialized) Tunables.save(this) // not after forwarding (nothing initialised)
     }
 
@@ -556,5 +581,6 @@ private const val WELCOME_EXIT_MS = 450
 /** Longest wait for the system close animation before an app launch goes ahead anyway (ms). */
 private const val RETURN_WAIT_MS = 700L
 
-/** Longest wait after USER_PRESENT for our window to get focus (else another app is in front). */
-private const val UNLOCK_FOCUS_WAIT_MS = 1500L
+/** How long after resume/focus we keep checking whether the keyguard is gone and the display is on. */
+private const val UNLOCK_POLL_MAX_MS = 3000L
+private const val UNLOCK_POLL_MS = 8L

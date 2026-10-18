@@ -17,6 +17,18 @@ class IosSpring(val response: Tunable, val dampingFraction: Tunable) {
     fun <T> spec(visibilityThreshold: T? = null): SpringSpec<T> =
         spring(dampingRatio = dampingFraction.value, stiffness = stiffness, visibilityThreshold = visibilityThreshold)
 
+    /**
+     * Remaining displacement after [t] s of a spring released at rest from [x0] (closed form, mass 1) — for many items
+     * that share one clock but run with their own [responseScale] (e.g. staggered unlock zoom).
+     */
+    fun displacement(x0: Float, t: Float, responseScale: Float = 1f): Float {
+        if (t <= 0f) return x0
+        val w = 2.0 * PI / (response.value * responseScale)
+        val z = dampingFraction.value.toDouble().coerceAtMost(0.999)
+        val wd = w * kotlin.math.sqrt(1 - z * z)
+        return (x0 * kotlin.math.exp(-z * w * t) * (kotlin.math.cos(wd * t) + z * w / wd * kotlin.math.sin(wd * t))).toFloat()
+    }
+
     companion object {
         fun stiffnessFor(response: Float): Float {
             val omega = 2.0 * PI / response

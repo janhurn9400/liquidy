@@ -1363,14 +1363,48 @@ class HomeModel(
     }
 
     /** From MainActivity.onWindowFocusChanged: the system's return animation is done → sharpen. */
-    /** Unlock zoom (M-UNLOCK): distance = 1/scale of the home content, 1 = at rest. */
-    val unlockDistance = Animatable(1f)
-    fun unlockScale(): Float = 1f / unlockDistance.value.coerceAtLeast(UNLOCK_MIN_DISTANCE)
-    /** Screen went off with the home screen in front: start far away, so the first frame after unlocking is already zoomed. */
-    fun prepareUnlock() { scope.launch { unlockDistance.snapTo(Motion.unlockStartDistance.value) } }
-    fun playUnlock() { scope.launch { unlockDistance.animateTo(1f, Motion.unlock.spec()) } }
+    /**
+     * Unlock zoom (M-UNLOCK): one shared clock (s since the spring started; [UNLOCK_IDLE] = at rest, negative = waiting
+     * far away). Every item evaluates the spring itself with its own response (staggered by distance from the centre).
+     * Interruptible: prepare/play/cancel restart or stop the clock at any time.
+     */
+    /** Window size in px (set by HomeScreen) — centre of the unlock zoom. */
+    var screenSize = androidx.compose.ui.geometry.Size.Zero
+    var unlockT by androidx.compose.runtime.mutableFloatStateOf(UNLOCK_IDLE)
+        private set
+    private var unlockJob: kotlinx.coroutines.Job? = null
+    /** Screen went off with the home screen in front: everything waits far away, so the first frame after unlocking is already zoomed. */
+    fun prepareUnlock() { unlockJob?.cancel(); unlockT = UNLOCK_WAITING }
+    fun playUnlock() {
+        unlockJob?.cancel()
+        unlockJob = scope.launch {
+            val lead = Motion.unlockLead.value
+            val start = androidx.compose.runtime.withFrameNanos { it }
+            unlockT = lead
+            while (true) {
+                val now = androidx.compose.runtime.withFrameNanos { it }
+                val t = lead + (now - start) / 1e9f
+                if (t > Motion.unlock.response.value * UNLOCK_SETTLE_RESPONSES) { unlockT = UNLOCK_IDLE; break }
+                unlockT = t
+            }
+        }
+    }
     /** Unlocked into another app (or no unlock followed): back to rest without animating. */
-    fun cancelUnlock() { scope.launch { unlockDistance.snapTo(1f) } }
+    fun cancelUnlock() { unlockJob?.cancel(); unlockT = UNLOCK_IDLE }
+    /**
+     * Scale of an item whose centre is at ([cx], [cy]) on a [w]×[h] screen; it also moves to centre + scale·(item − centre).
+     * Read only in layer/draw lambdas.
+     */
+    fun unlockScale(cx: Float, cy: Float, w: Float, h: Float): Float {
+        val t = unlockT
+        if (t == UNLOCK_IDLE) return 1f
+        val d0 = Motion.unlockStartDistance.value
+        if (t < 0f) return 1f / d0
+        val r = kotlin.math.hypot(cx - w / 2, cy - h / 2) / w
+        val f = Motion.unlockStaggerBase.value + Motion.unlockStaggerSlope.value * r
+        val d = 1f - Motion.unlock.displacement(1f - d0, t, f)
+        return 1f / d.coerceAtLeast(UNLOCK_MIN_DISTANCE)
+    }
 
     fun onHomeVisible() {
         smartRotateStacks()
@@ -1931,3 +1965,7 @@ class HomeModel(
 private const val OVERVIEW_SETTLE = 0.0005f
 
 private const val UNLOCK_MIN_DISTANCE = 0.01f
+private const val UNLOCK_IDLE = Float.MAX_VALUE
+private const val UNLOCK_WAITING = -1f
+/** Clock stops after this many base responses (the slowest corner item is ≈ 1.6× slower and at rest by then). */
+private const val UNLOCK_SETTLE_RESPONSES = 3f

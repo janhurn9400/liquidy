@@ -183,6 +183,7 @@ fun HomeScreen(
         LaunchedEffect(duo) { DesignTokens.iconSize.tunable.value = if (duo) DUO_ICON else DesignTokens.iconSize.tunable.default }
         val geo = remember(w, h, density, navBarPx, duo) { HomeGeometry(density, w, h, navBarPx, duo) }
         geo.dockCount = model.display.dock.size
+        model.screenSize = androidx.compose.ui.geometry.Size(w, h)
         // Dock slots: Duo with "More Apps in Dock" as many as fit into the right column, otherwise 4 like iOS
         model.dockMax = if (geo.duo && io.github.janhurn9400.liquidy.data.FoldableStyle.moreDockApps) geo.duoDockCapacity else DesignTokens.DOCK_SLOTS
         // Duo: dock glass grows/shrinks with the same spring as the reflowing icons (M-REFLOW) instead of jumping
@@ -681,13 +682,10 @@ fun HomeScreen(
                     val r = maxOf(backgroundBlurPx(withSearch = !geo.duo), foldBlur)
                     renderEffect = if (r > 0.5f) BlurEffect(r, r, TileMode.Decal) else null
                     alpha = overviewHide()
-                    // Unlock (M-UNLOCK): icons, widgets and dock zoom in from far away around the screen centre
-                    val unlock = model.unlockScale()
-                    scaleX = unlock; scaleY = unlock
                     if (!geo.duo) {
                         val hs = model.searchProgress.value // home offset h (pt)
                         translationY = hs * density
-                        val sc = model.searchContentScale() * unlock
+                        val sc = model.searchContentScale()
                         scaleX = sc; scaleY = sc
                     }
                 }
@@ -777,6 +775,13 @@ fun HomeScreen(
             val b = lib * DUO_LIB_PAGE_BLUR * density
             renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
         }) {
+        // Unlock (M-UNLOCK): the dock glass flies in like the items (around its own centre)
+        Box(Modifier.fillMaxSize().graphicsLayer {
+            if (model.unlockT == Float.MAX_VALUE) return@graphicsLayer
+            val r = geo.dockRect; val k = model.unlockScale(r.center.x, r.center.y, w, h)
+            transformOrigin = TransformOrigin(r.center.x / w, r.center.y / h)
+            scaleX = k; scaleY = k; translationX = (k - 1f) * (r.center.x - w / 2); translationY = (k - 1f) * (r.center.y - h / 2)
+        }) {
         LiquidGlass(
             // Duo: narrow vertical glass bar with its own radius (tile corners ≈ 22 pt)
             shape = glassRect(if (geo.duo) androidx.compose.ui.unit.Dp(DUO_DOCK_CORNER) else DesignTokens.dockCorner.dp),
@@ -790,6 +795,7 @@ fun HomeScreen(
                 layout(p.width, p.height) { p.place(r.left.roundToInt(), r.top.roundToInt()) }
             },
         )
+        }
         display.dock.forEachIndexed { i, key ->
             if (key != model.drag?.key) key(key) {
                 IconSlot(model, key, Container.Dock, geo.dockPosition(i, display.dock.size), pager, geo::pageShift, density) {
@@ -871,6 +877,13 @@ fun HomeScreen(
                 }) { DuoDots(geo, pager, density, dotCount = display.pages.size.coerceAtLeast(1)) { model.badgeScale.value } }
                 DuoSearchButton(model, geo, density)
             }
+            // Unlock (M-UNLOCK): pill/dots fly in like the items, around their own centre
+            Box(Modifier.fillMaxSize().graphicsLayer {
+                if (model.unlockT == Float.MAX_VALUE) return@graphicsLayer
+                val cy = geo.pillTop + DesignTokens.pillHeight.value * density / 2; val cx = w / 2
+                val k = model.unlockScale(cx, cy, w, h)
+                transformOrigin = TransformOrigin(0.5f, cy / h); scaleX = k; scaleY = k; translationY = (k - 1f) * (cy - h / 2)
+            }) {
             SearchPill(
                 model = model,
                 pager = pager,
@@ -885,6 +898,7 @@ fun HomeScreen(
                 duoFieldRestY = pxToDp(geo.duoSearchRestY, density),
                 onLaunch = onLaunch,
             )
+            }
         }
 
         // ── Edit Stack ─────────────────────────────────────────────────────
@@ -1625,7 +1639,19 @@ private fun IconSlot(
             val p = toScreen(container, anim.pos.value, pager.position.value, pageShift)
             val sh = shockOffset(model, key, p + Offset(DesignTokens.iconSize.value * density / 2, DesignTokens.iconSize.value * density / 2), density)
             IntOffset((cellOffsetX(p.x, density) + sh.x).roundToInt(), (p.y + sh.y).roundToInt())
-        }.graphicsLayer { val s = anim.scale.value; scaleX = s; scaleY = s } // just dropped: springs back from the lifted size
+        }.graphicsLayer {
+            var s = anim.scale.value // just dropped: springs back from the lifted size
+            // Unlock (M-UNLOCK): every item flies in on its own from far away, the centre first
+            if (model.unlockT != Float.MAX_VALUE) {
+                val p = toScreen(container, anim.pos.value, pager.position.value, pageShift)
+                val cx = cellOffsetX(p.x, density) + size.width / 2; val cy = p.y + size.height / 2
+                val sw = model.screenSize.width; val sh = model.screenSize.height
+                val k = model.unlockScale(cx, cy, sw, sh)
+                translationX = (k - 1f) * (cx - sw / 2); translationY = (k - 1f) * (cy - sh / 2)
+                s *= k
+            }
+            scaleX = s; scaleY = s
+        }
     ) { content() }
 }
 
