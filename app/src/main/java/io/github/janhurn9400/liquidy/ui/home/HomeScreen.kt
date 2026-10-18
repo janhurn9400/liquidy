@@ -193,6 +193,8 @@ fun HomeScreen(
         model.screenSize = androidx.compose.ui.geometry.Size(w, h)
         val homeContentLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
         var folderBlurSnap by remember { androidx.compose.runtime.mutableStateOf<Pair<ImageBitmap, ImageBitmap>?>(null) }
+        /** Android blurs its own wallpaper behind the window (see "Wallpaper blur" below). */
+        var useSystemWallpaperBlur by remember { androidx.compose.runtime.mutableStateOf(false) }
         // Dock slots: Duo with "More Apps in Dock" as many as fit into the right column, otherwise 4 like iOS
         model.dockMax = if (geo.duo && io.github.janhurn9400.liquidy.data.FoldableStyle.moreDockApps) geo.duoDockCapacity else DesignTokens.DOCK_SLOTS
         // Duo: dock glass grows/shrinks with the same spring as the reflowing icons (M-REFLOW) instead of jumping
@@ -624,9 +626,10 @@ fun HomeScreen(
             val ramp = (model.searchProgress.value / Motion.searchBlurRamp.value).coerceIn(0f, 1f)
             return maxOf(ramp * DesignTokens.searchBlur.value, model.searchOpenAmount.value.coerceIn(0f, 1f) * DesignTokens.searchBlurOpen.value) * density
         }
-        fun backgroundBlurPx(includeToday: Boolean = false, withSearch: Boolean = true): Float {
+        /** [forWallpaper]: for the wallpaper itself (system blur) — the folder snapshot then only covers the icons. */
+        fun backgroundBlurPx(includeToday: Boolean = false, withSearch: Boolean = true, forWallpaper: Boolean = false): Float {
             // folder: pre-blurred snapshot (folderBlurSnap) stands in once ready — no live full-screen blur
-            val pf = if (folderBlurSnap != null) 0f else model.openFolder?.progress?.value ?: 0f
+            val pf = if (folderBlurSnap != null && !forWallpaper) 0f else model.openFolder?.progress?.value ?: 0f
             val hs = model.searchProgress.value
             val ramp = (hs / Motion.searchBlurRamp.value).coerceIn(0f, 1f)
             val openA = model.searchOpenAmount.value.coerceIn(0f, 1f)
@@ -653,15 +656,32 @@ fun HomeScreen(
             while (c is android.content.ContextWrapper && c !is android.app.Activity) c = c.baseContext
             (c as? android.app.Activity)?.window
         }
-        LaunchedEffect(window) { window?.setBackgroundBlurRadius(0) }
-        // At rest Android shows its wallpaper behind the transparent window. As soon as the background should blur
-        // (folder, search, Today, App Library …) we lay our congruent copy (= Android's crop) blurred
-        // on top — that looks the same on every device (Android's window blur isn't available everywhere).
+        // Wallpaper blur (folder, search, Today, App Library …): where the device supports it, Android blurs ITS wallpaper
+        // behind our transparent window itself (window background blur, done by the compositor) — always exactly the image
+        // and crop Android shows, on every vendor (HyperOS zooms/crops differently than AOSP, our copy jumped there) and
+        // free for the app. Only without it we lay our congruent copy (glass/WallpaperCropModel) blurred on top.
         // We always draw ourselves when we don't know Android's image ([drawWallpaper]) and in the editor.
+        val forceCopy = io.github.janhurn9400.liquidy.tuning.DebugOptions.wallpaperCopy.value >= 0.5f
+        val windowManager = remember(view) { view.context.getSystemService(android.view.WindowManager::class.java) }
+        var crossWindowBlur by remember { androidx.compose.runtime.mutableStateOf(windowManager?.isCrossWindowBlurEnabled == true) }
+        androidx.compose.runtime.DisposableEffect(windowManager) {
+            val l = java.util.function.Consumer<Boolean> { crossWindowBlur = it } // e.g. off in battery saver
+            windowManager?.addCrossWindowBlurEnabledListener(l)
+            onDispose { windowManager?.removeCrossWindowBlurEnabledListener(l) }
+        }
+        val systemBlur = crossWindowBlur && !drawWallpaper && !forceCopy
+        useSystemWallpaperBlur = systemBlur
+        LaunchedEffect(window, systemBlur) {
+            val win = window ?: return@LaunchedEffect
+            if (!systemBlur) { win.setBackgroundBlurRadius(0); return@LaunchedEffect }
+            try {
+                androidx.compose.runtime.snapshotFlow { backgroundBlurPx(includeToday = true, forWallpaper = true).roundToInt() }
+                    .collect { win.setBackgroundBlurRadius(it) }
+            } finally { win.setBackgroundBlurRadius(0) }
+        }
         // Key: otherwise the computation from the first composition (e.g. unfolded/folded) would stay frozen
         val blurNow by remember(geo, screenIsWide) { derivedStateOf { backgroundBlurPx(includeToday = true) > 0.5f } }
-        val forceCopy = io.github.janhurn9400.liquidy.tuning.DebugOptions.wallpaperCopy.value >= 0.5f
-        if (drawWallpaper || blurNow || forceCopy) Canvas(
+        if (drawWallpaper || (blurNow && !systemBlur) || forceCopy) Canvas(
             Modifier
                 .fillMaxSize()
                 .graphicsLayer {
@@ -689,7 +709,9 @@ fun HomeScreen(
             val img = try {
                 layer.record(androidx.compose.ui.unit.Density(density), androidx.compose.ui.unit.LayoutDirection.Ltr,
                     androidx.compose.ui.unit.IntSize(w.roundToInt(), h.roundToInt())) {
-                    drawImage(wallpaper); drawLayer(homeContentLayer)
+                    // with the system blur the wallpaper is blurred behind the window → snapshot only the icons
+                    if (!useSystemWallpaperBlur) drawImage(wallpaper)
+                    drawLayer(homeContentLayer)
                 }
                 layer.toImageBitmap()
             } catch (e: Exception) { null } finally { graphicsContext.releaseGraphicsLayer(layer) }
@@ -714,7 +736,10 @@ fun HomeScreen(
                     // then only on pages + Today (below), not on this shared layer
                     val r = maxOf(backgroundBlurPx(withSearch = !geo.duo), foldBlur)
                     renderEffect = if (r > 0.5f) BlurEffect(r, r, TileMode.Decal) else null
-                    alpha = overviewHide()
+                    // folder snapshot without wallpaper (system blur): sharp icons crossfade into the blurred ones
+                    val fade = if (folderBlurSnap != null && useSystemWallpaperBlur)
+                        ((model.openFolder?.progress?.value ?: 0f) * 2f).coerceIn(0f, 1f) else 0f
+                    alpha = overviewHide() * (1f - fade)
                     if (!geo.duo) {
                         val hs = model.searchProgress.value // home offset h (pt)
                         translationY = hs * density
