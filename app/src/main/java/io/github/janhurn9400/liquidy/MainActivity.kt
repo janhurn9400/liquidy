@@ -272,7 +272,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 io.github.janhurn9400.liquidy.ui.wallpaper.WallpaperEditorFrame(editor) {
-                    HomeScreen(model = homeModel, pager = pager, wallpaper = editor?.draftBitmap ?: homeWallpaper, onLaunch = onLaunch,
+                    HomeScreen(model = homeModel, pager = pager, wallpaperSource = editor?.draftBitmap ?: homeWallpaper, onLaunch = onLaunch,
                         drawWallpaper = editor != null || drawOwnWallpaper, wallpaperBlur = { editor?.blurAnim?.value ?: 0f })
                 }
                 editor?.let { e ->

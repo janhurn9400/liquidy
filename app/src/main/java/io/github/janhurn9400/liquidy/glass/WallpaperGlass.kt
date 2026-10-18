@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -99,19 +100,9 @@ fun WallpaperGlass(
     }
 
     Box(modifier) {
-        // 1 · shadow outside the shape — rendered ONCE into a cached offscreen layer (BlurMaskFilter re-rasterised every
-        // frame for every element was the remaining main cost: 30 % → 8 % janky frames with shadow + rim off, 90 Hz)
-        Spacer(Modifier.matchParentSize().drawWithCache {
-            val r = (DesignTokens.glassShadowRadius.dp * thickness).toPx()
-            val pad = ceil(r * 2f).toInt()
-            val layer = obtainGraphicsLayer().apply {
-                compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
-                record(size = androidx.compose.ui.unit.IntSize(size.width.toInt() + 2 * pad, size.height.toInt() + 3 * pad)) {
-                    translate(pad.toFloat(), pad.toFloat()) { drawGlassShadow(shape, thickness, this@drawWithCache.size) }
-                }
-            }
-            onDrawBehind { translate(-pad.toFloat(), -pad.toFloat()) { drawLayer(layer) } }
-        })
+        // 1 · shadow outside the shape: a blurred ROUNDED RECT — Skia draws that analytically on the GPU. A blurred free
+        // path was rasterised on the CPU and uploaded again whenever the size changed (folder panel: every frame)
+        Spacer(Modifier.matchParentSize().drawBehind { drawGlassShadow(shape, thickness) })
         // 2 · glass fill: the only part that follows the position (reads [FastGlassState.coords] while drawing)
         Spacer(
             Modifier
@@ -127,23 +118,11 @@ fun WallpaperGlass(
                     val outline = shape.createOutline(size, layoutDirection, this)
                     val shader = glass.shader(wallpaper, frosted ?: wallpaper, soft, softAmount())
                     glass.setUniforms(this, c, shape, thickness, tinted, refraction)
+                    // tints and the light rim are computed in the same shader (one draw, no masks, no layers)
+                    glass.setSurface(this, black, whiteTint, veil, grey, if (refraction) rimAlpha ?: DesignTokens.glassRimHighlight.value else 0f)
                     drawOutline(outline, ShaderBrush(shader))
-                    if (black > 0f) drawOutline(outline, Color.Black.copy(alpha = black))
-                    if (whiteTint > 0f) drawOutline(outline, Color.White.copy(alpha = whiteTint))
-                    if (veil > 0f) drawOutline(outline, Color(grey, grey, grey, veil))
                 }
         )
-        // 3 · light rim top/bottom (static, Kyant's highlight shader) — like LiquidGlass(refraction = true)
-        // (cached offscreen layer, composited with Plus like Kyant's highlight layer)
-        if (refraction) Spacer(Modifier.matchParentSize().drawWithCache {
-            val a = rimAlpha ?: DesignTokens.glassRimHighlight.value
-            val layer = obtainGraphicsLayer().apply {
-                compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
-                blendMode = BlendMode.Plus
-                record { drawGlassHighlight(shape, glass, a) }
-            }
-            onDrawBehind { drawLayer(layer) }
-        })
         content()
         // 4 · dark side rim (iOS 27, measured) — same as LiquidGlass
         if (refraction) GlassRim(shape, Modifier.matchParentSize(), lightAlpha = 0f)
@@ -203,47 +182,65 @@ private class FastGlassState {
         fill.setFloatUniform("depthEffect", if (DesignTokens.glassDepth.value > 0.5f) 1f else 0f)
     }
 
-    private fun bitmapShader(b: ImageBitmap) = BitmapShader(b.asAndroidBitmap(), Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+    /**
+     * Surface tints (black, white, grey veil — SrcOver in this order, like LiquidGlass.onDrawSurface) and Kyant's
+     * Highlight(width = T-GLASS.rim, Default(angle, falloff)) evaluated per pixel: a stroke of 2·ceil(width) centred on the
+     * edge, clipped to the inside, blurred by BlurMaskFilter(width / 2) (σ = 0.57735·r + 0.5), × style alpha 0.5, added (Plus).
+     */
+    fun setSurface(scope: DrawScope, black: Float, white: Float, veil: Float, grey: Float, rim: Float) = with(scope) {
+        fill.setFloatUniform("tints", black, white, veil, grey)
+        val w = DesignTokens.glassRimWidth.dp.toPx()
+        val on = rim > 0f && w > 0f
+        fill.setFloatUniform("rimOn", if (on) 1f else 0f)
+        fill.setFloatUniform("rimHalf", ceil(w.coerceAtMost(size.minDimension / 2f)))
+        fill.setFloatUniform("rimSigma", (BLUR_RADIUS_TO_SIGMA * w / 2f + BLUR_SIGMA_BIAS).coerceAtLeast(0.01f))
+        fill.setFloatUniform("rimAlpha", HIGHLIGHT_STYLE_ALPHA * rim)
+        fill.setFloatUniform("lightAngle", Math.toRadians(DesignTokens.glassLightAngle.value.toDouble()).toFloat())
+        fill.setFloatUniform("lightFalloff", DesignTokens.glassLightFalloff.value)
+    }
+
+    private fun bitmapShader(b: ImageBitmap) = BitmapShader(GpuBitmaps.of(b), Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
 }
 
-/** Kyant Shadow(radius, color) with its default offset (radius / 6 down), only outside the shape — without a layer. */
-private fun DrawScope.drawGlassShadow(shape: RoundedRectangularShape, thickness: Float, size: androidx.compose.ui.geometry.Size) {
+/**
+ * Kyant Shadow(radius, color) with its default offset (radius / 6 down), only outside the shape. Drawn as a circular
+ * rounded rect (radius = the shape's corner): 6 % black blurred by 16 dp looks the same as the continuous shape, and Skia
+ * blurs and clips a rounded rect analytically on the GPU (no CPU mask, no upload, no layer).
+ */
+private fun DrawScope.drawGlassShadow(shape: RoundedRectangularShape, thickness: Float) {
     val alpha = DesignTokens.glassShadowAlpha.value
     val radius = (DesignTokens.glassShadowRadius.dp * thickness).toPx()
     if (alpha <= 0f || radius <= 0f) return
-    val outline = shape.createOutline(size, layoutDirection, this)
-    val inside = Path().apply { addOutline(outline) }
-    val paint = Paint().apply { color = Color.Black.copy(alpha = alpha) }
-    paint.asFrameworkPaint().maskFilter = BlurMaskFilter(radius, BlurMaskFilter.Blur.NORMAL)
-    clipPath(inside, ClipOp.Difference) {
-        translate(0f, radius / SHADOW_OFFSET_DIV) { drawIntoCanvas { it.drawOutline(outline, paint) } }
+    val k = shape.corners(size, layoutDirection, this)
+    val r = minOf(k.topLeft, k.topRight, k.bottomLeft, k.bottomRight)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.Black.copy(alpha = alpha).toArgb()
+        maskFilter = BlurMaskFilter(radius, BlurMaskFilter.Blur.NORMAL)
+    }
+    drawIntoCanvas { c ->
+        val nc = c.nativeCanvas
+        nc.save()
+        nc.clipOutPath(android.graphics.Path().apply { addRoundRect(0f, 0f, size.width, size.height, r, r, android.graphics.Path.Direction.CW) })
+        val dy = radius / SHADOW_OFFSET_DIV
+        nc.drawRoundRect(0f, dy, size.width, size.height + dy, r, r, paint)
+        nc.restore()
     }
 }
 
 /**
- * Kyant Highlight(width = T-GLASS.rim, alpha = T-GLASS.rimLight, style = Default(angle, falloff)): a stroke of twice the
- * width clipped to the shape, Kyant's highlight shader, style colour white × 0.5, blurred by width / 2, blend Plus.
+ * GPU-resident (HARDWARE) copies of the sampled images. A mutable software bitmap in a shader is uploaded to the GPU
+ * again on EVERY draw (simpleperf: ≈ 40 % of the RenderThread in glTexSubImage2D/texture allocation while a folder
+ * opened) — a hardware bitmap lives on the GPU once. Weak keys: copies go with their source.
  */
-private fun DrawScope.drawGlassHighlight(shape: RoundedRectangularShape, glass: FastGlassState, a: Float) {
-    val w = DesignTokens.glassRimWidth.dp.toPx()
-    if (w <= 0f || a <= 0f) return
-    val outline = shape.createOutline(size, layoutDirection, this)
-    val k = shape.corners(size, layoutDirection, this)
-    val sh = glass.highlight.apply {
-        setFloatUniform("size", size.width, size.height)
-        setFloatUniform("cornerRadii", k.topLeft, k.topRight, k.bottomRight, k.bottomLeft)
-        setColorUniform("color", Color.White.toArgb())
-        setFloatUniform("angle", Math.toRadians(DesignTokens.glassLightAngle.value.toDouble()).toFloat())
-        setFloatUniform("falloff", DesignTokens.glassLightFalloff.value)
+private object GpuBitmaps {
+    private val map = java.util.WeakHashMap<android.graphics.Bitmap, android.graphics.Bitmap>()
+    fun of(img: ImageBitmap): android.graphics.Bitmap {
+        val src = img.asAndroidBitmap()
+        if (src.config == android.graphics.Bitmap.Config.HARDWARE) return src
+        return synchronized(map) {
+            map.getOrPut(src) { runCatching { src.copy(android.graphics.Bitmap.Config.HARDWARE, false) }.getOrNull() ?: src }
+        }
     }
-    val paint = Paint().apply {
-        style = PaintingStyle.Stroke
-        strokeWidth = ceil(w.coerceAtMost(size.minDimension / 2f)) * 2f
-        color = Color.White.copy(alpha = HIGHLIGHT_STYLE_ALPHA * a)
-    }
-    paint.asFrameworkPaint().apply { shader = sh; maskFilter = BlurMaskFilter(w / 2f, BlurMaskFilter.Blur.NORMAL) }
-    val clip = Path().apply { addOutline(outline) }
-    clipPath(clip) { drawIntoCanvas { it.drawOutline(outline, paint) } }
 }
 
 /** Blurred wallpaper copies for frosted glass, shared by all tiles (key: wallpaper + rounded radius). */
@@ -265,6 +262,8 @@ private const val SHARP_BLUR_PX = 2.5f   // below that, bilinear sampling ≈ th
 private const val FROST_STEP_PX = 4f     // slider steps that share one blurred copy
 private const val SHADOW_OFFSET_DIV = 6f // Kyant Shadow default offset = radius / 6
 private const val HIGHLIGHT_STYLE_ALPHA = 0.5f // Kyant HighlightStyle.Default colour alpha
+private const val BLUR_RADIUS_TO_SIGMA = 0.57735f // Skia: BlurMaskFilter radius → Gaussian sigma
+private const val BLUR_SIGMA_BIAS = 0.5f
 
 private const val SDF = """
 float radiusAt(float2 coord, float4 radii) {
@@ -306,6 +305,13 @@ uniform float refractionAmount;
 uniform float depthEffect;
 uniform float saturation;
 uniform float lensOn;
+uniform float4 tints;        // black, white, veil alpha, veil grey
+uniform float rimOn;
+uniform float rimHalf;       // half stroke width (px)
+uniform float rimSigma;
+uniform float rimAlpha;
+uniform float lightAngle;
+uniform float lightFalloff;
 $SDF
 float circleMap(float x) {
     return 1.0 - sqrt(1.0 - x * x);
@@ -319,7 +325,7 @@ half4 content(float2 p) {
     c.rgb = mix(half3(l), c.rgb, half(saturation));
     return c;
 }
-half4 main(float2 coord) {
+half4 lensed(float2 coord) {
     if (lensOn < 0.5) return content(coord);
     float2 halfSize = size * 0.5;
     float2 centeredCoord = coord - halfSize;
@@ -333,6 +339,25 @@ half4 main(float2 coord) {
     float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
     float2 grad = normalize(gradSdRoundedRect(centeredCoord, halfSize, gradRadius) + depthEffect * normalize(centeredCoord));
     return content(coord + d * grad);
+}
+float gaussCdf(float x) { return 1.0 / (1.0 + exp(-1.702 * x)); } // logistic ≈ Gaussian CDF (AGSL has no tanh/erf)
+half4 main(float2 coord) {
+    half4 c = lensed(coord);
+    c.rgb = mix(c.rgb, half3(0.0), half(tints.x));
+    c.rgb = mix(c.rgb, half3(1.0), half(tints.y));
+    c.rgb = mix(c.rgb, half3(tints.w), half(tints.z));
+    if (rimOn > 0.5) {
+        float2 halfSize = size * 0.5;
+        float2 centeredCoord = coord - halfSize;
+        float radius = radiusAt(coord, cornerRadii);
+        float inside = -sdRoundedRect(centeredCoord, halfSize, radius);
+        float cov = gaussCdf((rimHalf - inside) / rimSigma) - gaussCdf((-rimHalf - inside) / rimSigma);
+        float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
+        float2 grad = gradSdRoundedRect(centeredCoord, halfSize, gradRadius);
+        float intensity = pow(abs(dot(grad, float2(cos(lightAngle), sin(lightAngle)))), lightFalloff);
+        c.rgb = min(c.rgb + half(rimAlpha * cov * intensity), half3(1.0));
+    }
+    return c;
 }
 """
 

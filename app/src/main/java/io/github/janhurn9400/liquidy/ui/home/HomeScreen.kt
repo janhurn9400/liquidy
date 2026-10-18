@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -89,13 +91,16 @@ private enum class Mode { Pending, Paging, Vertical, LibScroll, LibPull, TodaySc
 fun HomeScreen(
     model: HomeModel,
     pager: PagerState,
-    wallpaper: ImageBitmap,
+    wallpaperSource: ImageBitmap,
     onLaunch: (AppEntry, Rect) -> Unit,
     /** false: Android shows the same image behind the window → draw our own only for blur effects. */
     drawWallpaper: Boolean = true,
     /** Wallpaper editor: smoothly animated blur of the preview (0…1). */
     wallpaperBlur: () -> Float = { 0f },
 ) {
+    // Immutable copy: Skia keeps an immutable bitmap on the GPU, a mutable one is uploaded again on EVERY draw (the
+    // wallpaper is drawn every frame for Today/App Library/folder blur and glass — simpleperf, Snapdragon 780G)
+    val wallpaper = remember(wallpaperSource) { gpuCacheable(wallpaperSource) }
     val hapticView = androidx.compose.ui.platform.LocalView.current
     androidx.compose.runtime.SideEffect { model.haptic = { io.github.janhurn9400.liquidy.data.Haptics.tick(hapticView) } }
     val scope = rememberCoroutineScope()
@@ -1976,3 +1981,9 @@ internal fun libraryMenuKey(appKey: String, slot: String) = appKey + INSTANCE_SE
 
 /** Slot of an app in an open App Library category (each app appears there once). */
 const val CATEGORY_SLOT = "c"
+
+/** Immutable version of [img] (copied if it is mutable) so the GPU caches it as a texture instead of re-uploading it. */
+internal fun gpuCacheable(img: ImageBitmap): ImageBitmap {
+    val b = img.asAndroidBitmap()
+    return if (!b.isMutable) img else b.copy(b.config ?: android.graphics.Bitmap.Config.ARGB_8888, false).asImageBitmap()
+}

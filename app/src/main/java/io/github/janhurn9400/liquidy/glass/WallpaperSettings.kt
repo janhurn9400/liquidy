@@ -282,7 +282,8 @@ object WallpaperRenderer {
         val r = (radiusPx / SOFT_DOWNSCALE / SOFT_PASS_FACTOR).roundToInt().coerceAtLeast(1)
         repeat(3) { boxBlur(px, sw, sh, r) }
         small.setPixels(px, 0, sw, 0, 0, sw, sh)
-        Bitmap.createScaledBitmap(small, b.width, b.height, true).asImageBitmap()
+        // immutable → cached on the GPU instead of uploaded on every draw
+        Bitmap.createScaledBitmap(small, b.width, b.height, true).let { it.copy(it.config ?: Bitmap.Config.ARGB_8888, false) }.asImageBitmap()
     }
 
     private const val SOFT_DOWNSCALE = 8

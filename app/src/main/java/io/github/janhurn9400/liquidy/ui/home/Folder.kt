@@ -26,6 +26,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.FirstBaseline
@@ -99,6 +102,10 @@ fun FolderIconView(
             androidx.compose.foundation.layout.Box(Modifier.size(DesignTokens.iconSize.dp).graphicsLayer {
                 // Read the jiggle → glass redraws every frame (background stays still)
                 jiggleValues(jiggle(), clockSeconds(), phases, density)
+            }.drawWithContent {
+                // Light rim top/bottom like every app icon (T-OBJ-RIM) — the folder is an icon too
+                drawContent()
+                io.github.janhurn9400.liquidy.glass.drawObjectRim(this, io.github.janhurn9400.liquidy.design.ContinuousRoundedShape(DesignTokens.iconCorner.dp))
             }) {
                 io.github.janhurn9400.liquidy.glass.LiquidGlass(
                     shape = io.github.janhurn9400.liquidy.glass.glassRect(DesignTokens.iconCorner.dp),
@@ -294,17 +301,40 @@ fun FolderOverlay(
         val p = m.measure(androidx.compose.ui.unit.Constraints.fixed(r.width.roundToInt().coerceAtLeast(1), r.height.roundToInt().coerceAtLeast(1)))
         layout(p.width, p.height) { p.place(r.left.roundToInt(), r.top.roundToInt()) }
     }
+    // Fast glass: the home screen behind the panel doesn't move while the folder is open → snapshot it ONCE (sharp + blurred
+    // to T-FOLDER-PANEL.blur) and let WallpaperGlass sample it; the live backdrop re-recorded the whole home screen and
+    // re-blurred it every frame (57 % janky frames opening/closing on a Snapdragon 780G). Until the snapshot is ready
+    // (1–2 frames) the live glass stands in.
+    val liveSource = io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current as? com.kyant.backdrop.backdrops.LayerBackdrop
+    val panelDensity = androidx.compose.ui.platform.LocalDensity.current.density
+    val snapshot by androidx.compose.runtime.produceState<Pair<ImageBitmap, ImageBitmap>?>(null, open, liveSource) {
+        val layer = liveSource?.graphicsLayer ?: return@produceState
+        val img = runCatching { layer.toImageBitmap() }.getOrNull() ?: return@produceState
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val sharp = img.asAndroidBitmap().copy(android.graphics.Bitmap.Config.ARGB_8888, false).asImageBitmap()
+            sharp to io.github.janhurn9400.liquidy.glass.WallpaperRenderer.softBlur(sharp, DesignTokens.folderPanelBlur.value * panelDensity)
+        }
+    }
     Box(Modifier.atRect().graphicsLayer { alpha = model.folderVisible(open) }) {
-        LiquidGlass(
+        // Glass values glide with progress to the folder icon glass (LiquidGlass default) — small, the panel looks
+        // exactly like the icon, the swap at the end of closing is invisible
+        val thickness = 1f + (DesignTokens.glassThicknessLarge.value - 1f) * pr
+        val whiteTint = DesignTokens.glassWhiteTint.value + (DesignTokens.folderPanelTint.value - DesignTokens.glassWhiteTint.value) * pr
+        // clear glass (IMG_3130: inside = outside): the source is not dimmed → the same dimming as tint
+        val blackTint = DesignTokens.glassTint.value + (DesignTokens.folderBgDim.value - DesignTokens.glassTint.value) * pr
+        val snap = snapshot
+        if (snap != null) io.github.janhurn9400.liquidy.glass.WallpaperGlass(
+            wallpaper = snap.first, shape = glassRect(Dp(corner)), modifier = Modifier.matchParentSize(), thickness = thickness,
+            whiteTint = whiteTint, blackTint = blackTint,
+            // blur glides from the icon glass to the panel blur = blend of the sharp and the blurred snapshot
+            soft = snap.second, softAmount = { open.progress.value.coerceIn(0f, 1f) },
+        ) else LiquidGlass(
             shape = glassRect(Dp(corner)),
             modifier = Modifier.matchParentSize(),
-            // Glass values glide with progress to the folder icon glass (LiquidGlass default) — small, the panel looks
-            // exactly like the icon, the swap at the end of closing is invisible
-            thickness = 1f + (DesignTokens.glassThicknessLarge.value - 1f) * pr,
+            thickness = thickness,
             blur = (DesignTokens.glassBlur.value + (DesignTokens.folderPanelBlur.value - DesignTokens.glassBlur.value) * pr).dp,
-            whiteTint = DesignTokens.glassWhiteTint.value + (DesignTokens.folderPanelTint.value - DesignTokens.glassWhiteTint.value) * pr,
-            // clear glass (IMG_3130: inside = outside): the source is not dimmed → the same dimming as tint
-            blackTint = DesignTokens.glassTint.value + (DesignTokens.folderBgDim.value - DesignTokens.glassTint.value) * pr,
+            whiteTint = whiteTint,
+            blackTint = blackTint,
         )
     }
 
