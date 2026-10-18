@@ -279,15 +279,19 @@ object WallpaperRenderer {
         val sw = (b.width / SOFT_DOWNSCALE).coerceAtLeast(1); val sh = (b.height / SOFT_DOWNSCALE).coerceAtLeast(1)
         val small = Bitmap.createScaledBitmap(b, sw, sh, true)
         val px = IntArray(sw * sh).also { small.getPixels(it, 0, sw, 0, 0, sw, sh) }
-        val r = (radiusPx / SOFT_DOWNSCALE / SOFT_PASS_FACTOR).roundToInt().coerceAtLeast(1)
+        // same strength as RenderEffect/BlurEffect(radiusPx): σ = 0.57735·r + 0.5 (Skia). 3 box passes of half-width k
+        // have σ = √(k(k+1)) → solve for k at the downscaled size
+        val sigma = (SKIA_RADIUS_TO_SIGMA * radiusPx + SKIA_SIGMA_BIAS) / SOFT_DOWNSCALE
+        val r = ((-1f + kotlin.math.sqrt(1f + 4f * sigma * sigma)) / 2f).roundToInt().coerceAtLeast(1)
         repeat(3) { boxBlur(px, sw, sh, r) }
         small.setPixels(px, 0, sw, 0, 0, sw, sh)
         // immutable → cached on the GPU instead of uploaded on every draw
         Bitmap.createScaledBitmap(small, b.width, b.height, true).let { it.copy(it.config ?: Bitmap.Config.ARGB_8888, false) }.asImageBitmap()
     }
 
-    private const val SOFT_DOWNSCALE = 8
-    private const val SOFT_PASS_FACTOR = 1.7f // 3 box passes ≈ Gaussian; radius such that it resembles the RenderEffect blur [ESTIMATED]
+    private const val SOFT_DOWNSCALE = 4 // 8 rounded the radius too coarsely (folder background ≈ 20 % too blurred)
+    private const val SKIA_RADIUS_TO_SIGMA = 0.57735f
+    private const val SKIA_SIGMA_BIAS = 0.5f
 
     /** Mean relative brightness (0…1) on a coarse grid — for light/dark labels. */
     fun luminance(bmp: ImageBitmap): Float {

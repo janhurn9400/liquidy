@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.TileMode
@@ -189,6 +191,8 @@ fun HomeScreen(
         val geo = remember(w, h, density, navBarPx, duo) { HomeGeometry(density, w, h, navBarPx, duo) }
         geo.dockCount = model.display.dock.size
         model.screenSize = androidx.compose.ui.geometry.Size(w, h)
+        val homeContentLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+        var folderBlurSnap by remember { androidx.compose.runtime.mutableStateOf<Pair<ImageBitmap, ImageBitmap>?>(null) }
         // Dock slots: Duo with "More Apps in Dock" as many as fit into the right column, otherwise 4 like iOS
         model.dockMax = if (geo.duo && io.github.janhurn9400.liquidy.data.FoldableStyle.moreDockApps) geo.duoDockCapacity else DesignTokens.DOCK_SLOTS
         // Duo: dock glass grows/shrinks with the same spring as the reflowing icons (M-REFLOW) instead of jumping
@@ -621,7 +625,8 @@ fun HomeScreen(
             return maxOf(ramp * DesignTokens.searchBlur.value, model.searchOpenAmount.value.coerceIn(0f, 1f) * DesignTokens.searchBlurOpen.value) * density
         }
         fun backgroundBlurPx(includeToday: Boolean = false, withSearch: Boolean = true): Float {
-            val pf = model.openFolder?.progress?.value ?: 0f
+            // folder: pre-blurred snapshot (folderBlurSnap) stands in once ready — no live full-screen blur
+            val pf = if (folderBlurSnap != null) 0f else model.openFolder?.progress?.value ?: 0f
             val hs = model.searchProgress.value
             val ramp = (hs / Motion.searchBlurRamp.value).coerceIn(0f, 1f)
             val openA = model.searchOpenAmount.value.coerceIn(0f, 1f)
@@ -674,6 +679,29 @@ fun HomeScreen(
         val ia = io.github.janhurn9400.liquidy.design.IconAppearance
         if (ia.dimWallpaper && ia.systemDark) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = DesignTokens.WALLPAPER_DARK_DIM)))
 
+        // Folder background: snapshot + two blur levels, made when a folder opens (see the overlay after the home content)
+        val graphicsContext = androidx.compose.ui.platform.LocalGraphicsContext.current
+        val openFolderNow = model.openFolder
+        LaunchedEffect(openFolderNow) {
+            folderBlurSnap = null
+            if (openFolderNow == null) return@LaunchedEffect
+            val layer = graphicsContext.createGraphicsLayer()
+            val img = try {
+                layer.record(androidx.compose.ui.unit.Density(density), androidx.compose.ui.unit.LayoutDirection.Ltr,
+                    androidx.compose.ui.unit.IntSize(w.roundToInt(), h.roundToInt())) {
+                    drawImage(wallpaper); drawLayer(homeContentLayer)
+                }
+                layer.toImageBitmap()
+            } catch (e: Exception) { null } finally { graphicsContext.releaseGraphicsLayer(layer) }
+            if (img == null) return@LaunchedEffect
+            folderBlurSnap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                val sharp = img.asAndroidBitmap().copy(android.graphics.Bitmap.Config.ARGB_8888, false).asImageBitmap()
+                val r = DesignTokens.folderBgBlur.value * density
+                io.github.janhurn9400.liquidy.glass.WallpaperRenderer.softBlur(sharp, r / 2) to
+                    io.github.janhurn9400.liquidy.glass.WallpaperRenderer.softBlur(sharp, r)
+            }
+        }
+
         // Home content (icons, dock, pill): blurred + shifted/shrunk for search. Decal = transparent outside.
         Box(
             Modifier
@@ -694,6 +722,8 @@ fun HomeScreen(
                         scaleX = sc; scaleY = sc
                     }
                 }
+                // recorded into an own layer (a display-list reference, no extra rendering) so the folder can snapshot it
+                .drawWithContent { homeContentLayer.record { this@drawWithContent.drawContent() }; drawLayer(homeContentLayer) }
         ) {
 
         // ── Page icons (+ App Library): source of the glass ──────────────────────────
@@ -840,6 +870,18 @@ fun HomeScreen(
             }
         }) { TodayPage(model, geo, density, wallpaper, clockSeconds = { clock.floatValue }) { (-1f - pager.position.value) * geo.sideStride } }
         } // end home content
+
+        // Folder background blur [T-FOLDER-BG]: the home screen (incl. wallpaper) is snapshotted ONCE when the folder opens
+        // and blurred to half and full radius in the background; the blur then grows by crossfading sharp → half → full.
+        // The live BlurEffect with a growing radius re-blurred the whole screen and reallocated its buffers every frame.
+        folderBlurSnap?.let { (half, full) ->
+            Canvas(Modifier.fillMaxSize()) {
+                val t = (model.openFolder?.progress?.value ?: 0f).coerceIn(0f, 1f)
+                if (t <= 0f) return@Canvas
+                if (t < 0.5f) drawImage(half, alpha = t * 2f)
+                else { drawImage(half); drawImage(full, alpha = (t - 0.5f) * 2f) }
+            }
+        }
 
         // Folding: dimming (measured brightness 105 → 142, i.e. ≈ 26 % darker at the start), brightening linearly
         if (foldIn.value > 0f) Canvas(Modifier.fillMaxSize()) { drawRect(Color.Black.copy(alpha = FOLD_DIM * foldIn.value)) }
