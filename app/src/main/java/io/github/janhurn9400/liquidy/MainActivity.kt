@@ -299,6 +299,11 @@ class MainActivity : ComponentActivity() {
                 val styleSample = homeModel.display.dock.firstOrNull()?.let { homeModel.apps[it] } ?: homeModel.apps.values.firstOrNull()
                 LaunchedEffect(styleSample?.key) { styleSample?.let { repository.ensureLayers(listOf(it)) } }
                 var showWelcome by remember { mutableStateOf(!io.github.janhurn9400.liquidy.ui.welcome.WelcomeStore.done(this@MainActivity)) }
+                LaunchedEffect(io.github.janhurn9400.liquidy.ui.welcome.WelcomeStore.restartRequested) {
+                    if (io.github.janhurn9400.liquidy.ui.welcome.WelcomeStore.restartRequested) {
+                        io.github.janhurn9400.liquidy.ui.welcome.WelcomeStore.restartRequested = false; showWelcome = true
+                    }
+                }
                 // Finish: setup fades out and zooms in slightly (no hard cut to the home screen)
                 androidx.compose.animation.AnimatedVisibility(
                     visible = showWelcome,

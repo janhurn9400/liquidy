@@ -297,4 +297,5 @@
     <string name="report_email_chooser">Send with</string>
     <string name="report_choose_title">Send the report</string>
     <string name="report_choose_email">Send by Email (video attached)</string>
+    <string name="settings_restart_setup">Run Setup Again</string>
 </resources>

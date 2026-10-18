@@ -389,6 +389,13 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                 Section(null) {
                     LinkRow(stringResource(R.string.settings_report)) { openSub(SubPage.Report) }
                 }
+                // Run the welcome/setup again (permissions, appearance, Duo style, status bar, module) — nothing is reset
+                Section(null) {
+                    LinkRow(stringResource(R.string.settings_restart_setup)) {
+                        model.closeSettings()
+                        io.github.janhurn9400.liquidy.ui.welcome.WelcomeStore.restartRequested = true
+                    }
+                }
             }
             Category.About -> {
                 val info = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull() }

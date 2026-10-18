@@ -102,6 +102,8 @@ object WelcomeStore {
     private const val PREFS = "welcome"
     fun done(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("done", false)
     fun markDone(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("done", true).apply()
+    /** Settings › Advanced › Run Setup Again: MainActivity shows the welcome again (nothing is reset — choices stay). */
+    var restartRequested by mutableStateOf(false)
 }
 
 /** Root available? (Magisk app installed or su binary in the path) */
