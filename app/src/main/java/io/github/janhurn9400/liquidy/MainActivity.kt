@@ -373,6 +373,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         homeOnTop = true
+        resumedAt = android.os.SystemClock.uptimeMillis()
         log("resume armed=$unlockArmed locked=${keyguard.isKeyguardLocked}")
         startUnlockPoll()
         io.github.janhurn9400.liquidy.data.AppLaunchTransition.apply {
@@ -439,6 +440,7 @@ class MainActivity : ComponentActivity() {
     private var unlockArmed = false
     /** The home screen is the top activity (stays true while only the screen/keyguard paused us). */
     private var homeOnTop = true
+    private var resumedAt = 0L
     private val unlockHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val keyguard by lazy { getSystemService(android.app.KeyguardManager::class.java) }
     private val power by lazy { getSystemService(android.os.PowerManager::class.java) }
@@ -469,6 +471,7 @@ class MainActivity : ComponentActivity() {
     private fun playUnlockIfReady() {
         if (!unlockArmed || !isResumed() || keyguard.isKeyguardLocked || !power.isInteractive) return
         if (display?.state != android.view.Display.STATE_ON) return
+        if (android.os.SystemClock.uptimeMillis() - resumedAt < io.github.janhurn9400.liquidy.motion.Motion.unlockRevealDelay.value * 1000) return
         log("play"); unlockArmed = false; unlockHandler.removeCallbacks(unlockPoll); model?.playUnlock()
     }
     private fun log(msg: String) = android.util.Log.d("Unlock", msg)

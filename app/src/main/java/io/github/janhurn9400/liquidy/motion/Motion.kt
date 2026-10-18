@@ -65,6 +65,12 @@ object Motion {
     val unlockStaggerBase = tunable("M-UNLOCK.staggerBase", "Unlock zoom – response factor at the centre", "Motion", 0.79f, 0.3f, 2f, "×")
     val unlockStaggerSlope = tunable("M-UNLOCK.staggerSlope", "Unlock zoom – response factor per screen width", "Motion", 0.82f, 0f, 3f, "×")
     /** The spring already runs this long when the first frame is shown (first visible frame ≈ 4.4×) [MEASURED 2.5 frames]. */
+    /**
+     * Earliest start after the home screen is revealed: fingerprint unlock on Android plays its own circular reveal from
+     * the sensor (LineageOS 23.2: 0.19–0.23 s, measured on the Mi 11 Lite) — the icons fly once it has (almost) uncovered
+     * the screen, like on iOS after the lock screen is gone. PIN unlock is ready later anyway (≈ 0.47 s) → unaffected.
+     */
+    val unlockRevealDelay = tunable("M-UNLOCK.reveal", "Unlock zoom – earliest start after reveal", "Motion", 0.18f, 0f, 0.6f, "s")
     val unlockLead = tunable("M-UNLOCK.lead", "Unlock zoom – lead before the first frame", "Motion", 0.042f, 0f, 0.2f, "s")
     /** Today view: widgets make way springily when resizing/moving (iOS: slight overshoot) [ESTIMATED]. */
     /** Page overview open/close: page shrinks into its card in about 0.25 s (recording 10-08 09:55, frame 357–370) [MEASURED roughly]. */
