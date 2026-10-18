@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -31,6 +33,10 @@ fun DropletGlass(shape: () -> Shape, modifier: Modifier = Modifier, blur: Dp, wh
                  content: @Composable BoxScope.() -> Unit = {}) {
     val backdrop = LocalGlassBackdrop.current
     if (backdrop == null) { Box(modifier, content = content); return }
+    if (io.github.janhurn9400.liquidy.tuning.DebugOptions.glassOff) {
+        Box(modifier.drawBehind { drawOutline(shape().createOutline(size, layoutDirection, this), io.github.janhurn9400.liquidy.tuning.DebugOptions.GLASS_OFF_FILL) }, content = content)
+        return
+    }
     Box(
         modifier.drawBackdrop(
             backdrop = backdrop,

@@ -169,7 +169,7 @@ fun LibraryPage(model: HomeModel, geo: LibraryGeometry, wallpaper: ImageBitmap, 
                 val s = model.libCategoryScale()
                 scaleX = s; scaleY = s
                 transformOrigin = TransformOrigin(geo.columnWidth / 2 / size.width, Motion.libCategoryPivotY.value)
-                val r = (1f - model.libTiles.value) * DesignTokens.libListBlur.value * density
+                val r = if (io.github.janhurn9400.liquidy.tuning.DebugOptions.blurOff) 0f else (1f - model.libTiles.value) * DesignTokens.libListBlur.value * density
                 renderEffect = if (r > 0.5f) BlurEffect(r, r, TileMode.Decal) else null
             }
     ) {

@@ -66,7 +66,7 @@ fun GlassSurface(
                     .matchParentSize()
                     .onGloballyPositioned { coords[0] = it }
                     .graphicsLayer {
-                        val r = blurPx.toPx()
+                        val r = if (io.github.janhurn9400.liquidy.tuning.DebugOptions.glassOff) 0f else blurPx.toPx()
                         renderEffect = if (r > 0.5f) BlurEffect(r, r, TileMode.Clamp) else null
                     }
             ) {

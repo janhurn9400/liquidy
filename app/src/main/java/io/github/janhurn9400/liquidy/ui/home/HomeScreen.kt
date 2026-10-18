@@ -620,6 +620,7 @@ fun HomeScreen(
             // Edit stack: home screen blurred in ≈ 2 frames (frame 287→288), independent of the slower panel
             val stackEdit = (model.stackEdit.value * 4f).coerceIn(0f, 1f) * DesignTokens.folderBgBlur.value
             val config = model.widgetConfig.value * DesignTokens.folderBgBlur.value // widget settings: home screen blurred
+            if (io.github.janhurn9400.liquidy.tuning.DebugOptions.blurOff) return 0f
             return maxOf(pf * DesignTokens.folderBgBlur.value, if (withSearch) searchBlur else 0f, cat, today, stackEdit, config) * density
         }
 

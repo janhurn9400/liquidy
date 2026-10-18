@@ -1,5 +1,6 @@
 package io.github.janhurn9400.liquidy.glass
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
@@ -61,6 +62,10 @@ fun LiquidGlass(
     val black = blackTint * (1f - tinted)
     val veil = DesignTokens.glassTintedVeil.value * tinted
     val grey = DesignTokens.glassTintedGrey.value
+    if (io.github.janhurn9400.liquidy.tuning.DebugOptions.glassOff) {
+        Box(modifier.background(io.github.janhurn9400.liquidy.tuning.DebugOptions.GLASS_OFF_FILL, shape), content = content)
+        return
+    }
     if (backdrop == null) {
         // Fallback without a recorded background (e.g. preview): simple area + rim
         Box(modifier) { content(); GlassRim(shape, Modifier.matchParentSize()) }
