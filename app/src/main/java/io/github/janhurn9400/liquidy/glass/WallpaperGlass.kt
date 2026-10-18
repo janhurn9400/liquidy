@@ -16,6 +16,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.ClipOp
@@ -96,8 +98,19 @@ fun WallpaperGlass(
     }
 
     Box(modifier) {
-        // 1 · shadow outside the shape (static: only re-recorded on size changes)
-        Spacer(Modifier.matchParentSize().drawBehind { drawGlassShadow(shape, thickness) })
+        // 1 · shadow outside the shape — rendered ONCE into a cached offscreen layer (BlurMaskFilter re-rasterised every
+        // frame for every element was the remaining main cost: 30 % → 8 % janky frames with shadow + rim off, 90 Hz)
+        Spacer(Modifier.matchParentSize().drawWithCache {
+            val r = (DesignTokens.glassShadowRadius.dp * thickness).toPx()
+            val pad = ceil(r * 2f).toInt()
+            val layer = obtainGraphicsLayer().apply {
+                compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
+                record(size = androidx.compose.ui.unit.IntSize(size.width.toInt() + 2 * pad, size.height.toInt() + 3 * pad)) {
+                    translate(pad.toFloat(), pad.toFloat()) { drawGlassShadow(shape, thickness, this@drawWithCache.size) }
+                }
+            }
+            onDrawBehind { translate(-pad.toFloat(), -pad.toFloat()) { drawLayer(layer) } }
+        })
         // 2 · glass fill: the only part that follows the position (reads [FastGlassState.coords] while drawing)
         Spacer(
             Modifier
@@ -116,7 +129,16 @@ fun WallpaperGlass(
                 }
         )
         // 3 · light rim top/bottom (static, Kyant's highlight shader) — like LiquidGlass(refraction = true)
-        if (refraction) Spacer(Modifier.matchParentSize().drawBehind { drawGlassHighlight(shape, glass, rimAlpha ?: DesignTokens.glassRimHighlight.value) })
+        // (cached offscreen layer, composited with Plus like Kyant's highlight layer)
+        if (refraction) Spacer(Modifier.matchParentSize().drawWithCache {
+            val a = rimAlpha ?: DesignTokens.glassRimHighlight.value
+            val layer = obtainGraphicsLayer().apply {
+                compositingStrategy = androidx.compose.ui.graphics.layer.CompositingStrategy.Offscreen
+                blendMode = BlendMode.Plus
+                record { drawGlassHighlight(shape, glass, a) }
+            }
+            onDrawBehind { drawLayer(layer) }
+        })
         content()
         // 4 · dark side rim (iOS 27, measured) — same as LiquidGlass
         if (refraction) GlassRim(shape, Modifier.matchParentSize(), lightAlpha = 0f)
@@ -180,7 +202,7 @@ private class FastGlassState {
 }
 
 /** Kyant Shadow(radius, color) with its default offset (radius / 6 down), only outside the shape — without a layer. */
-private fun DrawScope.drawGlassShadow(shape: RoundedRectangularShape, thickness: Float) {
+private fun DrawScope.drawGlassShadow(shape: RoundedRectangularShape, thickness: Float, size: androidx.compose.ui.geometry.Size) {
     val alpha = DesignTokens.glassShadowAlpha.value
     val radius = (DesignTokens.glassShadowRadius.dp * thickness).toPx()
     if (alpha <= 0f || radius <= 0f) return
@@ -213,7 +235,6 @@ private fun DrawScope.drawGlassHighlight(shape: RoundedRectangularShape, glass: 
         style = PaintingStyle.Stroke
         strokeWidth = ceil(w.coerceAtMost(size.minDimension / 2f)) * 2f
         color = Color.White.copy(alpha = HIGHLIGHT_STYLE_ALPHA * a)
-        blendMode = BlendMode.Plus
     }
     paint.asFrameworkPaint().apply { shader = sh; maskFilter = BlurMaskFilter(w / 2f, BlurMaskFilter.Blur.NORMAL) }
     val clip = Path().apply { addOutline(outline) }

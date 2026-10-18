@@ -52,6 +52,11 @@ Note: the user then switched the phone to **90 Hz** (FPS overlay visible top-lef
 is no longer comparable with the 60 Hz numbers above (first 90 Hz run with step 3: 28 % janky, median 24 ms). Re-measure
 the baselines (glass on/off) at 90 Hz before judging.
 
+**Breakthrough (90 Hz):** glass on 30 % janky / glass off 6 % / shadow+rim off 8 % → the BlurMaskFilter of shadow and
+highlight was re-rasterised every frame for every element. Now both are recorded once into cached offscreen
+GraphicsLayers (drawWithCache, CompositingStrategy.Offscreen, highlight layer blended with Plus) → **8.8 % janky with
+full glass**, visually identical (screenshot comparison of the App Library).
+
 ## Next steps
 1. Install on the phone, measure (same method), and compare screenshots before/after (dock, pill, folder icons,
    tinted widgets, library) — the user insists it must look identical. Then commit.
