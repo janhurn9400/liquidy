@@ -128,7 +128,8 @@ private const val DUO_LIB_GRID_TOP = 133f
 
 sealed interface LibraryHit {
     data object Search : LibraryHit
-    data class App(val app: AppEntry, val screenRect: Rect) : LibraryHit
+    /** [slot] identifies this copy of the app ("t<tile>.<quadrant>", see libraryMenuKey). */
+    data class App(val app: AppEntry, val screenRect: Rect, val slot: String) : LibraryHit
     data class Category(val index: Int) : LibraryHit
     data object Empty : LibraryHit
 }
@@ -146,7 +147,7 @@ fun libraryHitTest(model: HomeModel, geo: LibraryGeometry, p: Offset, pageOffset
             if (Rect(q, Size(geo.quadrant, geo.quadrant)).inflate(geo.iconGap / 2).contains(c)) {
                 val toScreen = Offset(pageOffsetX, -scroll)
                 return if (k == 3 && cat.apps.size > 4) LibraryHit.Category(i)
-                else cat.apps.getOrNull(k)?.let { LibraryHit.App(it, Rect(q + toScreen, Size(geo.quadrant, geo.quadrant))) }
+                else cat.apps.getOrNull(k)?.let { LibraryHit.App(it, Rect(q + toScreen, Size(geo.quadrant, geo.quadrant)), "t$i.$k") }
                     ?: LibraryHit.Empty
             }
         }
@@ -181,7 +182,7 @@ fun LibraryPage(model: HomeModel, geo: LibraryGeometry, wallpaper: ImageBitmap, 
         }) {
             model.library.forEachIndexed { i, cat ->
                 val tl = geo.tileTopLeft(i)
-                LibraryTile(model, cat, geo, wallpaper, density, hideCluster = model.openCategory?.tileIndex == i, modifier = Modifier.offset { IntOffset(tl.x.roundToInt(), tl.y.roundToInt()) })
+                LibraryTile(model, i, cat, geo, wallpaper, density, hideCluster = model.openCategory?.tileIndex == i, modifier = Modifier.offset { IntOffset(tl.x.roundToInt(), tl.y.roundToInt()) })
             }
         }
     }
@@ -195,7 +196,7 @@ fun LibraryPage(model: HomeModel, geo: LibraryGeometry, wallpaper: ImageBitmap, 
 }
 
 @Composable
-private fun LibraryTile(model: io.github.janhurn9400.liquidy.ui.home.HomeModel, cat: LibraryCategory, geo: LibraryGeometry, wallpaper: ImageBitmap, density: Float, hideCluster: Boolean, modifier: Modifier) {
+private fun LibraryTile(model: io.github.janhurn9400.liquidy.ui.home.HomeModel, tileIndex: Int, cat: LibraryCategory, geo: LibraryGeometry, wallpaper: ImageBitmap, density: Float, hideCluster: Boolean, modifier: Modifier) {
     val tileDp = Dp(geo.tile / density)
     val iconShape = ContinuousRoundedShape(DesignTokens.iconCorner.dp * (geo.quadrant / density / DesignTokens.iconSize.value))
     val miniShape = ContinuousRoundedShape(DesignTokens.iconCorner.dp * (geo.mini / density / DesignTokens.iconSize.value))
@@ -226,9 +227,9 @@ private fun LibraryTile(model: io.github.janhurn9400.liquidy.ui.home.HomeModel, 
                         io.github.janhurn9400.liquidy.ui.home.StyledAppIcon(app, Modifier
                             .offset { IntOffset(q.x.roundToInt(), q.y.roundToInt()) }
                             .graphicsLayer {
-                                val lk = io.github.janhurn9400.liquidy.ui.home.libraryMenuKey(app.key)
+                                val lk = io.github.janhurn9400.liquidy.ui.home.libraryMenuKey(app.key, "t$tileIndex.$k")
                                 // like a home screen slot: hidden while flying back or while its context menu shows the lifted copy
-                                alpha = if (io.github.janhurn9400.liquidy.ui.home.LibraryFlying.key == app.key || model.contextMenu?.key == lk) 0f else 1f
+                                alpha = if (io.github.janhurn9400.liquidy.ui.home.LibraryFlying.key == lk || model.contextMenu?.key == lk) 0f else 1f
                                 // grows while held (M-CTXMENU), the lifted menu icon takes over from this size
                                 val sc = if (model.pressScaleKey == lk) model.pressScale.value else 1f
                                 scaleX = sc; scaleY = sc
@@ -238,7 +239,7 @@ private fun LibraryTile(model: io.github.janhurn9400.liquidy.ui.home.HomeModel, 
                             // held: darkens like a home screen icon (pressedKey set by the gesture arena)
                             .drawWithContent {
                                 drawContent()
-                                if (model.pressedKey == io.github.janhurn9400.liquidy.ui.home.libraryMenuKey(app.key))
+                                if (model.pressedKey == io.github.janhurn9400.liquidy.ui.home.libraryMenuKey(app.key, "t$tileIndex.$k"))
                                     drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = model.pressAlpha.value))
                             })
                     }

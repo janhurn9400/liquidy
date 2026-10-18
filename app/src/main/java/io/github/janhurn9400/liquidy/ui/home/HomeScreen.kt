@@ -1082,7 +1082,7 @@ fun HomeScreen(
                             (hit.hit as? io.github.janhurn9400.liquidy.ui.library.LibraryHit.App)?.let { la ->
                                 // exactly the home screen press (M-CTXMENU): darken, grow slowly, fade the dark, then the menu
                                 // (LibraryPage reads pressedKey / pressScaleKey for its icon)
-                                val lk = libraryMenuKey(la.app.key)
+                                val lk = libraryMenuKey(la.app.key, la.slot)
                                 model.prefetchShortcuts(lk, density)
                                 model.pressedKey = lk
                                 model.pressScaleKey = lk
@@ -1172,7 +1172,7 @@ fun HomeScreen(
                                         // own menu key: otherwise the same icon on the home screen disappears while the menu is open
                                         // library icons are smaller than grid icons → lifted icon starts/ends at the real size and place
                                         val k = a.screenRect.width / geo.icon
-                                        model.openContextMenu(libraryMenuKey(a.app.key), a.screenRect.center - Offset(geo.icon / 2, geo.icon / 2), density,
+                                        model.openContextMenu(libraryMenuKey(a.app.key, a.slot), a.screenRect.center - Offset(geo.icon / 2, geo.icon / 2), density,
                                             fromLibrary = true, iconScale = k)
                                         mode = Mode.Menu
                                     }
@@ -1189,6 +1189,7 @@ fun HomeScreen(
                                                 model.launchedIconKey = null
                                                 onLaunch(lh.app, lh.screenRect)
                                                 model.libraryLaunch = lh.app.key to lh.screenRect // after onLaunch (it resets it otherwise)
+                                                model.libraryLaunchSlot = lh.slot
                                             }
                                             is io.github.janhurn9400.liquidy.ui.library.LibraryHit.Category -> model.openCategory(lh.index)
                                             io.github.janhurn9400.liquidy.ui.library.LibraryHit.Search -> model.openLibList()
@@ -1436,11 +1437,12 @@ fun HomeScreen(
                     model.launchedIconKey = null
                     onLaunch(app, rect)
                     model.libraryLaunch = app.key to rect
+                    model.libraryLaunchSlot = CATEGORY_SLOT
                 },
                 originX = (geo.libraryOffset(libIndexNow() - pager.position.value)).coerceAtLeast(0f),
                 onLongPress = { app, tl ->
-                    model.prefetchShortcuts(libraryMenuKey(app.key), density)
-                    model.openContextMenu(libraryMenuKey(app.key), tl, density, fromLibrary = true)
+                    model.prefetchShortcuts(libraryMenuKey(app.key, CATEGORY_SLOT), density)
+                    model.openContextMenu(libraryMenuKey(app.key, CATEGORY_SLOT), tl, density, fromLibrary = true)
                 },
                 onDragStart = { app, p, tl -> model.collapseCategoryForDrag(); startLibraryDrag(app.key, p, tl) },
                 onDragMove = { p -> iconDragMove(p) },
@@ -1966,4 +1968,11 @@ private object WidgetFlight {
 }
 
 /** Context menu key for an app from the App Library (resolves to the same app via [AppMap], but is not a home icon). */
-internal fun libraryMenuKey(appKey: String) = appKey + INSTANCE_SEP + "library"
+/**
+ * Key of ONE App Library icon: the same app sits in several tiles (Suggestions, Recently Added, its category) — press,
+ * menu and return flight must only affect the touched copy. [slot] = "t<tile>.<quadrant>" or "c" (open category).
+ */
+internal fun libraryMenuKey(appKey: String, slot: String) = appKey + INSTANCE_SEP + "library" + slot
+
+/** Slot of an app in an open App Library category (each app appears there once). */
+const val CATEGORY_SLOT = "c"

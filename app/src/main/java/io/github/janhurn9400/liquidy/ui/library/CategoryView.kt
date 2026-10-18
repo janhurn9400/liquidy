@@ -192,7 +192,7 @@ private fun CategoryCell(app: AppEntry, shape: ContinuousRoundedShape, labelAlph
     Layout(
         content = {
             io.github.janhurn9400.liquidy.ui.home.StyledAppIcon(app, Modifier.size(DesignTokens.iconSize.dp)
-                .graphicsLayer { alpha = if (io.github.janhurn9400.liquidy.ui.home.LibraryFlying.key == app.key) 0f else 1f }.clip(shape))
+                .graphicsLayer { alpha = if (io.github.janhurn9400.liquidy.ui.home.LibraryFlying.key == io.github.janhurn9400.liquidy.ui.home.libraryMenuKey(app.key, io.github.janhurn9400.liquidy.ui.home.CATEGORY_SLOT)) 0f else 1f }.clip(shape))
             BasicText(
                 app.label,
                 style = TextStyle(fontFamily = Inter, fontSize = DesignTokens.labelFontSize.value.sp, color = Color.White),

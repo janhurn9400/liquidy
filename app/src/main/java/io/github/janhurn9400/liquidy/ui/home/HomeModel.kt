@@ -1283,6 +1283,8 @@ class HomeModel(
 
     /** Opened from the App Library (overview or category): app key + screen rect of the icon there, for the return. */
     var libraryLaunch: Pair<String, androidx.compose.ui.geometry.Rect>? = null
+    /** Which copy of the app in the App Library was launched (libraryMenuKey slot). */
+    var libraryLaunchSlot: String? = null
 
     /** Set by HomeScreen: App Library (or open category) is visible right now → return there possible. */
     var libraryVisible: () -> Boolean = { false }
@@ -1303,9 +1305,10 @@ class HomeModel(
             if (lib != null && app != null) {
                 flyingKey = null
                 // hide the real App Library icon until the system's icon surface is done — otherwise it stood there visible immediately
-                LibraryFlying.key = app.key
+                val fk = libraryMenuKey(app.key, libraryLaunchSlot ?: CATEGORY_SLOT)
+                LibraryFlying.key = fk
                 flyingSurface(c, android.graphics.RectF(lib.left, lib.top, lib.right, lib.bottom), app.icon.asAndroidBitmap(),
-                    { if (LibraryFlying.key == app.key) LibraryFlying.key = null }, null)
+                    { if (LibraryFlying.key == fk) LibraryFlying.key = null }, null)
                 return@let
             }
             val r = iconLocator(c.component, c.user) ?: return@let
