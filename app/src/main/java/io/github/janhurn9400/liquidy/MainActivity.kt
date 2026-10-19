@@ -134,6 +134,7 @@ class MainActivity : ComponentActivity() {
                     when {
                         // Launcher settings behave like an app → the home gesture/button closes them (instead of an ×)
                         homeModel.settingsOpen -> homeModel.closeSettings()
+                        homeModel.control.open -> homeModel.control.hide()
                         homeModel.searchOpen || homeModel.searchProgress.value > 0f -> homeModel.closeSearch()
                         homeModel.openFolder != null -> homeModel.closeFolder()
                         homeModel.openCategory != null -> homeModel.closeCategory()

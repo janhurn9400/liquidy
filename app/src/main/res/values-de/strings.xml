@@ -311,4 +311,7 @@
     <string name="glass_align_horizontal">Horizontal</string>
     <string name="glass_align_vertical">Vertikal</string>
     <string name="glass_align_move">Auch verschieben (meist reicht der Zoom)</string>
+    <string name="cc_focus">Fokus</string>
+    <string name="cc_no_root">Für diesen Schalter wird Root-Zugriff benötigt</string>
+    <string name="cc_not_playing">Keine Wiedergabe</string>
 </resources>

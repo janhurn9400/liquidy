@@ -688,6 +688,9 @@ class HomeModel(
     var drag by mutableStateOf<DragState?>(null)
         private set
     var pendingRemoval by mutableStateOf<String?>(null)
+    /** Control Center (pull down from the top right, M-CC). */
+    val control = io.github.janhurn9400.liquidy.ui.control.ControlCenterModel(scope)
+
     var openFolder by mutableStateOf<OpenFolder?>(null)
         private set
 

@@ -83,7 +83,7 @@ private sealed interface Hit {
     data class Library(val hit: io.github.janhurn9400.liquidy.ui.library.LibraryHit) : Hit
 }
 
-private enum class Mode { Pending, Paging, Vertical, LibScroll, LibPull, TodayScroll, TodayDrag, Menu, Drag, Resize, StackScroll, WidgetTouch, Consumed }
+private enum class Mode { Pending, Paging, Vertical, Control, LibScroll, LibPull, TodayScroll, TodayDrag, Menu, Drag, Resize, StackScroll, WidgetTouch, Consumed }
 
 /**
  * Home screen: wallpaper, pages (4×6), dock, pill, edit mode.
@@ -655,8 +655,9 @@ fun HomeScreen(
             // Edit stack: home screen blurred in ≈ 2 frames (frame 287→288), independent of the slower panel
             val stackEdit = (model.stackEdit.value * 4f).coerceIn(0f, 1f) * DesignTokens.folderBgBlur.value
             val config = model.widgetConfig.value * DesignTokens.folderBgBlur.value // widget settings: home screen blurred
+            val control = model.control.progress.value.coerceIn(0f, 1f) * DesignTokens.ccBlur.value
             if (io.github.janhurn9400.liquidy.tuning.DebugOptions.blurOff) return 0f
-            return maxOf(pf * DesignTokens.folderBgBlur.value, if (withSearch) searchBlur else 0f, cat, today, stackEdit, config) * density
+            return maxOf(pf * DesignTokens.folderBgBlur.value, if (withSearch) searchBlur else 0f, cat, today, stackEdit, config, control) * density
         }
 
         // Background = always the Android wallpaper behind the transparent window (no own launcher image).
@@ -961,6 +962,9 @@ fun HomeScreen(
             }
             // Unlock (M-UNLOCK): pill/dots fly in like the items, around their own centre
             Box(Modifier.fillMaxSize().graphicsLayer {
+                // the pill lives outside the blurred home layer → blur it with the Control Center behind which it lies
+                val ccb = model.control.progress.value.coerceIn(0f, 1f) * DesignTokens.ccBlur.value * density
+                renderEffect = if (ccb > 0.5f) BlurEffect(ccb, ccb, TileMode.Decal) else null
                 if (model.unlockT == Float.MAX_VALUE) return@graphicsLayer
                 val cy = geo.pillTop + DesignTokens.pillHeight.value * density / 2; val cx = w / 2
                 val k = model.unlockScale(cx, cy, w, h)
@@ -1353,6 +1357,7 @@ fun HomeScreen(
                                     }
                                     Mode.Drag -> iconDragEnd()
                                     Mode.Vertical -> model.searchRelease()
+                                    Mode.Control -> model.control.release(tracker.calculateVelocity().y / density)
                                     Mode.LibPull -> model.libListRelease()
                                     Mode.Resize -> model.endResize(geo)
                                     Mode.StackScroll -> (hit as? Hit.Icon)?.let { hk -> model.widgets[hk.key]?.let { sp ->
@@ -1416,6 +1421,14 @@ fun HomeScreen(
                                             releasePress(animated = true)
                                             // App Library: scroll vertically; otherwise pull down → search
                                             mode = when {
+                                                // Pull down from the top right edge → Control Center (iOS: right of the island)
+                                                acc.y > 0 && !model.editing && down.position.x > w / 2 &&
+                                                    down.position.y < DesignTokens.ccEdgeZone.value * density -> Mode.Control
+                                                // …top left with our own status bar (Android's is hidden then) → Android's notifications
+                                                acc.y > 0 && !model.editing && io.github.janhurn9400.liquidy.data.OwnStatusBar.enabled &&
+                                                    down.position.y < DesignTokens.ccEdgeZone.value * density -> {
+                                                    io.github.janhurn9400.liquidy.data.SystemControls.expandNotifications(view.context); Mode.Consumed
+                                                }
                                                 // Pull down at the very top → A–Z list (recording2 10.1 s); otherwise scroll
                                                 hit is Hit.Library && acc.y > 0 && model.libraryScroll.value <= LIB_PULL_TOP && pager.position.value.let { abs(it - (libIndexNow() - geo.pagesVisible + 1)) < 0.01f } -> {
                                                     scope.launch { model.libraryScroll.animateTo(0f, Motion.scrollBounce.spec()) }
@@ -1482,10 +1495,11 @@ fun HomeScreen(
                                     val c = Motion.rubberBandC.value
                                     model.searchPull((pull * d * c) / (d + c * pull))
                                 }
+                                Mode.Control -> model.control.pull((change.position.y - down.position.y - slop).coerceAtLeast(0f) / density, h / density)
                                 Mode.Drag -> iconDragMove(change.position)
                                 else -> Unit
                             }
-                            if (mode == Mode.Drag || mode == Mode.Paging || mode == Mode.Vertical || mode == Mode.LibScroll || mode == Mode.LibPull || mode == Mode.Resize || mode == Mode.StackScroll || mode == Mode.TodayScroll || mode == Mode.TodayDrag || mode == Mode.WidgetTouch) change.consume()
+                            if (mode == Mode.Drag || mode == Mode.Paging || mode == Mode.Vertical || mode == Mode.Control || mode == Mode.LibScroll || mode == Mode.LibPull || mode == Mode.Resize || mode == Mode.StackScroll || mode == Mode.TodayScroll || mode == Mode.TodayDrag || mode == Mode.WidgetTouch) change.consume()
                         }
                     }
                 }
@@ -1498,7 +1512,8 @@ fun HomeScreen(
             Box(Modifier.fillMaxSize().graphicsLayer {
                 // hide with folder/search like the Android bar
                 val folder = ((model.openFolder?.progress?.value ?: 0f) / 0.3f).coerceIn(0f, 1f)
-                alpha = (1f - folder) * (if (geo.duo) 1f else 1f - model.searchOpenAmount.value.coerceIn(0f, 1f))
+                alpha = (1f - folder) * (if (geo.duo) 1f else 1f - model.searchOpenAmount.value.coerceIn(0f, 1f)) *
+                    (1f - model.control.progress.value.coerceIn(0f, 1f)) // the Control Center has its own status row
             }) {
                 if (geo.duo) DuoStatusSymbols(info, w - DUO_STATUS_FROM_RIGHT * density, density, color)
                 else IosStatusBar(info, statusBarPx.takeIf { it > 0f } ?: (IOS_STATUS_H * density), density, color)
@@ -1708,6 +1723,10 @@ fun HomeScreen(
                 )
             }
         }
+
+        // ── Control Center (above everything) ──────────────────────────────────────
+        io.github.janhurn9400.liquidy.ui.control.ControlCenter(model.control, density, w, h)
+        if (model.control.open) androidx.activity.compose.BackHandler { model.control.hide() }
     }
     } // end CompositionLocalProvider
 }

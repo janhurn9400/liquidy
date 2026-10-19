@@ -233,4 +233,13 @@ object Motion {
 
     /** Makes sure the object is initialised and all tunables are registered. */
     fun touch() = Unit
+
+    // M-CC — Control Center (user's iPhone recording 10-19 16-26). Content slides in from 33 pt above while it fades in
+    // blurred; it follows the finger and settles with a spring. Spring [ESTIMATED], offset/blur [MEASURED] frames 1–4.
+    val cc = iosSpring("M-CC", "Control Center open/close", response = 0.36f, dampingFraction = 0.86f)
+    val ccPull = tunable("M-CC.pull", "Control Center fully shown after", "Control Center", 110f, 40f, 300f, "pt") // [ESTIMATED]
+    val ccEnterY = tunable("M-CC.enterY", "Content slides in from", "Control Center", 33f, 0f, 80f, "pt") // [MEASURED]
+    val ccEnterBlur = tunable("M-CC.enterBlur", "Content blur while appearing", "Control Center", 8f, 0f, 30f, "pt") // [MEASURED] visually
+    val ccCommit = tunable("M-CC.commit", "Opens from progress", "Control Center", 0.4f, 0.1f, 0.9f) // [ESTIMATED]
+    val ccFlick = tunable("M-CC.flick", "Opens/closes from velocity", "Control Center", 300f, 50f, 1500f, "pt/s") // [ESTIMATED]
 }

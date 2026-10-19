@@ -311,4 +311,7 @@
     <string name="glass_align_horizontal">Horizontal</string>
     <string name="glass_align_vertical">Vertical</string>
     <string name="glass_align_move">Also move (usually only the zoom differs)</string>
+    <string name="cc_focus">Focus</string>
+    <string name="cc_no_root">Root access needed for this switch</string>
+    <string name="cc_not_playing">Not Playing</string>
 </resources>

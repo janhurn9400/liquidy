@@ -44,6 +44,12 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
 
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <!-- Control Center: brightness / rotation lock (granted via root appops) and the silent switch -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- with our own status bar: pulling down from the top left opens Android's notifications -->
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
     <!-- own status bar: Wi-Fi signal of the active network -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Weather widget: Open-Meteo + coarse location -->
