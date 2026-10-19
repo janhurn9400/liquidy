@@ -277,7 +277,9 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
                 effects = {
                     val bw = size.width; val bh = size.height
                     val (pts, n) = drawn(bw, bh)
-                    val w = bw.toInt().coerceAtLeast(1); val h = bh.toInt().coerceAtLeast(1)
+                    // mask at half resolution: it is redrawn (CPU) and uploaded every frame while "hello" is written —
+                    // a quarter of the pixels; the shader samples it scaled up (smooth line anyway)
+                    val w = (bw / MASK_DOWN).toInt().coerceAtLeast(1); val h = (bh / MASK_DOWN).toInt().coerceAtLeast(1)
                     val key = Triple(progress(), w, h)
                     val bmp: android.graphics.Bitmap
                     if (key == maskKey[0] && mask[maskState[0]] != null) bmp = mask[maskState[0]]!! else {
@@ -287,6 +289,7 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
                     maskState[0] = next; maskKey[0] = key
                     val c = android.graphics.Canvas(bmp)
                     c.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR)
+                    c.scale(1f / MASK_DOWN, 1f / MASK_DOWN)
                     val path = smoothPath(pts, n)
                     // Height: wide + soft (bright centre, falling off towards the edge) → circular profile/normal; area: sharp at stroke width
                     // Height: narrow core, softly faded → centre = maximum, ≈ 0 at the stroke edge (circular profile exactly as before)
@@ -297,7 +300,7 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
                     c.drawPath(path, sharpPaint)
                     // Measure the height maximum at a point on the line (centre of a segment) → normalisation in the shader
                     if (n >= 2) {
-                        val mx = ((pts[0] + pts[3]) / 2).toInt().coerceIn(0, w - 1); val my = ((pts[1] + pts[4]) / 2).toInt().coerceIn(0, h - 1)
+                        val mx = ((pts[0] + pts[3]) / 2 / MASK_DOWN).toInt().coerceIn(0, w - 1); val my = ((pts[1] + pts[4]) / 2 / MASK_DOWN).toInt().coerceIn(0, h - 1)
                         gMax[0] = ((bmp.getPixel(mx, my) shr 8) and 0xFF).coerceAtLeast(20) / 255f
                     }
                     }
@@ -307,7 +310,8 @@ private fun GlassWriting(word: String, scene: com.kyant.backdrop.Backdrop, progr
                         if (frozenMask[0]?.first !== bmp || frozenMask[0]?.second != key) frozenMask[0] = Triple(bmp, key, bmp.copy(android.graphics.Bitmap.Config.ARGB_8888, false))
                         frozenMask[0]!!.third
                     }
-                    shader.setInputShader("mask", android.graphics.BitmapShader(maskBmp, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP))
+                    shader.setInputShader("mask", android.graphics.BitmapShader(maskBmp, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP)
+                        .apply { setLocalMatrix(android.graphics.Matrix().apply { setScale(MASK_DOWN, MASK_DOWN) }) })
                     shader.setFloatUniform("halfW", halfW)
                     shader.setFloatUniform("amount", halfW * REFRACTION)
                     shader.setFloatUniform("gMax", gMax[0])
@@ -483,7 +487,8 @@ private fun GlassPane(field: com.kyant.backdrop.Backdrop, p: Pane, k: Int, time:
                     effects = {
                         blur(2.dp.toPx())
                         val r = size.minDimension / 2
-                        lens(refractionHeight = r * 0.42f, refractionAmount = r * 0.5f, depthEffect = true, chromaticAberration = true)
+                        // no colour fringes (Apple has none — CLAUDE.md); dispersion also sampled every pixel 7× on these huge panes
+                        lens(refractionHeight = r * 0.42f, refractionAmount = r * 0.5f, depthEffect = true, chromaticAberration = false)
                     },
                     highlight = { Highlight(width = 1.5.dp, alpha = 0.7f, style = HighlightStyle.Default(angle = 45f, falloff = 2f)) },
                     shadow = { Shadow(radius = 30.dp, color = Color(0xFF1B3B7A).copy(alpha = 0.10f)) },
@@ -535,3 +540,5 @@ private const val STROKE_DP = 7f
 private const val MARGIN_DP = 24f
 private const val REFRACTION = 2.6f
 private const val MAX_POINTS = 4096
+
+private const val MASK_DOWN = 2f
