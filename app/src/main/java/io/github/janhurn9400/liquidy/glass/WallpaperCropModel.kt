@@ -120,7 +120,17 @@ object WallpaperCropModel {
      * unfolded with zoom 0.4 grey levels deviation].
      */
     private fun zoomFor(context: Context, h: Helper, screen: Point): Float =
-        if (h.isFoldedDisplay(screen)) 1f else maxScale(context)
+        if (h.isFoldedDisplay(screen) || isColorOs(context)) 1f else maxScale(context)
+
+    /**
+     * ColorOS / OxygenOS (OPPO, OnePlus, realme) shows the wallpaper WITHOUT AOSP's config_wallpaperMaxScale zoom
+     * [MEASURED ColorOS 15 port, Mi 11 Lite 5G, 10-19: the user lined up the glass copy with Align Glass at 0.910× ≈ 1 / 1.10]
+     */
+    fun isColorOs(context: Context): Boolean =
+        android.os.Build.MANUFACTURER.lowercase() in COLOROS_VENDORS || android.os.Build.BRAND.lowercase() in COLOROS_VENDORS ||
+            runCatching { context.packageManager.getPackageInfo("com.coloros.ocs.opencapabilityservice", 0); true }.getOrDefault(false)
+
+    private val COLOROS_VENDORS = setOf("oppo", "oneplus", "realme")
 
     /** For diagnostics (Launcher settings › Advanced): what the model assumes for this display. */
     fun describe(context: Context, screenW: Int, screenH: Int): String {

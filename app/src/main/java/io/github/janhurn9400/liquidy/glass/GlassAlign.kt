@@ -74,11 +74,15 @@ object GlassAlign {
     var open by mutableStateOf(false)
 
     private const val PREFS = "glass_align"
+    /** Bumped whenever a ROM rule changes the computed crop — corrections made against the old one are dropped. */
+    private const val MODEL_VERSION = 2
     private fun key(id: Int) = "c_$id"
 
     /** Loads the correction saved for wallpaper [id] (none = identity). */
     fun load(c: Context, id: Int) {
-        val s = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(key(id), null)
+        val prefs = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getInt("model", 1) != MODEL_VERSION) prefs.edit().clear().putInt("model", MODEL_VERSION).apply()
+        val s = prefs.getString(key(id), null)
         current.value = s?.split(',')?.mapNotNull { it.toFloatOrNull() }?.takeIf { it.size == 3 }
             ?.let { Correction(it[0], it[1], it[2]) } ?: Correction()
         aligned.value = s != null
@@ -98,6 +102,7 @@ object GlassAlign {
      */
     fun cropModelKnown(c: Context): Boolean =
         WallpaperCropModel.isMiuiWallpaper(c) ||
+            WallpaperCropModel.isColorOs(c) ||
             Build.DISPLAY.contains("lineage", ignoreCase = true) ||
             Build.MANUFACTURER.equals("Google", ignoreCase = true) ||
             Build.FINGERPRINT.contains("generic") || Build.PRODUCT.contains("sdk")

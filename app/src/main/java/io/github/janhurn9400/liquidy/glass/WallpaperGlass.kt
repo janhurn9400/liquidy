@@ -103,7 +103,10 @@ fun WallpaperGlass(
         // 1 · shadow outside the shape: a blurred ROUNDED RECT — Skia draws that analytically on the GPU. A blurred free
         // path was rasterised on the CPU and uploaded again whenever the size changed (folder panel: every frame)
         // (not under clear glass: there the real wallpaper shows through and the shadow would be visible inside)
-        val clear = SystemWallpaper.isLive && !GlassAlign.isAligned
+        // live wallpaper: refract its still only if it lines up (aligned by hand, or a ROM whose zoom we know)
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        val modelKnown = remember(ctx) { GlassAlign.cropModelKnown(ctx) }
+        val clear = SystemWallpaper.isLive && !GlassAlign.isAligned && !modelKnown
         if (!clear) Spacer(Modifier.matchParentSize().drawBehind { drawGlassShadow(shape, thickness) })
         // 2 · glass fill: the only part that follows the position (reads [FastGlassState.coords] while drawing)
         Spacer(
