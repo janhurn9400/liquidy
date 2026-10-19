@@ -33,7 +33,7 @@ Goal: an Android launcher (Kotlin + Compose, minSdk 33) that feels 1:1 like the 
   "Export" → clipboard + logcat tag `Tuning` (`adb logcat -s Tuning`).
 - Comparison: screenshots in `shots/` (gitignored), measurement scripts in `tools/measure/`, references in `docs/reference/iphone/` (local only, not in the repo).
 
-## Status (2026-10-16, v0.4.2 released + unreleased work on main; public repo, GPL-3.0)
+## Status (2026-10-19, v0.6.0 released; public repo, GPL-3.0)
 - Phase 0: done. Phases 1–4 built, fine-tuning ongoing (the user does NOT tune values themselves — derive values from their videos, put emulator captures next to them frame by frame).
 - Phase 1: grid/labels/dock/pill ±1 px; pager M-PAGE verified (0.362 s / 0.904).
 - Phase 2: edit mode (long press, measured jiggle, badges, edit buttons, dragging + reflow, dock ↔ grid, edge page flip with peek incl. new page, delete dialog, persistent layout `LayoutStore`), context menu with native Android shortcuts.
@@ -59,6 +59,9 @@ Goal: an Android launcher (Kotlin + Compose, minSdk 33) that feels 1:1 like the 
 - Today view editing matches the user's iPhone video (lift 1.12× = T-DRAG.scale, springs on lift/drop).
 - Report a Problem: GitHub issue or email (Diagnostics.REPORT_EMAIL is a PLACEHOLDER — replace before the next release), optional screen recording (BugRecorder, ≤ 1 min, Movies/Liquidy) attached by email or to the GitHub form.
 - Next: real email address; Maps-like icons without a plate in Tinted; Tinted Dark + closed folder icons in Tinted (need iPhone screenshots); Android widgets in Tinted; app icon is still a placeholder; test on a real foldable (120 Hz).
+- Real phone (Mi 11 Lite 5G renoir, LineageOS 23.2 + Magisk, `adb -d`): fast glass (glass/WallpaperGlass, one AGSL shader sampling the wallpaper; see docs/GLASS.md + docs/HANDOFF-PERF.md), swipes ≈ 4–5 % janky, folder 11 %, App Library category ≈ 18 %. Profile release builds with simpleperf (manifest `profileable`). Avoid clipPath / BlurMaskFilter / mutable bitmaps in animated paths.
+- Wallpaper crop models per vendor (AOSP, HyperOS, ColorOS) + manual Align Glass (glass/GlassAlign) for unknown ROMs; full-screen wallpaper blur via Android's window background blur.
+- Unlock animation M-UNLOCK (per item, measured), phone UI scaling below 402 × 874 pt (design/UiScale).
 - Testing caution: drag tests in the emulator change the user's layout — back up shared_prefs/layout.xml first and restore it afterwards.
 - FIXED RULE dock size: items in the Duo dock are smaller (48 instead of 60 pt). Every place that shows a dock item or starts from it (drawing, folder open/close, context menu, app launch/return, dragging, picking up, flying into a folder) uses `HomeGeometry.dockIconScale` or `iconRect(topLeft, inDock)` — never its own values.
 - Architecture: one central gesture arena in `ui/home/HomeScreen.kt`; geometry only in `HomeGeometry`/`FolderGeometry`/`LibraryGeometry`; layout state in `HomeModel`.
