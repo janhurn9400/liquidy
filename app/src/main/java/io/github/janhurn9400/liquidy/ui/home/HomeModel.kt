@@ -1489,7 +1489,10 @@ class HomeModel(
         scope.launch { pressAlpha.snapTo(0f); pressedKey = null }
         // Widgets barely lift (large area) — icons as measured 1.15× and 10 pt
         val liftScale = if (widgetRect != null) WIDGET_LIFT else Motion.ctxLiftScale.value
-        scope.launch { m.lift.snapTo(pressScale.value); pressScale.snapTo(1f); m.lift.animateTo(liftScale, Motion.ctxLift.spec()) }
+        // take over the hold growth as drawn: widgets grew by an icon's distance, not by the raw factor (else they jump at the haptic)
+        val held = if (widgetRect == null) pressScale.value
+            else 1f + (pressScale.value - 1f) * DesignTokens.iconSize.value * density / widgetRect.width
+        scope.launch { m.lift.snapTo(held); pressScale.snapTo(1f); m.lift.animateTo(liftScale, Motion.ctxLift.spec()) }
         if (widgetRect == null) scope.launch { m.liftY.animateTo(Motion.ctxLiftY.value, Motion.ctxLift.spec()) }
         scope.launch { m.menu.animateTo(1f, Motion.ctxMenu.spec()) }
         scope.launch { m.dim.animateTo(1f, androidx.compose.animation.core.tween(Motion.ctxDimIn.value.roundToInt())) }
