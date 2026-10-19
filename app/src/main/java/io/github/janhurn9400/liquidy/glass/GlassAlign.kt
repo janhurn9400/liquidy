@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -125,6 +126,8 @@ fun GlassAlignScreen(base: ImageBitmap, initial: GlassAlign.Correction, onReset:
     var zoom by remember { mutableStateOf(initial.zoom) }
     var dx by remember { mutableStateOf(initial.dx) }
     var dy by remember { mutableStateOf(initial.dy) }
+    // moving is locked by default — usually only the zoom differs (user, ColorOS 10-19); unlocked with the checkbox
+    var moveUnlocked by remember { mutableStateOf(initial.dx != 0f || initial.dy != 0f) }
     val textShadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 1f), 6f)
     Box(
         Modifier
@@ -132,7 +135,7 @@ fun GlassAlignScreen(base: ImageBitmap, initial: GlassAlign.Correction, onReset:
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, gestureZoom, _ ->
                     zoom = (zoom * gestureZoom).coerceIn(GlassAlign.MIN_ZOOM, GlassAlign.MAX_ZOOM)
-                    dx += pan.x / size.width; dy += pan.y / size.height
+                    if (moveUnlocked) { dx += pan.x / size.width; dy += pan.y / size.height }
                 }
             }
     ) {
@@ -168,12 +171,36 @@ fun GlassAlignScreen(base: ImageBitmap, initial: GlassAlign.Correction, onReset:
         ) {
             val sliderColors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White,
                 inactiveTrackColor = Color.White.copy(alpha = 0.3f))
-            BasicText(stringResource(R.string.glass_align_zoom), style = TextStyle(fontFamily = Inter, fontSize = 14.sp, color = Color.White))
+            val label = TextStyle(fontFamily = Inter, fontSize = 14.sp, color = Color.White)
+            val value = label.copy(fontWeight = FontWeight.SemiBold)
+            // values visible (to report them so a ROM's zoom can be built in)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                BasicText(stringResource(R.string.glass_align_zoom), style = label)
+                BasicText(String.format(java.util.Locale.ROOT, "%.3f×", zoom), style = value)
+            }
             androidx.compose.material3.Slider(value = zoom, onValueChange = { zoom = it }, valueRange = GlassAlign.MIN_ZOOM..GlassAlign.MAX_ZOOM, colors = sliderColors)
-            BasicText(stringResource(R.string.glass_align_horizontal), style = TextStyle(fontFamily = Inter, fontSize = 14.sp, color = Color.White))
-            androidx.compose.material3.Slider(value = dx, onValueChange = { dx = it }, valueRange = -MAX_SHIFT..MAX_SHIFT, colors = sliderColors)
-            BasicText(stringResource(R.string.glass_align_vertical), style = TextStyle(fontFamily = Inter, fontSize = 14.sp, color = Color.White))
-            androidx.compose.material3.Slider(value = dy, onValueChange = { dy = it }, valueRange = -MAX_SHIFT..MAX_SHIFT, colors = sliderColors)
+            Row(Modifier.fillMaxWidth().clickable(remember { MutableInteractionSource() }, indication = null) {
+                moveUnlocked = !moveUnlocked
+                if (!moveUnlocked) { dx = 0f; dy = 0f }
+            }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.Checkbox(checked = moveUnlocked, onCheckedChange = null,
+                    colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = Color.White, checkmarkColor = Color.Black,
+                        uncheckedColor = Color.White.copy(alpha = 0.7f)))
+                Spacer(Modifier.width(8.dp))
+                BasicText(stringResource(R.string.glass_align_move), style = label)
+            }
+            if (moveUnlocked) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    BasicText(stringResource(R.string.glass_align_horizontal), style = label)
+                    BasicText(String.format(java.util.Locale.ROOT, "%+.1f %%", dx * 100), style = value)
+                }
+                androidx.compose.material3.Slider(value = dx, onValueChange = { dx = it }, valueRange = -MAX_SHIFT..MAX_SHIFT, colors = sliderColors)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    BasicText(stringResource(R.string.glass_align_vertical), style = label)
+                    BasicText(String.format(java.util.Locale.ROOT, "%+.1f %%", dy * 100), style = value)
+                }
+                androidx.compose.material3.Slider(value = dy, onValueChange = { dy = it }, valueRange = -MAX_SHIFT..MAX_SHIFT, colors = sliderColors)
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 PillButton(stringResource(R.string.glass_align_reset), filled = false) { zoom = 1f; dx = 0f; dy = 0f; onReset() }
                 PillButton(stringResource(R.string.glass_align_done), filled = true) { onDone(GlassAlign.Correction(zoom, dx, dy)) }

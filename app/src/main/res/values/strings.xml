@@ -310,4 +310,5 @@
     <string name="welcome_align_live">You are using a live (video) wallpaper. Glass refracts a still frame of it — line that copy up at the dock once, then the glass refracts it in place. Without aligning, the glass stays clear (tint and rim light, no refraction).</string>
     <string name="glass_align_horizontal">Horizontal</string>
     <string name="glass_align_vertical">Vertical</string>
+    <string name="glass_align_move">Also move (usually only the zoom differs)</string>
 </resources>

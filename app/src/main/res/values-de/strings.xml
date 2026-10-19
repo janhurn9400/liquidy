@@ -310,4 +310,5 @@
     <string name="welcome_align_live">Du nutzt einen Live-Hintergrund (Video). Das Glas bricht ein Standbild daraus – richte diese Kopie einmal am Dock aus, dann bricht das Glas sie passend. Ohne Ausrichten bleibt das Glas klar (Tönung und Lichtrand, keine Brechung).</string>
     <string name="glass_align_horizontal">Horizontal</string>
     <string name="glass_align_vertical">Vertikal</string>
+    <string name="glass_align_move">Auch verschieben (meist reicht der Zoom)</string>
 </resources>
