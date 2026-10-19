@@ -299,7 +299,7 @@
     <string name="report_choose_email">Per E-Mail senden (Video im Anhang)</string>
     <string name="settings_restart_setup">Einrichtung erneut starten</string>
     <string name="glass_align_title">Glas ausrichten</string>
-    <string name="glass_align_hint">Zoome und verschiebe, bis die Linien am Rand der Scheibe nahtlos ins Hintergrundbild übergehen.</string>
+    <string name="glass_align_hint">Zoome und verschiebe die Kopie im Dock, bis ihre Linien nahtlos ins Hintergrundbild drumherum übergehen.</string>
     <string name="glass_align_zoom">Zoom</string>
     <string name="glass_align_reset">Zurücksetzen</string>
     <string name="glass_align_done">Fertig</string>
@@ -307,4 +307,7 @@
     <string name="welcome_align_body">Das Glas bricht eine Kopie deines Hintergrundbilds. Dieses Handy zeigt das Hintergrundbild auf seine eigene Art gezoomt – richte die Kopie einmal nach Augenmaß aus, dann passen Brechung und Ränder genau. Dauert nur ein paar Sekunden.</string>
     <string name="welcome_align_unavailable">Das Glas bricht eine Kopie deines Hintergrundbilds. Erlaube auf der vorherigen Seite den Zugriff auf das Hintergrundbild (oder nutze ein Standbild statt eines Live-Hintergrunds), um es auszurichten – das geht auch später unter Einstellungen › Darstellung.</string>
     <string name="welcome_align_start">Ausrichten</string>
+    <string name="welcome_align_live">Du nutzt einen Live-Hintergrund (Video). Das Glas bricht ein Standbild daraus – richte diese Kopie einmal am Dock aus, dann bricht das Glas sie passend. Ohne Ausrichten bleibt das Glas klar (Tönung und Lichtrand, keine Brechung).</string>
+    <string name="glass_align_horizontal">Horizontal</string>
+    <string name="glass_align_vertical">Vertikal</string>
 </resources>

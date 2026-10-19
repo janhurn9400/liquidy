@@ -191,6 +191,7 @@ fun HomeScreen(
         val geo = remember(w, h, density, navBarPx, duo) { HomeGeometry(density, w, h, navBarPx, duo) }
         geo.dockCount = model.display.dock.size
         model.screenSize = androidx.compose.ui.geometry.Size(w, h)
+        io.github.janhurn9400.liquidy.glass.GlassAlign.dockRect = geo.dockRect
         val homeContentLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
         var folderBlurSnap by remember { androidx.compose.runtime.mutableStateOf<Pair<ImageBitmap, ImageBitmap>?>(null) }
         /** Android blurs its own wallpaper behind the window (see "Wallpaper blur" below). */

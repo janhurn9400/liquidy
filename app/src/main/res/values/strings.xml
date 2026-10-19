@@ -299,7 +299,7 @@
     <string name="report_choose_email">Send by Email (video attached)</string>
     <string name="settings_restart_setup">Run Setup Again</string>
     <string name="glass_align_title">Align Glass</string>
-    <string name="glass_align_hint">Zoom and move until the lines at the edge of the pane continue seamlessly into the wallpaper.</string>
+    <string name="glass_align_hint">Zoom and move the copy in the dock until its lines continue seamlessly into the wallpaper around it.</string>
     <string name="glass_align_zoom">Zoom</string>
     <string name="glass_align_reset">Reset</string>
     <string name="glass_align_done">Done</string>
@@ -307,4 +307,7 @@
     <string name="welcome_align_body">Glass refracts a copy of your wallpaper. This phone shows the wallpaper zoomed in its own way, so line the copy up once by eye — then refraction and edges match exactly. Takes a few seconds.</string>
     <string name="welcome_align_unavailable">Glass refracts a copy of your wallpaper. Allow wallpaper access on the previous page (or use a still image instead of a live wallpaper) to line it up — you can do it later in Settings › Appearance.</string>
     <string name="welcome_align_start">Align</string>
+    <string name="welcome_align_live">You are using a live (video) wallpaper. Glass refracts a still frame of it — line that copy up at the dock once, then the glass refracts it in place. Without aligning, the glass stays clear (tint and rim light, no refraction).</string>
+    <string name="glass_align_horizontal">Horizontal</string>
+    <string name="glass_align_vertical">Vertical</string>
 </resources>

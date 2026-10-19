@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -317,7 +318,10 @@ class MainActivity : ComponentActivity() {
                     enter = androidx.compose.animation.EnterTransition.None,
                     exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(WELCOME_EXIT_MS)) +
                         androidx.compose.animation.scaleOut(androidx.compose.animation.core.tween(WELCOME_EXIT_MS), targetScale = 1.08f),
-                ) { Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (aligning) 0f else 1f }) { io.github.janhurn9400.liquidy.ui.welcome.WelcomeFlow(
+                ) { Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (aligning) 0f else 1f }
+                    // the setup covers the home screen completely: touches must never reach the icons behind it
+                    .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } } }
+                ) { io.github.janhurn9400.liquidy.ui.welcome.WelcomeFlow(
                     isDefaultHome = {
                         val h = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
                         packageManager.resolveActivity(h, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName == packageName

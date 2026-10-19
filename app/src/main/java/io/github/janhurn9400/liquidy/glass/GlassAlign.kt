@@ -61,6 +61,11 @@ object GlassAlign {
     }
 
     private val current = mutableStateOf(Correction())
+    private val aligned = mutableStateOf(false)
+    /** The user lined the copy up for the current wallpaper (then glass refracts it even on a live wallpaper). */
+    val isAligned: Boolean get() = aligned.value
+    /** Dock rect on screen (px) — the alignment pane lies exactly there (set by HomeScreen). */
+    var dockRect: androidx.compose.ui.geometry.Rect? = null
     /** Correction for the current wallpaper (read by MainActivity when it reads the wallpaper pixels). */
     val correction: Correction get() = current.value
 
@@ -75,11 +80,13 @@ object GlassAlign {
         val s = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(key(id), null)
         current.value = s?.split(',')?.mapNotNull { it.toFloatOrNull() }?.takeIf { it.size == 3 }
             ?.let { Correction(it[0], it[1], it[2]) } ?: Correction()
+        aligned.value = s != null
     }
 
     fun save(c: Context, id: Int, corr: Correction) {
         c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(key(id), "${corr.zoom},${corr.dx},${corr.dy}").apply()
         current.value = corr
+        aligned.value = true
     }
 
     private fun hasSaved(c: Context, id: Int) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(key(id))
@@ -96,7 +103,7 @@ object GlassAlign {
 
     /** Offer alignment: readable still wallpaper on an unknown ROM, not aligned yet. */
     fun needed(c: Context): Boolean {
-        if (!SystemWallpaper.canRead() || SystemWallpaper.isLive || cropModelKnown(c)) return false
+        if (!SystemWallpaper.canRead() || cropModelKnown(c)) return false
         val id = runCatching { android.app.WallpaperManager.getInstance(c).getWallpaperId(android.app.WallpaperManager.FLAG_SYSTEM) }.getOrDefault(-1)
         return !hasSaved(c, id)
     }
@@ -130,9 +137,11 @@ fun GlassAlignScreen(base: ImageBitmap, initial: GlassAlign.Correction, onReset:
             }
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            val pw = size.width * PANE_W; val ph = size.height * PANE_H
-            val tl = Offset((size.width - pw) / 2, size.height * PANE_TOP)
-            val r = PANE_CORNER.dp.toPx()
+            // exactly where the dock is (if it matches there, it matches everywhere); fallback: a pane at the bottom
+            val dock = GlassAlign.dockRect
+            val pw = dock?.width ?: (size.width * PANE_W); val ph = dock?.height ?: (size.height * PANE_H)
+            val tl = dock?.topLeft ?: Offset((size.width - pw) / 2, size.height * PANE_TOP)
+            val r = minOf(PANE_CORNER.dp.toPx(), ph / 2)
             val pane = Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(tl.x, tl.y, tl.x + pw, tl.y + ph, CornerRadius(r))) }
             clipPath(pane) {
                 withTransform({
@@ -154,15 +163,17 @@ fun GlassAlignScreen(base: ImageBitmap, initial: GlassAlign.Correction, onReset:
                 color = Color.White, shadow = textShadow, textAlign = TextAlign.Center))
         }
         Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 20.dp)
+            Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp)
                 .clip(RoundedCornerShape(24.dp)).background(Color.Black.copy(alpha = PANEL_DARK)).padding(16.dp),
         ) {
+            val sliderColors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White,
+                inactiveTrackColor = Color.White.copy(alpha = 0.3f))
             BasicText(stringResource(R.string.glass_align_zoom), style = TextStyle(fontFamily = Inter, fontSize = 14.sp, color = Color.White))
-            androidx.compose.material3.Slider(
-                value = zoom, onValueChange = { zoom = it }, valueRange = GlassAlign.MIN_ZOOM..GlassAlign.MAX_ZOOM,
-                colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White,
-                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)),
-            )
+            androidx.compose.material3.Slider(value = zoom, onValueChange = { zoom = it }, valueRange = GlassAlign.MIN_ZOOM..GlassAlign.MAX_ZOOM, colors = sliderColors)
+            BasicText(stringResource(R.string.glass_align_horizontal), style = TextStyle(fontFamily = Inter, fontSize = 14.sp, color = Color.White))
+            androidx.compose.material3.Slider(value = dx, onValueChange = { dx = it }, valueRange = -MAX_SHIFT..MAX_SHIFT, colors = sliderColors)
+            BasicText(stringResource(R.string.glass_align_vertical), style = TextStyle(fontFamily = Inter, fontSize = 14.sp, color = Color.White))
+            androidx.compose.material3.Slider(value = dy, onValueChange = { dy = it }, valueRange = -MAX_SHIFT..MAX_SHIFT, colors = sliderColors)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 PillButton(stringResource(R.string.glass_align_reset), filled = false) { zoom = 1f; dx = 0f; dy = 0f; onReset() }
                 PillButton(stringResource(R.string.glass_align_done), filled = true) { onDone(GlassAlign.Correction(zoom, dx, dy)) }
@@ -183,6 +194,8 @@ private fun PillButton(label: String, filled: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** Largest shift via the sliders (share of the screen width/height). */
+private const val MAX_SHIFT = 0.15f
 private const val PANE_W = 0.86f
 private const val PANE_H = 0.36f
 private const val PANE_TOP = 0.24f

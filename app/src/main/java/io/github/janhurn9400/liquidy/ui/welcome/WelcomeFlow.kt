@@ -227,7 +227,8 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
                         }
                     }
                     Step.GlassAlign -> {
-                        val possible = io.github.janhurn9400.liquidy.glass.SystemWallpaper.canRead() && !io.github.janhurn9400.liquidy.glass.SystemWallpaper.isLive
+                        val live = io.github.janhurn9400.liquidy.glass.SystemWallpaper.isLive
+                        val possible = io.github.janhurn9400.liquidy.glass.SystemWallpaper.canRead()
                         // after "Done" on the alignment screen → next page
                         var started by remember { mutableStateOf(false) }
                         androidx.compose.runtime.LaunchedEffect(io.github.janhurn9400.liquidy.glass.GlassAlign.open) {
@@ -236,7 +237,8 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
                         StepPage(
                             glyph = Glyph.Appearance, showBack = showBack, onBack = ::back,
                             title = stringResource(R.string.welcome_align_title),
-                            body = stringResource(if (possible) R.string.welcome_align_body else R.string.welcome_align_unavailable),
+                            body = stringResource(when { possible && live -> R.string.welcome_align_live; possible -> R.string.welcome_align_body
+                                else -> R.string.welcome_align_unavailable }),
                             primary = stringResource(if (possible) R.string.welcome_align_start else R.string.welcome_continue),
                             onPrimary = { if (possible) io.github.janhurn9400.liquidy.glass.GlassAlign.open = true else next() },
                             secondary = if (possible) stringResource(R.string.welcome_later) else null, onSecondary = { next() },
