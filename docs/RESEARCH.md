@@ -106,7 +106,7 @@ Basic structure (4×6, dock of 4, pages, folders, App Library) unchanged. We do 
 | ID | Value |
 |---|---|
 | T-BADGE | minus badge Ø **26 pt**, light grey glass circle, black bar **12 × 2 pt**; centre at icon top-left corner + (2.3 / 3.2) pt |
-| T-EDIT-BTN | two glass capsules at the top **66.67 × 27.33 pt**, y = 19 pt, 35.67 pt from the edge; left brush (Customise), right checkmark (Done). Status bar is hidden |
+| T-EDIT-BTN | two glass capsules at the top **66.67 × 27.33 pt**, y = 19 pt, 35.67 pt from the edge; left brush (Customise), right checkmark (Done). Status bar is hidden. Touch zone [ESTIMATED] ≥ 48 pt tall up to the screen top (capsule alone was missed by fingers on the Mi 11 Lite); over a punch-hole camera the capsule moves beside it with a 6 pt gap |
 | T-EDIT-PILL | pill shows page dots instead of "Search" |
 | T-WIDGET-RESIZE | widgets get a resize handle at the bottom right (circular arc) |
 

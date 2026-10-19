@@ -15,6 +15,8 @@ class HomeGeometry(
     private val density: Float, val width: Float, val height: Float, private val navBarPx: Float = 0f,
     /** iPhone Duo style (foldable): pages on the left, on the right a vertical column with dock, magnifier and edit buttons. */
     val duo: Boolean = false,
+    /** Display cutouts (px, window = screen coordinates); the edit buttons move beside a punch-hole camera. */
+    private val cutouts: List<Rect> = emptyList(),
 ) {
 
     private fun px(dp: Float) = dp * density
@@ -260,8 +262,21 @@ class HomeGeometry(
         val h = px(DesignTokens.editButtonHeight.value)
         val top = px(DesignTokens.editButtonTop.value)
         val side = px(DesignTokens.editButtonSide.value)
-        val x = if (left) side else width - side - w
+        var x = if (left) side else width - side - w
+        // Punch-hole camera under the capsule (e.g. Mi 11 Lite: top left) → move it beside the camera, towards the centre
+        val gap = px(DesignTokens.editButtonCutoutGap.value)
+        cutouts.firstOrNull { it.overlaps(Rect(Offset(x, top), Size(w, h)).inflate(gap)) }?.let { c ->
+            x = if (left) c.right + gap else c.left - gap - w
+        }
         return Rect(Offset(x, top), Size(w, h))
+    }
+
+    /** Touch zone of an edit button (non-Duo): the capsule grown to at least T-EDIT-BTN.hit tall, plus the same slop sideways. */
+    fun editButtonHitRect(left: Boolean): Rect {
+        val r = editButtonRect(left)
+        if (duo) return r
+        val slop = maxOf(0f, (px(DesignTokens.editButtonHitHeight.value) - r.height) / 2)
+        return Rect(r.left - slop, 0f, r.right + slop, r.bottom + slop)
     }
 
     val edgeZone: Float get() = px(DesignTokens.edgeZone.value)

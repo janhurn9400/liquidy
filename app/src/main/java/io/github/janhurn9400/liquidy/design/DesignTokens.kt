@@ -107,6 +107,8 @@ object DesignTokens {
     val editButtonHeight = dpToken("T-EDIT-BTN.h", "Edit button height", "Editing", 27.33f, 20f, 44f)
     val editButtonTop = dpToken("T-EDIT-BTN.y", "Edit button top", "Editing", 19f, 0f, 60f)
     val editButtonSide = dpToken("T-EDIT-BTN.x", "Edit button side", "Editing", 35.67f, 0f, 60f)
+    val editButtonHitHeight = dpToken("T-EDIT-BTN.hit", "Edit button touch height", "Editing", 48f, 27f, 70f) // [ESTIMATED] iOS HIG min 44 pt + finger offset
+    val editButtonCutoutGap = dpToken("T-EDIT-BTN.cutout", "Edit button gap to camera", "Editing", 6f, 0f, 20f) // [ESTIMATED]
     val editGlyphSize = dpToken("T-EDIT-BTN.glyph", "Edit button glyph size", "Editing", 13.67f, 8f, 20f)
     val glyphColor = Color(0xFF493A36) // like T-LABEL-COLOR, measured on checkmark/brush
     // T-DRAG — dragged icon or widget. [MEASURED] user iPhone 10-16, Today view: dragged small widget 182 vs. 163 pt ≈ 1.12×

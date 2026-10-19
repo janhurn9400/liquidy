@@ -188,7 +188,10 @@ fun HomeScreen(
         // iPhone Duo style (foldable, chosen in setup): own geometry; icons 60 pt like on the Duo [MEASURED]
         val duo = io.github.janhurn9400.liquidy.data.FoldableStyle.duoStyle
         LaunchedEffect(duo) { DesignTokens.iconSize.tunable.value = if (duo) DUO_ICON else DesignTokens.iconSize.tunable.default }
-        val geo = remember(w, h, density, navBarPx, duo) { HomeGeometry(density, w, h, navBarPx, duo) }
+        // Display cutouts (punch-hole camera) — the edit buttons at the top move beside them
+        val cutouts = androidx.compose.ui.platform.LocalView.current.rootWindowInsets?.displayCutout?.boundingRects.orEmpty()
+            .map { androidx.compose.ui.geometry.Rect(it.left.toFloat(), it.top.toFloat(), it.right.toFloat(), it.bottom.toFloat()) }
+        val geo = remember(w, h, density, navBarPx, duo, cutouts) { HomeGeometry(density, w, h, navBarPx, duo, cutouts) }
         geo.dockCount = model.display.dock.size
         model.screenSize = androidx.compose.ui.geometry.Size(w, h)
         io.github.janhurn9400.liquidy.glass.GlassAlign.dockRect = geo.dockRect
@@ -518,8 +521,9 @@ fun HomeScreen(
                 if (geo.duo && libraryOnScreen && duoLibAmount() > LIB_COVERS_AT && p.x < libOffset) return Hit.Covered
             }
             if (model.editing) {
-                if (geo.editButtonRect(left = false).contains(p)) return Hit.EditDone
-                if (geo.editButtonRect(left = true).contains(p)) return Hit.EditCustomize
+                // The capsules are only 27 pt tall → a generous touch zone around them like iOS (≥ 44 pt), else fingers land below
+                if (geo.editButtonHitRect(left = false).contains(p)) return Hit.EditDone
+                if (geo.editButtonHitRect(left = true).contains(p)) return Hit.EditCustomize
             }
             // Duo: magnifier is in the right column → check before icons/App Library (otherwise a cell covers it)
             if (geo.duo && duoLibAmount() < 0.5f && (geo.unfolded || pager.position.value > -0.5f) && !model.editing && geo.pillRect.inflate(8f * density).contains(p)) return Hit.Pill
@@ -1116,7 +1120,7 @@ fun HomeScreen(
                         }
                         val t0 = System.nanoTime()
                         val hit = hitTest(down.position)
-                        val wasAnimating = pager.position.isRunning
+                                        val wasAnimating = pager.position.isRunning
                         if (wasAnimating) scope.launch { pager.position.stop() }
                         val tracker = VelocityTracker().apply { addPosition(down.uptimeMillis, down.position) }
                         val slop = viewConfiguration.touchSlop
