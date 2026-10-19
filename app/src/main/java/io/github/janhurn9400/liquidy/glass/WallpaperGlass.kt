@@ -102,7 +102,9 @@ fun WallpaperGlass(
     Box(modifier) {
         // 1 · shadow outside the shape: a blurred ROUNDED RECT — Skia draws that analytically on the GPU. A blurred free
         // path was rasterised on the CPU and uploaded again whenever the size changed (folder panel: every frame)
-        Spacer(Modifier.matchParentSize().drawBehind { drawGlassShadow(shape, thickness) })
+        // (not under clear glass: there the real wallpaper shows through and the shadow would be visible inside)
+        val clear = SystemWallpaper.isLive
+        if (!clear) Spacer(Modifier.matchParentSize().drawBehind { drawGlassShadow(shape, thickness) })
         // 2 · glass fill: the only part that follows the position (reads [FastGlassState.coords] while drawing)
         Spacer(
             Modifier
@@ -118,6 +120,8 @@ fun WallpaperGlass(
                     val outline = shape.createOutline(size, layoutDirection, this)
                     val shader = glass.shader(wallpaper, frosted ?: wallpaper, soft, softAmount())
                     glass.setUniforms(this, c, shape, thickness, tinted, refraction)
+                    // live wallpaper: no readable pixels → clear glass (real wallpaper shows through; tint + rim only)
+                    shader.setFloatUniform("clearGlass", if (clear) 1f else 0f)
                     // tints and the light rim are computed in the same shader (one draw, no masks, no layers)
                     glass.setSurface(this, black, whiteTint, veil, grey, if (refraction) rimAlpha ?: DesignTokens.glassRimHighlight.value else 0f)
                     drawOutline(outline, ShaderBrush(shader))
@@ -310,6 +314,7 @@ uniform float depthEffect;
 uniform float saturation;
 uniform float lensOn;
 uniform float4 tints;        // black, white, veil alpha, veil grey
+uniform float clearGlass;    // 1 = transparent base (live wallpaper behind, not readable)
 uniform float rimOn;
 uniform float rimHalf;       // half stroke width (px)
 uniform float rimSigma;
@@ -346,10 +351,11 @@ half4 lensed(float2 coord) {
 }
 float gaussCdf(float x) { return 1.0 / (1.0 + exp(-1.702 * x)); } // logistic ≈ Gaussian CDF (AGSL has no tanh/erf)
 half4 main(float2 coord) {
-    half4 c = lensed(coord);
-    c.rgb = mix(c.rgb, half3(0.0), half(tints.x));
-    c.rgb = mix(c.rgb, half3(1.0), half(tints.y));
-    c.rgb = mix(c.rgb, half3(tints.w), half(tints.z));
+    half4 c = clearGlass > 0.5 ? half4(0.0) : lensed(coord);
+    // SrcOver of the tints on a premultiplied base (also on the transparent one)
+    c = mix(c, half4(0.0, 0.0, 0.0, 1.0), half(tints.x));
+    c = mix(c, half4(1.0), half(tints.y));
+    c = mix(c, half4(half3(tints.w), 1.0), half(tints.z));
     if (rimOn > 0.5) {
         float2 halfSize = size * 0.5;
         float2 centeredCoord = coord - halfSize;
@@ -362,7 +368,10 @@ half4 main(float2 coord) {
             float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
             float2 grad = gradSdRoundedRect(centeredCoord, halfSize, gradRadius);
             float intensity = pow(abs(dot(grad, float2(cos(lightAngle), sin(lightAngle)))), lightFalloff);
-            if (intensity == intensity) c.rgb = min(c.rgb + half(rimAlpha * cov * intensity), half3(1.0)); // skip NaN
+            if (intensity == intensity) { // skip NaN
+                half v = half(rimAlpha * cov * intensity);
+                c = min(c + half4(v, v, v, v), half4(1.0)); // Plus (premultiplied)
+            }
         }
     }
     return c;

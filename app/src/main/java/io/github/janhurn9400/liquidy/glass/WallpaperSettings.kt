@@ -326,6 +326,19 @@ object WallpaperRenderer {
  * like the system (filling, centred), so our image lies congruently over it for blur effects.
  */
 object SystemWallpaper {
+    /**
+     * A live wallpaper (video, animation …) is set: its pixels can't be read (getDrawable only returns an unrelated
+     * still), so glass can't refract the real image → glass becomes clear (see WallpaperGlass). HyperOS draws still
+     * images with its own service (not a live wallpaper) → not "live".
+     */
+    private val live = androidx.compose.runtime.mutableStateOf(false)
+    val isLive: Boolean get() = live.value
+
+    fun refreshLive(context: Context) {
+        val info = runCatching { android.app.WallpaperManager.getInstance(context).wallpaperInfo }.getOrNull()
+        live.value = info != null && !WallpaperCropModel.isMiuiWallpaper(context) && !info.serviceName.endsWith(".ImageWallpaper")
+    }
+
     fun canRead(): Boolean = android.os.Environment.isExternalStorageManager()
 
     @android.annotation.SuppressLint("MissingPermission")

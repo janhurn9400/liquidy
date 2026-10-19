@@ -345,6 +345,7 @@ class MainActivity : ComponentActivity() {
     private var canReadSystemWallpaper by mutableStateOf(false)
 
     private fun refreshSystemWallpaperId() {
+        io.github.janhurn9400.liquidy.glass.SystemWallpaper.refreshLive(this)
         canReadSystemWallpaper = io.github.janhurn9400.liquidy.glass.SystemWallpaper.canRead()
         systemWallpaperId = android.app.WallpaperManager.getInstance(this).getWallpaperId(android.app.WallpaperManager.FLAG_SYSTEM)
     }
