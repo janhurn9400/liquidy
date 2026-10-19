@@ -73,6 +73,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
+/** Sizes of the own widgets: small 2×2, medium 4×2, large 4×4 (same set as the resize handle). */
+private val WIDGET_SIZES = listOf(2 to 2, 4 to 2, 4 to 4)
+
 /** Entry in the picker: own iOS widget or Android provider. */
 internal class PickerEntry(
     val title: String,      // app/widget name (bold)
@@ -100,20 +103,18 @@ fun WidgetPicker(onAdd: (WidgetSpec) -> Unit, onClose: () -> Unit) {
     fun close() = scope.launch { appear.animateTo(0f, Motion.wpeSheet.spec()); onClose() }
 
     val entries by produceState(emptyList<PickerEntry>(), host) {
+        // Every own widget can be resized to small, medium and large on the home screen (HomeModel.updateResize) →
+        // the size carousel offers all three, like iOS
         val ios = listOf(
-            PickerEntry(context.getString(R.string.widget_calendar), context.getString(R.string.widget_calendar_desc), 2, 2, IosWidgetTypes.CALENDAR),
-            PickerEntry(context.getString(R.string.widget_clock), context.getString(R.string.widget_clock_desc), 2, 2, IosWidgetTypes.CLOCK),
-            PickerEntry(context.getString(R.string.widget_calendar), context.getString(R.string.widget_calendar_desc), 4, 2, IosWidgetTypes.CALENDAR),
-            PickerEntry(context.getString(R.string.widget_batteries), context.getString(R.string.widget_batteries_desc), 2, 2, IosWidgetTypes.BATTERY),
-            PickerEntry(context.getString(R.string.widget_weather), context.getString(R.string.widget_weather_desc), 2, 2, IosWidgetTypes.WEATHER),
-            PickerEntry(context.getString(R.string.widget_weather), context.getString(R.string.widget_weather_desc), 4, 2, IosWidgetTypes.WEATHER),
-            PickerEntry(context.getString(R.string.widget_weather), context.getString(R.string.widget_weather_desc), 4, 4, IosWidgetTypes.WEATHER),
-            PickerEntry(context.getString(R.string.widget_photos), context.getString(R.string.widget_photos_desc), 2, 2, IosWidgetTypes.PHOTOS),
-            PickerEntry(context.getString(R.string.widget_photos), context.getString(R.string.widget_photos_desc), 4, 4, IosWidgetTypes.PHOTOS),
-            PickerEntry(context.getString(R.string.widget_reminders), context.getString(R.string.widget_reminders_desc), 2, 2, IosWidgetTypes.REMINDERS),
-            PickerEntry(context.getString(R.string.widget_reminders), context.getString(R.string.widget_reminders_desc), 4, 2, IosWidgetTypes.REMINDERS),
-            PickerEntry(context.getString(R.string.widget_reminders), context.getString(R.string.widget_reminders_desc), 4, 4, IosWidgetTypes.REMINDERS),
-        )
+            Triple(R.string.widget_calendar, R.string.widget_calendar_desc, IosWidgetTypes.CALENDAR),
+            Triple(R.string.widget_clock, R.string.widget_clock_desc, IosWidgetTypes.CLOCK),
+            Triple(R.string.widget_batteries, R.string.widget_batteries_desc, IosWidgetTypes.BATTERY),
+            Triple(R.string.widget_weather, R.string.widget_weather_desc, IosWidgetTypes.WEATHER),
+            Triple(R.string.widget_photos, R.string.widget_photos_desc, IosWidgetTypes.PHOTOS),
+            Triple(R.string.widget_reminders, R.string.widget_reminders_desc, IosWidgetTypes.REMINDERS),
+        ).flatMap { (title, desc, type) ->
+            WIDGET_SIZES.map { (c, r) -> PickerEntry(context.getString(title), context.getString(desc), c, r, type) }
+        }
         val android = withContext(Dispatchers.IO) {
             host?.providers().orEmpty().map { p ->
                 val app = runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(p.provider.packageName, 0)).toString() }.getOrDefault("")
