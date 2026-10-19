@@ -342,7 +342,8 @@ object SystemWallpaper {
     fun canRead(): Boolean = android.os.Environment.isExternalStorageManager()
 
     @android.annotation.SuppressLint("MissingPermission")
-    suspend fun read(context: Context, w: Int, h: Int): ImageBitmap? = withContext(Dispatchers.IO) {
+    /** [correction]: manual glass alignment (GlassAlign) — the same transform as its preview. */
+    suspend fun read(context: Context, w: Int, h: Int, correction: GlassAlign.Correction = GlassAlign.Correction()): ImageBitmap? = withContext(Dispatchers.IO) {
         if (!canRead()) return@withContext null
         runCatching {
             val d = android.app.WallpaperManager.getInstance(context).getDrawable(android.app.WallpaperManager.FLAG_SYSTEM) ?: return@runCatching null
@@ -359,6 +360,10 @@ object SystemWallpaper {
                 val scale = max(w.toFloat() / iw, h.toFloat() / ih)
                 val dw = iw * scale; val dh = ih * scale
                 d.setBounds(((w - dw) / 2).roundToInt(), ((h - dh) / 2).roundToInt(), ((w + dw) / 2).roundToInt(), ((h + dh) / 2).roundToInt())
+            }
+            if (!correction.isIdentity) {
+                c.translate(correction.dx * w, correction.dy * h)
+                c.scale(correction.zoom, correction.zoom, w / 2f, h / 2f)
             }
             d.draw(c)
             out.asImageBitmap()

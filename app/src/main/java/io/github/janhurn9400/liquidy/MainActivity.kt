@@ -10,8 +10,10 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -210,8 +212,9 @@ class MainActivity : ComponentActivity() {
                 val systemOurs = remember(systemWallpaperId, renderedFor) { io.github.janhurn9400.liquidy.glass.WallpaperStore.systemIsOurs(this@MainActivity) }
                 var systemPixels by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
                 // With read access the Android image is always the only source (also for ones chosen in the picker — we set those as the Android image)
-                LaunchedEffect(systemWallpaperId, canReadSystemWallpaper, w, h) {
-                    systemPixels = if (colorful) null else io.github.janhurn9400.liquidy.glass.SystemWallpaper.read(this@MainActivity, w, h)
+                LaunchedEffect(systemWallpaperId, canReadSystemWallpaper, w, h, io.github.janhurn9400.liquidy.glass.GlassAlign.correction) {
+                    systemPixels = if (colorful) null else io.github.janhurn9400.liquidy.glass.SystemWallpaper.read(this@MainActivity, w, h,
+                        io.github.janhurn9400.liquidy.glass.GlassAlign.correction)
                 }
                 // Android draws its wallpaper itself behind our transparent window (so it's also right during the
                 // swipe-home gesture). For the glass/blur we need the same pixels: Android's crop + zoom is
@@ -271,9 +274,13 @@ class MainActivity : ComponentActivity() {
                         DesignTokens.wallpaperIsDark = io.github.janhurn9400.liquidy.glass.WallpaperRenderer.luminance(e.draftBitmap) < DesignTokens.WALLPAPER_DARK_LUMA
                     }
                 }
+                val aligning = io.github.janhurn9400.liquidy.glass.GlassAlign.open
                 io.github.janhurn9400.liquidy.ui.wallpaper.WallpaperEditorFrame(editor) {
+                    // while aligning the glass only the real wallpaper and the alignment pane are visible
+                    Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (aligning) 0f else 1f }) {
                     HomeScreen(model = homeModel, pager = pager, wallpaperSource = editor?.draftBitmap ?: homeWallpaper, onLaunch = onLaunch,
                         drawWallpaper = editor != null || drawOwnWallpaper, wallpaperBlur = { editor?.blurAnim?.value ?: 0f })
+                    }
                 }
                 editor?.let { e ->
                     io.github.janhurn9400.liquidy.ui.wallpaper.WallpaperEditorChrome(
@@ -310,7 +317,7 @@ class MainActivity : ComponentActivity() {
                     enter = androidx.compose.animation.EnterTransition.None,
                     exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(WELCOME_EXIT_MS)) +
                         androidx.compose.animation.scaleOut(androidx.compose.animation.core.tween(WELCOME_EXIT_MS), targetScale = 1.08f),
-                ) { io.github.janhurn9400.liquidy.ui.welcome.WelcomeFlow(
+                ) { Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (aligning) 0f else 1f }) { io.github.janhurn9400.liquidy.ui.welcome.WelcomeFlow(
                     isDefaultHome = {
                         val h = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
                         packageManager.resolveActivity(h, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName == packageName
@@ -319,7 +326,22 @@ class MainActivity : ComponentActivity() {
                     sample = styleSample,
                     wallpaper = homeWallpaper,
                     onFinish = { io.github.janhurn9400.liquidy.ui.welcome.WelcomeStore.markDone(this@MainActivity); showWelcome = false },
-                ) }
+                ) } }
+                // Manual glass alignment (setup / Settings › Appearance): uncorrected copy as the preview's base
+                if (aligning) {
+                    val alignBase by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, systemWallpaperId, w, h) {
+                        value = io.github.janhurn9400.liquidy.glass.SystemWallpaper.read(this@MainActivity, w, h)
+                    }
+                    alignBase?.let { base ->
+                        io.github.janhurn9400.liquidy.glass.GlassAlignScreen(base, io.github.janhurn9400.liquidy.glass.GlassAlign.correction,
+                            onReset = {},
+                            onDone = { corr ->
+                                io.github.janhurn9400.liquidy.glass.GlassAlign.save(this@MainActivity, systemWallpaperId, corr)
+                                io.github.janhurn9400.liquidy.glass.GlassAlign.open = false
+                            })
+                    }
+                    androidx.activity.compose.BackHandler { io.github.janhurn9400.liquidy.glass.GlassAlign.open = false }
+                }
                 if (DebugState.visible) DebugPanel()
             }
             } // end LocalAndroidWidgetHost
@@ -348,6 +370,7 @@ class MainActivity : ComponentActivity() {
         io.github.janhurn9400.liquidy.glass.SystemWallpaper.refreshLive(this)
         canReadSystemWallpaper = io.github.janhurn9400.liquidy.glass.SystemWallpaper.canRead()
         systemWallpaperId = android.app.WallpaperManager.getInstance(this).getWallpaperId(android.app.WallpaperManager.FLAG_SYSTEM)
+        io.github.janhurn9400.liquidy.glass.GlassAlign.load(this, systemWallpaperId)
     }
 
     /** Show the system wallpaper still and screen-filling (no parallax when swiping pages), like our own image. */

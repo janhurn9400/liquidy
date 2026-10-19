@@ -293,6 +293,11 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                     Divider()
                     LinkRow(stringResource(R.string.edit_wallpaper)) { model.closeSettings(); model.wallpaperEditorOpen = true }
                     Divider()
+                    // Align Glass: only for a readable still wallpaper (a live wallpaper can't be refracted anyway)
+                    if (io.github.janhurn9400.liquidy.glass.SystemWallpaper.canRead() && !io.github.janhurn9400.liquidy.glass.SystemWallpaper.isLive) {
+                        LinkRow(stringResource(R.string.glass_align_title)) { model.closeSettings(); io.github.janhurn9400.liquidy.glass.GlassAlign.open = true }
+                        Divider()
+                    }
                     // Icon packs: own subpage with a preview per pack
                     val chosen = io.github.janhurn9400.liquidy.data.IconPacks.selected
                     val label = remember(chosen) { chosen?.let { io.github.janhurn9400.liquidy.data.IconPacks.available(context).firstOrNull { p -> p.packageName == it }?.label } }

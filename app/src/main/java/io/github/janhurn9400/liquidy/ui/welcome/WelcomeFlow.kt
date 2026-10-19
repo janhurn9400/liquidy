@@ -111,7 +111,7 @@ fun hasRoot(c: Context): Boolean =
     runCatching { c.packageManager.getPackageInfo("com.topjohnwu.magisk", 0); true }.getOrDefault(false) ||
         listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/debug_ramdisk/su").any { java.io.File(it).exists() }
 
-private enum class Step { Hello, DefaultHome, Permissions, Appearance, Foldable, StatusBar, Root, Done }
+private enum class Step { Hello, DefaultHome, Permissions, GlassAlign, Appearance, Foldable, StatusBar, Root, Done }
 
 /**
  * Welcome in the style of the iOS 26 setup (YouTube recording of an iPhone 17 analysed): "Hello", then light pages with
@@ -126,7 +126,10 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
         buildList {
             add(Step.Hello)
             if (!isDefaultHome()) add(Step.DefaultHome)
-            add(Step.Permissions); add(Step.Appearance)
+            add(Step.Permissions)
+            // ROMs whose wallpaper zoom we can't compute: offer to line the glass up by hand
+            if (!io.github.janhurn9400.liquidy.glass.GlassAlign.cropModelKnown(context)) add(Step.GlassAlign)
+            add(Step.Appearance)
             if (io.github.janhurn9400.liquidy.data.FoldableStyle.supportsDuo(context)) add(Step.Foldable) // Foldables + Tablets
             add(Step.StatusBar)
             if (root) add(Step.Root) // with module: "already active", otherwise instructions
@@ -222,6 +225,22 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
                                 GlassToggle(io.github.janhurn9400.liquidy.data.OwnStatusBar.enabled, { io.github.janhurn9400.liquidy.data.OwnStatusBar.set(context, it) })
                             }
                         }
+                    }
+                    Step.GlassAlign -> {
+                        val possible = io.github.janhurn9400.liquidy.glass.SystemWallpaper.canRead() && !io.github.janhurn9400.liquidy.glass.SystemWallpaper.isLive
+                        // after "Done" on the alignment screen → next page
+                        var started by remember { mutableStateOf(false) }
+                        androidx.compose.runtime.LaunchedEffect(io.github.janhurn9400.liquidy.glass.GlassAlign.open) {
+                            if (io.github.janhurn9400.liquidy.glass.GlassAlign.open) started = true else if (started) { started = false; next() }
+                        }
+                        StepPage(
+                            glyph = Glyph.Appearance, showBack = showBack, onBack = ::back,
+                            title = stringResource(R.string.welcome_align_title),
+                            body = stringResource(if (possible) R.string.welcome_align_body else R.string.welcome_align_unavailable),
+                            primary = stringResource(if (possible) R.string.welcome_align_start else R.string.welcome_continue),
+                            onPrimary = { if (possible) io.github.janhurn9400.liquidy.glass.GlassAlign.open = true else next() },
+                            secondary = if (possible) stringResource(R.string.welcome_later) else null, onSecondary = { next() },
+                        )
                     }
                     Step.Root -> StepPage(
                         glyph = Glyph.Sparkle, showBack = showBack, onBack = ::back,
