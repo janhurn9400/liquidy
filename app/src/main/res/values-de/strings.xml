@@ -314,4 +314,21 @@
     <string name="cc_focus">Fokus</string>
     <string name="cc_no_root">Für diesen Schalter wird Root-Zugriff benötigt</string>
     <string name="cc_not_playing">Keine Wiedergabe</string>
+    <string name="cc_airplane">Flugmodus</string>
+    <string name="cc_wifi">WLAN</string>
+    <string name="cc_location">Standort</string>
+    <string name="cc_mobile_data">Mobile Daten</string>
+    <string name="cc_bluetooth">Bluetooth</string>
+    <string name="cc_hotspot">Hotspot</string>
+    <string name="cc_nfc">NFC</string>
+    <string name="cc_data_saver">Datensparmodus</string>
+    <string name="cc_on">Ein</string>
+    <string name="cc_off">Aus</string>
+    <string name="cc_connected">Verbunden</string>
+    <string name="cc_not_connected">Nicht verbunden</string>
+    <string name="cc_not_available">Nicht verfügbar</string>
+    <string name="cc_dark_mode">Dunkelmodus</string>
+    <string name="cc_night_light">Nachtlicht</string>
+    <string name="cc_auto_brightness">Auto-Helligkeit</string>
+    <string name="cc_output">Ausgabe</string>
 </resources>

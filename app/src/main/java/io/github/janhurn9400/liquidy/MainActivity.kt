@@ -1,5 +1,8 @@
 package io.github.janhurn9400.liquidy
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.areStatusBarsVisible
+
 import android.app.ActivityOptions
 import android.content.Intent
 import android.graphics.Color
@@ -161,6 +164,13 @@ class MainActivity : ComponentActivity() {
             }
             LaunchedEffect(hideStatus) {
                 applyStatusBar(hideStatus)
+            }
+            // Pulling the Control Center from the top edge makes Android reveal its hidden bar for a few seconds (transient
+            // bars); the Control Center has its own status row there → hide it again right away
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            val statusVisible = WindowInsets.areStatusBarsVisible
+            LaunchedEffect(statusVisible, hideStatus, homeModel.control.visible) {
+                if (statusVisible && hideStatus && homeModel.control.visible) applyStatusBar(true)
             }
             // Search: dark background → light status bar icons [MEASURED] IMG_3131
             val welcomeActive = io.github.janhurn9400.liquidy.ui.welcome.WelcomeStore.active

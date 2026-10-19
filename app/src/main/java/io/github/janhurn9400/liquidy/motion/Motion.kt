@@ -242,4 +242,12 @@ object Motion {
     val ccEnterBlur = tunable("M-CC.enterBlur", "Content blur while appearing", "Control Center", 8f, 0f, 30f, "pt") // [MEASURED] visually
     val ccCommit = tunable("M-CC.commit", "Opens from progress", "Control Center", 0.4f, 0.1f, 0.9f) // [ESTIMATED]
     val ccFlick = tunable("M-CC.flick", "Opens/closes from velocity", "Control Center", 300f, 50f, 1500f, "pt/s") // [ESTIMATED]
+    // M-CC-EXPAND — long press: the module grows from its slot into the big panel while the rest fades and blurs
+    // [MEASURED] recording 10-19 21.35 s (connectivity) / 36.0 s (brightness): ≈ 0.15 s to the target, small settle after
+    val ccExpand = iosSpring("M-CC-EXPAND", "Control Center module expand", response = 0.34f, dampingFraction = 0.84f)
+    val ccExpandBlur = tunable("M-CC-EXPAND.blur", "Rest blurred while expanded", "Control Center", 14f, 0f, 40f, "pt") // [MEASURED] visually
+    // M-CC-PRESS — modules grow a little under the finger (glass lift). [ESTIMATED]
+    val ccPressScale = tunable("M-CC-PRESS.scale", "Module grows while pressed", "Control Center", 1.06f, 1f, 1.2f, "×")
+    val ccPress = iosSpring("M-CC-PRESS", "Module press", response = 0.22f, dampingFraction = 0.7f)
+    val ccLongPress = tunable("M-CC-PRESS.long", "Long press expands after", "Control Center", 380f, 150f, 900f, "ms") // [ESTIMATED]
 }

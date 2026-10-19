@@ -118,7 +118,7 @@ object DesignTokens {
     val ccArt = dpToken("T-CC.art", "Media artwork", "Control Center", 48f, 30f, 70f)
     val ccBlur = dpToken("T-CC.blur", "Background blur", "Control Center", 26f, 0f, 60f) // [ESTIMATED] visually
     val ccDim = tunable("T-CC.dim", "Background dim", "Control Center", 0.28f, 0f, 0.8f) // [ESTIMATED] visually
-    val ccFill = tunable("T-CC.fill", "Module glass white", "Control Center", 0.16f, 0f, 0.5f) // [ESTIMATED] visually
+    val ccFill = tunable("T-CC.fill", "Module glass white", "Control Center", 0.11f, 0f, 0.5f) // [ESTIMATED] visually
     val ccEdgeZone = dpToken("T-CC.edge", "Pull zone from the top", "Control Center", 44f, 16f, 120f) // [ESTIMATED]
     val editButtonWidth = dpToken("T-EDIT-BTN.w", "Edit button width", "Editing", 66.67f, 40f, 100f)
     val editButtonHeight = dpToken("T-EDIT-BTN.h", "Edit button height", "Editing", 27.33f, 20f, 44f)
@@ -393,3 +393,41 @@ class DpToken(val tunable: Tunable) {
 
 private fun dpToken(id: String, label: String, group: String, default: Float, min: Float, max: Float) =
     DpToken(tunable(id, label, group, default, min, max, "pt"))
+
+/**
+ * T-CC-EXP — expanded Control Center modules and small details, all in pt [MEASURED] user's iPhone recording 10-19 16-26
+ * (1206 px = 402 pt): connectivity 21.9 s, brightness 36.5 s, media page 53.6 s, open grid 5.2 s.
+ */
+object CcLayout {
+    // compact connectivity: four small circles in the bottom-right quarter
+    const val QUAD_D = 25f
+    const val QUAD_OFFSET = 15f       // their centres lie ± this around the big circle's centre
+    // expanded connectivity: capsule (68), 2 × 2 tiles (153), 3 capsules (68), gaps 17.5, from y = 103
+    const val EXP_TOP = 103f
+    const val EXP_GAP = 17.5f
+    const val EXP_ROW = 68f
+    const val EXP_TILE = 153f
+    const val EXP_ICON = 41f
+    const val EXP_ICON_INSET = 12.5f
+    const val EXP_TEXT_X = 62f
+    // expanded sliders (brightness/volume): 140 × 370 capsule centred, glyph above, three round buttons below
+    const val BIG_SLIDER_W = 140f
+    const val BIG_SLIDER_H = 370f
+    const val BIG_SLIDER_Y = 252f
+    const val BIG_GLYPH_Y = 151f
+    const val BIG_GLYPH = 38f
+    const val BIG_BUTTON_Y = 730f
+    const val BIG_BUTTON_D = 56f
+    const val BIG_BUTTON_PITCH = 114.5f
+    // expanded media: 325 × 582 panel, 277 artwork
+    const val MEDIA_W = 325f
+    const val MEDIA_H = 582f
+    const val MEDIA_Y = 175f
+    const val MEDIA_ART = 277f
+    const val MEDIA_INSET = 24f
+    // slider glyph centre above the slider bottom
+    const val SLIDER_GLYPH_FROM_BOTTOM = 35f
+    // + / power stick out of the grid edge
+    const val BUTTON_OUT = 2.5f
+}
+

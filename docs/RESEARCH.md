@@ -241,3 +241,18 @@ Still open:
 | M-WIDGET-RESIZE | resize via the handle (39.5–48 s) | frame follows the finger, icons reflow live (always from the starting layout), blur = distance to the next size (user observation), snap spring 0.35/0.86 [ESTIMATED] | [MEASURED]/[ESTIMATED] |
 | T-WIDGET-MENU | widget context menu (15.2 s) | size bar at the top (small · medium · large · extra large greyed out), current one with a grey background; menu centred below the widget | [MEASURED] |
 | T-PICKER | widget picker (26.5 s) | sheet from 123 pt, search field white 11 % (field 57 vs. sheet 32 brightness), widgets at their real size, title bold + grey subtitle | [MEASURED] |
+
+## Control Center (user's iPhone recording 10-19 16-26, 1206 px = 402 pt)
+
+| ID | Value | Status |
+|---|---|---|
+| T-CC | 4 columns × 68 pt, gaps 17 pt across / 19 pt down, grid from y = 147 pt; 2×2 platters 152 × 153 pt, corners ≈ 30 pt; connectivity circles 56 pt at 13 pt inset, four small ones 25 pt at ± 15 pt; + / power 29 pt at y = 37 pt; status row y = 117 pt | [MEASURED] 5.2 s |
+| T-CC-EXP connectivity | airplane capsule 68 pt from y = 103 pt, 2 × 2 tiles 153 × 153 pt, three capsules 68 pt, gaps 17.5 pt, icon circles 41 pt | [MEASURED] 21.9 s |
+| T-CC-EXP brightness | capsule 140 × 370 pt at y = 252 pt, glyph above at y = 151 pt, three 56 pt buttons at y = 730 pt, pitch 114.5 pt | [MEASURED] 36.5 s |
+| T-CC-EXP media | panel 325 × 582 pt at y = 175 pt, artwork 277 pt | [MEASURED] 53.6 s (music page) |
+| M-CC | content slides in from 33 pt above, blurred, alpha with progress; spring response 0.36 s, damping 0.86 | offset/blur [MEASURED] frames 1–4 at 1.27 s, spring [ESTIMATED] |
+| M-CC-EXPAND | module grows from its slot to the big panel in ≈ 0.15 s with a small settle, rest fades and blurs; spring 0.34 s / 0.84 | [MEASURED] 21.35 s, 36.0 s |
+| M-CC-PRESS | module grows 1.06× under the finger, long press 380 ms | [ESTIMATED] |
+
+Please check on the iPhone: press scale of a module (frame by frame while tapping), the spring of the open/close pull with a slow finger.
+

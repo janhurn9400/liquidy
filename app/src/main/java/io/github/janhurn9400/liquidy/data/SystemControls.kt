@@ -34,6 +34,15 @@ object SystemControls {
     val silent = mutableStateOf(false)
     val darkMode = mutableStateOf(false)
     val batterySaver = mutableStateOf(false)
+    val location = mutableStateOf(false)
+    val nfc = mutableStateOf(false)
+    /** null = the phone has no NFC. */
+    val hasNfc = mutableStateOf(true)
+    val dataSaver = mutableStateOf(false)
+    val hotspot = mutableStateOf(false)
+    val nightLight = mutableStateOf(false)
+    val autoBrightness = mutableStateOf(false)
+    val wifiConnected = mutableStateOf(false)
     /** Slider positions 0…1 (brightness on Android's perceptual curve, like the system slider). */
     val brightness = mutableFloatStateOf(0.5f)
     val volume = mutableFloatStateOf(0.5f)
@@ -41,7 +50,9 @@ object SystemControls {
     val charging = mutableStateOf(false)
     val carrier = mutableStateOf("")
 
-    class Media(val title: String, val artist: String, val art: Bitmap?, val playing: Boolean, val controller: MediaController)
+    class Media(val title: String, val artist: String, val art: Bitmap?, val playing: Boolean, val controller: MediaController,
+                /** ms; position is extrapolated from the playback state while playing. */
+                val duration: Long, val position: Long, val positionAt: Long, val speed: Float)
     val media = mutableStateOf<Media?>(null)
 
     private var torchId: String? = null
@@ -79,6 +90,22 @@ object SystemControls {
             if (level >= 0) batteryPercent.value = level * 100 / scale.coerceAtLeast(1)
             charging.value = i.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) != 0
         }
+        read { location.value = Settings.Secure.getInt(cr, Settings.Secure.LOCATION_MODE, 0) != 0 }
+        read {
+            val a = android.nfc.NfcAdapter.getDefaultAdapter(c)
+            hasNfc.value = a != null; nfc.value = a?.isEnabled == true
+        }
+        read {
+            val cm = c.getSystemService(android.net.ConnectivityManager::class.java)
+            dataSaver.value = cm?.restrictBackgroundStatus == android.net.ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
+            wifiConnected.value = cm?.getNetworkCapabilities(cm.activeNetwork)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
+        }
+        read {
+            val wm = c.getSystemService(android.net.wifi.WifiManager::class.java)
+            hotspot.value = wm?.javaClass?.getMethod("isWifiApEnabled")?.invoke(wm) == true
+        }
+        read { nightLight.value = Settings.Secure.getInt(cr, "night_display_activated", 0) != 0 }
+        read { autoBrightness.value = Settings.System.getInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE, 0) == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC }
         read { carrier.value = c.getSystemService(android.telephony.TelephonyManager::class.java)?.networkOperatorName.orEmpty() }
         read { refreshMedia(c) }
         read { watchTorch(c) }
@@ -97,6 +124,10 @@ object SystemControls {
             art = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART),
             playing = ctrl.playbackState?.state == PlaybackState.STATE_PLAYING,
             controller = ctrl,
+            duration = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
+            position = ctrl.playbackState?.position ?: 0L,
+            positionAt = ctrl.playbackState?.lastPositionUpdateTime ?: 0L,
+            speed = ctrl.playbackState?.playbackSpeed ?: 1f,
         )
     }
 
@@ -145,6 +176,17 @@ object SystemControls {
     fun toggleDarkMode(c: Context) { darkMode.value = !darkMode.value; RootShell.run("cmd uimode night ${if (darkMode.value) "yes" else "no"}") }
     fun toggleBatterySaver(c: Context) { batterySaver.value = !batterySaver.value; RootShell.run("cmd power set-mode ${if (batterySaver.value) 1 else 0}"); recheck(c) }
 
+    fun toggleLocation(c: Context) { location.value = !location.value; RootShell.run("cmd location set-location-enabled ${location.value}"); recheck(c) }
+    fun toggleNfc(c: Context) { if (!hasNfc.value) return; nfc.value = !nfc.value; RootShell.run("svc nfc ${if (nfc.value) "enable" else "disable"}"); recheck(c) }
+    fun toggleDataSaver(c: Context) { dataSaver.value = !dataSaver.value; RootShell.run("cmd netpolicy set restrict-background ${dataSaver.value}"); recheck(c) }
+    fun toggleNightLight(c: Context) { nightLight.value = !nightLight.value; RootShell.run("settings put secure night_display_activated ${if (nightLight.value) 1 else 0}"); recheck(c) }
+    fun toggleAutoBrightness(c: Context) {
+        autoBrightness.value = !autoBrightness.value
+        val v = if (autoBrightness.value) Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC else Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
+        if (runCatching { Settings.System.putInt(c.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, v) }.isFailure)
+            RootShell.run("settings put system screen_brightness_mode $v")
+    }
+
     fun toggleTorch(c: Context) {
         val id = torchId ?: return
         val on = !torch.value
@@ -166,6 +208,7 @@ object SystemControls {
         val cr = c.contentResolver
         val ok = runCatching {
             Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+            autoBrightness.value = false
             Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, v)
         }.isSuccess
         if (!ok) RootShell.run("settings put system screen_brightness_mode 0; settings put system screen_brightness $v")

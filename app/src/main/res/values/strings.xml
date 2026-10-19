@@ -314,4 +314,21 @@
     <string name="cc_focus">Focus</string>
     <string name="cc_no_root">Root access needed for this switch</string>
     <string name="cc_not_playing">Not Playing</string>
+    <string name="cc_airplane">Airplane Mode</string>
+    <string name="cc_wifi">Wi-Fi</string>
+    <string name="cc_location">Location</string>
+    <string name="cc_mobile_data">Mobile Data</string>
+    <string name="cc_bluetooth">Bluetooth</string>
+    <string name="cc_hotspot">Hotspot</string>
+    <string name="cc_nfc">NFC</string>
+    <string name="cc_data_saver">Data Saver</string>
+    <string name="cc_on">On</string>
+    <string name="cc_off">Off</string>
+    <string name="cc_connected">Connected</string>
+    <string name="cc_not_connected">Not Connected</string>
+    <string name="cc_not_available">Not Available</string>
+    <string name="cc_dark_mode">Dark Mode</string>
+    <string name="cc_night_light">Night Light</string>
+    <string name="cc_auto_brightness">Auto-Brightness</string>
+    <string name="cc_output">Output</string>
 </resources>

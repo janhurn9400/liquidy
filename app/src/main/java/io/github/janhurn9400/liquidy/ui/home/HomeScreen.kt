@@ -1726,7 +1726,7 @@ fun HomeScreen(
 
         // ── Control Center (above everything) ──────────────────────────────────────
         io.github.janhurn9400.liquidy.ui.control.ControlCenter(model.control, density, w, h)
-        if (model.control.open) androidx.activity.compose.BackHandler { model.control.hide() }
+        if (model.control.open) androidx.activity.compose.BackHandler { model.control.back() }
     }
     } // end CompositionLocalProvider
 }
