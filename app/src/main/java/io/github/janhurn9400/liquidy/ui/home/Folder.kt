@@ -137,8 +137,8 @@ private fun MiniGrid(apps: List<AppEntry?>) {
                     x = (DesignTokens.folderMiniInset.dp + DesignTokens.folderMiniPitch.dp * col) * k,
                     y = (DesignTokens.folderMiniInset.dp + DesignTokens.folderMiniPitch.dp * row) * k,
                 )
-                .size(mini)
-                .clip(miniShape),
+                .size(mini),
+            shape = miniShape,
         )
     }
 }

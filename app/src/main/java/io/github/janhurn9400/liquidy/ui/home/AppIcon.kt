@@ -15,6 +15,8 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -85,12 +87,36 @@ fun AppIconView(
 /** Current wallpaper for glass icon styles (Clear/Tinted) in places without their own wallpaper parameter. */
 val LocalWallpaper = androidx.compose.runtime.staticCompositionLocalOf<ImageBitmap?> { null }
 
-/** App icon in the chosen style wherever no wallpaper is passed down (folders, App Library, search). */
+/**
+ * App icon in the chosen style wherever no wallpaper is passed down (folders, App Library, search).
+ * [shape]: the squircle — the default style FILLS it with the icon image instead of clipping (a clip path is
+ * rasterised into a CPU mask and uploaded every frame while the icon scales, e.g. opening an App Library category:
+ * ≈ 10 % of the RenderThread on LineageOS; a convex path filled with an image shader is drawn by the GPU directly).
+ * [pressDark]: darkening while held, inside the shape.
+ */
 @Composable
-fun StyledAppIcon(app: AppEntry, modifier: Modifier) {
+fun StyledAppIcon(app: AppEntry, modifier: Modifier, shape: androidx.compose.ui.graphics.Shape? = null, pressDark: () -> Float = { 0f }) {
     val wp = LocalWallpaper.current
-    if (wp == null) Image(bitmap = app.icon, contentDescription = app.label, modifier = modifier)
-    else StyledIcon(app, wp, modifier)
+    val default = wp == null || io.github.janhurn9400.liquidy.data.IconLayerCache.map[app.key] == null ||
+        io.github.janhurn9400.liquidy.design.IconAppearance.effective == io.github.janhurn9400.liquidy.design.IconStyle.Default
+    if (shape != null && default) {
+        androidx.compose.foundation.layout.Spacer(modifier.drawWithCache {
+            val bmp = app.icon.asAndroidBitmap()
+            val shader = android.graphics.BitmapShader(bmp, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP).apply {
+                setLocalMatrix(android.graphics.Matrix().apply { setScale(size.width / bmp.width, size.height / bmp.height) })
+            }
+            val brush = androidx.compose.ui.graphics.ShaderBrush(shader)
+            val outline = shape.createOutline(size, layoutDirection, this)
+            onDrawBehind {
+                drawOutline(outline, brush)
+                val d = pressDark(); if (d > 0f) drawOutline(outline, androidx.compose.ui.graphics.Color.Black.copy(alpha = d))
+            }
+        })
+        return
+    }
+    val m = if (shape != null) modifier.clip(shape) else modifier
+    if (wp == null) Image(bitmap = app.icon, contentDescription = app.label, modifier = m)
+    else StyledIcon(app, wp, m)
 }
 
 /**

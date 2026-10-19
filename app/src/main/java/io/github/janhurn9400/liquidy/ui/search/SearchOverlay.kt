@@ -301,8 +301,8 @@ private fun SearchAppCell(app: AppEntry, onClick: (Rect) -> Unit) {
             app = app,
             modifier = Modifier
                 .size(DesignTokens.iconSize.dp)
-                .onGloballyPositioned { bounds[0] = it.boundsInWindow() }
-                .clip(ContinuousRoundedShape(DesignTokens.iconCorner.dp)),
+                .onGloballyPositioned { bounds[0] = it.boundsInWindow() },
+            shape = ContinuousRoundedShape(DesignTokens.iconCorner.dp),
         )
         Spacer(Modifier.height(DesignTokens.searchLabelGap.dp))
         BasicText(

@@ -217,7 +217,7 @@ private fun AppRow(app: AppEntry, separator: Boolean, enabled: Boolean, lay: Lis
                 }
             },
         content = {
-            io.github.janhurn9400.liquidy.ui.home.StyledAppIcon(app, Modifier.size(lay.icon.dp).clip(iconShape))
+            io.github.janhurn9400.liquidy.ui.home.StyledAppIcon(app, Modifier.size(lay.icon.dp), shape = iconShape)
             BasicText(
                 app.label,
                 style = TextStyle(fontFamily = Inter, fontSize = DesignTokens.libListFont.value.sp, color = Color.White),

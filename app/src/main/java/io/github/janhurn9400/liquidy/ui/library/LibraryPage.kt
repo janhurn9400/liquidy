@@ -234,13 +234,11 @@ private fun LibraryTile(model: io.github.janhurn9400.liquidy.ui.home.HomeModel, 
                                 val sc = if (model.pressScaleKey == lk) model.pressScale.value else 1f
                                 scaleX = sc; scaleY = sc
                             }
-                            .size(Dp(geo.quadrant / density))
-                            .clip(iconShape)
+                            .size(Dp(geo.quadrant / density)),
+                            shape = iconShape,
                             // held: darkens like a home screen icon (pressedKey set by the gesture arena)
-                            .drawWithContent {
-                                drawContent()
-                                if (model.pressedKey == io.github.janhurn9400.liquidy.ui.home.libraryMenuKey(app.key, "t$tileIndex.$k"))
-                                    drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = model.pressAlpha.value))
+                            pressDark = {
+                                if (model.pressedKey == io.github.janhurn9400.liquidy.ui.home.libraryMenuKey(app.key, "t$tileIndex.$k")) model.pressAlpha.value else 0f
                             })
                     }
                     // Open category: the cluster is empty — its icons have flown into the grid
@@ -249,8 +247,7 @@ private fun LibraryTile(model: io.github.janhurn9400.liquidy.ui.home.HomeModel, 
                             val o = geo.miniTopLeft(m)
                             io.github.janhurn9400.liquidy.ui.home.StyledAppIcon(app, Modifier
                                 .offset { IntOffset(o.x.roundToInt(), o.y.roundToInt()) }
-                                .size(Dp(geo.mini / density))
-                                .clip(miniShape))
+                                .size(Dp(geo.mini / density)), shape = miniShape)
                         }
                     }
                 }
