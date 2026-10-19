@@ -101,6 +101,13 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     var expanded by mutableStateOf<CcExpand?>(null)
         private set
     val expand = Animatable(0f)
+    /** Modules 0…1 (M-CC-REVEAL): not tied to the finger — they appear on their own once the pull passes a threshold. */
+    val reveal = Animatable(0f)
+
+    private fun revealTo(on: Boolean) {
+        val t = if (on) 1f else 0f
+        if (reveal.targetValue != t) scope.launch { reveal.animateTo(t, Motion.ccReveal.spec()) }
+    }
 
     fun pull(pt: Float, screenPt: Float) {
         val full = Motion.ccPull.value
@@ -108,6 +115,7 @@ class ControlCenterModel(private val scope: CoroutineScope) {
         val extra = if (pt > full) Motion.rubberBand(pt - full, screenPt) else 0f
         scope.launch { progress.snapTo(p) }
         scope.launch { over.snapTo(extra) }
+        revealTo(p >= Motion.ccRevealAt.value)
     }
 
     /** [velocity] in pt/s, positive = down. */
@@ -118,6 +126,7 @@ class ControlCenterModel(private val scope: CoroutineScope) {
 
     fun show(velocity: Float = 0f) {
         open = true
+        revealTo(true)
         io.github.janhurn9400.liquidy.data.PerfBoost.kick()
         scope.launch { progress.animateTo(1f, Motion.cc.spec(), initialVelocity = velocity / Motion.ccPull.value) }
         scope.launch { over.animateTo(0f, Motion.cc.spec()) }
@@ -125,6 +134,7 @@ class ControlCenterModel(private val scope: CoroutineScope) {
 
     fun hide(velocity: Float = 0f) {
         open = false
+        revealTo(false)
         scope.launch {
             progress.animateTo(0f, Motion.cc.spec(), initialVelocity = velocity / Motion.ccPull.value)
             if (!open) { expanded = null; expand.snapTo(0f) } // closed while a module was big → next time compact again
@@ -153,7 +163,11 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     /** Dragging the open Control Center up (negative [dyPt]) closes it along with the finger. */
     fun dragOpen(dyPt: Float, screenPt: Float) {
         if (dyPt >= 0f) { scope.launch { progress.snapTo(1f) }; scope.launch { over.snapTo(Motion.rubberBand(dyPt, screenPt)) } }
-        else { scope.launch { progress.snapTo((1f + dyPt / Motion.ccPull.value).coerceIn(0f, 1f)) }; scope.launch { over.snapTo(0f) } }
+        else {
+            val p = (1f + dyPt / Motion.ccPull.value).coerceIn(0f, 1f)
+            scope.launch { progress.snapTo(p) }; scope.launch { over.snapTo(0f) }
+            revealTo(p >= Motion.ccRevealAt.value)
+        }
     }
 }
 
@@ -203,6 +217,8 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
     if (!model.visible) return
     val context = LocalContext.current
     // keep the shown state fresh while open (cheap reads); root is asked for once, the first time it opens
+    // first values already while pulling (the status row shows during the pull, before it opens)
+    LaunchedEffect(Unit) { SystemControls.refresh(context) }
     LaunchedEffect(model.open) {
         if (!model.open) return@LaunchedEffect
         RootShell.probe { ok -> if (ok) SystemControls.grantWithRoot(context) }
@@ -242,26 +258,34 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
                 }
             }
     )
-    // everything slides in from above, blurred, and follows the pull (M-CC)
+    // the finger drives the background and the chrome (status row, + / power) …
+    Box(Modifier.fillMaxSize().graphicsLayer {
+        alpha = p() * (1f - e().coerceIn(0f, 1f))
+        translationY = model.over.value * density
+    }) { Chrome(grid) }
+    // … the modules appear on their own clock (M-CC-REVEAL): fade in, sharpen, grow slightly and slide down
     Box(
         Modifier
             .fillMaxSize()
             .graphicsLayer {
-                val q = p()
-                alpha = q
-                translationY = (-(1f - q) * Motion.ccEnterY.value + model.over.value) * density
-                val b = (1f - q) * Motion.ccEnterBlur.value * density
+                val r = model.reveal.value
+                alpha = r.coerceIn(0f, 1f)
+                val sc = Motion.ccEnterScale.value + (1f - Motion.ccEnterScale.value) * r
+                scaleX = sc; scaleY = sc
+                transformOrigin = TransformOrigin(0.5f, grid.top * density / size.height)
+                translationY = (-(1f - r) * Motion.ccEnterY.value + model.over.value) * density
+                val b = (1f - r).coerceIn(0f, 1f) * Motion.ccEnterBlur.value * density
                 renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
             }
     ) {
-        // compact page: fades and blurs away while a module is big (M-CC-EXPAND)
+        // compact modules: fade and blur away while one is big (M-CC-EXPAND)
         Box(Modifier.fillMaxSize().graphicsLayer {
             val x = e().coerceIn(0f, 1f)
             alpha = 1f - x
             val b = x * Motion.ccExpandBlur.value * density
             renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
         }) {
-            CompactPage(context, model, grid)
+            Modules(context, model, grid)
         }
         model.expanded?.let { m -> Expanded(context, model, m, grid, density, wPt) }
     }
@@ -269,10 +293,9 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
 
 // ── compact page ─────────────────────────────────────────────────────────────────────
 
+/** + and power at the top, status row — they follow the finger with the background. */
 @Composable
-private fun CompactPage(context: Context, model: ControlCenterModel, g: CcGrid) {
-    val c = SystemControls
-    val hidden = model.expanded
+private fun Chrome(g: CcGrid) {
     val bs = DesignTokens.ccButton.value
     val by = DesignTokens.ccButtonY.value - bs / 2
     val fill = Color.White.copy(alpha = DesignTokens.ccFill.value)
@@ -280,6 +303,12 @@ private fun CompactPage(context: Context, model: ControlCenterModel, g: CcGrid) 
     Glyph(Modifier.at(PtRect(g.left + g.width - bs + CcLayout.BUTTON_OUT, by, bs, bs)).ccGlass(CircleShape, fill)
         .ccPress(onTap = { RootShell.run("input keyevent --longpress 26") }), Icons.power, Color.White, 0.6f)
     StatusRow(Modifier.at(PtRect(g.left + 4f, DesignTokens.ccStatusY.value - 10f, g.width - 8f, 20f)))
+}
+
+@Composable
+private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid) {
+    val c = SystemControls
+    val hidden = model.expanded
 
     val view = LocalView.current
     fun big(m: CcExpand) { view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); model.expandModule(m) }
@@ -528,75 +557,75 @@ private fun Expanded(context: Context, model: ControlCenterModel, m: CcExpand, g
             }
         }
         CcExpand.Connectivity -> {
-            // the platter grows and dissolves into the separate big modules, which grow with it
-            Box(Modifier.at(density, rect).graphicsLayer { alpha = (1f - e() / 0.6f).coerceIn(0f, 1f) }
-                .ccGlass(RoundedCornerShape(DesignTokens.ccCorner.dp))) {
-                Box(Modifier.requiredSize(from.w.dp, from.h.dp).align(Alignment.TopStart).graphicsLayer {
-                    transformOrigin = TransformOrigin(0f, 0f)
-                    val s = rect().w / from.w; scaleX = s; scaleY = s
-                    alpha = (1f - e() / 0.3f).coerceIn(0f, 1f)
-                }) { ConnectivityCompact(context) {} }
-            }
-            Box(Modifier.at(density, rect)) {
-                Box(Modifier.requiredSize(to.w.dp, to.h.dp).align(Alignment.TopStart).graphicsLayer {
-                    transformOrigin = TransformOrigin(0f, 0f)
-                    val r = rect(); scaleX = r.w / to.w; scaleY = r.h / to.h
-                    alpha = ((e() - 0.15f) / 0.5f).coerceIn(0f, 1f)
-                }) { ConnectivityBig(context, to.w) }
-            }
+            // the platter grows towards the panel bounds and dissolves; every control travels out of its own small
+            // circle to its big place (airplane circle → capsule, Wi-Fi circle → tile, …) [MEASURED] 21.35–21.55 s
+            Box(Modifier.at(density, rect).graphicsLayer { alpha = (1f - e() / 0.5f).coerceIn(0f, 1f) }
+                .ccGlass(RoundedCornerShape(DesignTokens.ccCorner.dp)))
+            ConnectivityMorph(context, g.connectivity, to, e, density)
         }
     }
 }
 
+/** Expanded connectivity: each item morphs from its compact circle ([src]) to its capsule/tile ([dst]). */
 @Composable
-private fun ConnectivityBig(context: Context, w: Float) {
+private fun ConnectivityMorph(context: Context, platter: PtRect, to: PtRect, e: () -> Float, density: Float) {
     val c = SystemControls
-    val gap = CcLayout.EXP_GAP
-    val row = CcLayout.EXP_ROW
-    val tile = CcLayout.EXP_TILE
-    val tw = (w - gap) / 2
+    val d = DesignTokens.ccInner.value
+    val inset = DesignTokens.ccInnerInset.value
+    val far = platter.w - inset - d
+    val cx = far + d / 2; val o = CcLayout.QUAD_OFFSET; val q = CcLayout.QUAD_D
+    fun big(x: Float, y: Float) = PtRect(platter.x + x, platter.y + y, d, d)
+    fun small(dx: Float, dy: Float) = PtRect(platter.x + cx + dx - q / 2, platter.y + cx + dy - q / 2, q, q)
+    val gap = CcLayout.EXP_GAP; val row = CcLayout.EXP_ROW; val tile = CcLayout.EXP_TILE
+    val tw = (to.w - gap) / 2
+    var y = to.y
+    fun next(h: Float): Float { val v = y; y += h + gap; return v }
+    val yAir = next(row); val yT1 = next(tile); val yT2 = next(tile); val yHot = next(row); val yNfc = next(row); val ySave = next(row)
     fun s(on: Boolean) = if (on) R.string.cc_on else R.string.cc_off
-    var y = 0f
-    Capsule(PtRect(0f, y, w, row), Icons.airplane, ORANGE, c.airplane.value, stringResource(R.string.cc_airplane), stringResource(s(c.airplane.value))) { c.toggleAirplane(context) }
-    y += row + gap
-    Tile(PtRect(0f, y, tw, tile), Icons.wifi, BLUE, c.wifi.value, stringResource(R.string.cc_wifi),
+    MorphItem(big(inset, inset), PtRect(to.x, yAir, to.w, row), false, e, density, Icons.airplane, ORANGE, c.airplane.value,
+        stringResource(R.string.cc_airplane), stringResource(s(c.airplane.value))) { c.toggleAirplane(context) }
+    MorphItem(big(inset, far), PtRect(to.x, yT1, tw, tile), true, e, density, Icons.wifi, BLUE, c.wifi.value, stringResource(R.string.cc_wifi),
         stringResource(if (!c.wifi.value) R.string.cc_off else if (c.wifiConnected.value) R.string.cc_connected else R.string.cc_not_connected)) { c.toggleWifi(context) }
-    Tile(PtRect(tw + gap, y, tw, tile), Icons.location, BLUE, c.location.value, stringResource(R.string.cc_location), stringResource(s(c.location.value))) { c.toggleLocation(context) }
-    y += tile + gap
-    Tile(PtRect(0f, y, tw, tile), Icons.cellular, GREEN, c.mobileData.value, stringResource(R.string.cc_mobile_data),
+    MorphItem(big(far, inset), PtRect(to.x + tw + gap, yT1, tw, tile), true, e, density, Icons.location, BLUE, c.location.value,
+        stringResource(R.string.cc_location), stringResource(s(c.location.value))) { c.toggleLocation(context) }
+    MorphItem(small(-o, -o), PtRect(to.x, yT2, tw, tile), true, e, density, Icons.cellular, GREEN, c.mobileData.value, stringResource(R.string.cc_mobile_data),
         c.carrier.value.takeIf { it.isNotEmpty() && c.mobileData.value } ?: stringResource(s(c.mobileData.value))) { c.toggleMobileData(context) }
-    Tile(PtRect(tw + gap, y, tw, tile), Icons.bluetooth, BLUE, c.bluetooth.value, stringResource(R.string.cc_bluetooth), stringResource(s(c.bluetooth.value))) { c.toggleBluetooth(context) }
-    y += tile + gap
-    Capsule(PtRect(0f, y, w, row), Icons.link, GREEN, c.hotspot.value, stringResource(R.string.cc_hotspot), stringResource(s(c.hotspot.value))) {
-        launch(context, Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)) }
-    y += row + gap
-    Capsule(PtRect(0f, y, w, row), Icons.nfc, BLUE, c.nfc.value, stringResource(R.string.cc_nfc),
+    MorphItem(small(o, -o), PtRect(to.x + tw + gap, yT2, tw, tile), true, e, density, Icons.bluetooth, BLUE, c.bluetooth.value,
+        stringResource(R.string.cc_bluetooth), stringResource(s(c.bluetooth.value))) { c.toggleBluetooth(context) }
+    MorphItem(small(-o, o), PtRect(to.x, yHot, to.w, row), false, e, density, Icons.link, GREEN, c.hotspot.value,
+        stringResource(R.string.cc_hotspot), stringResource(s(c.hotspot.value))) { launch(context, Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)) }
+    MorphItem(small(o, o), PtRect(to.x, yNfc, to.w, row), false, e, density, Icons.nfc, BLUE, c.nfc.value, stringResource(R.string.cc_nfc),
         stringResource(if (!c.hasNfc.value) R.string.cc_not_available else s(c.nfc.value))) { c.toggleNfc(context) }
-    y += row + gap
-    Capsule(PtRect(0f, y, w, row), Icons.dataSaver, ORANGE, c.dataSaver.value, stringResource(R.string.cc_data_saver), stringResource(s(c.dataSaver.value))) { c.toggleDataSaver(context) }
+    // no compact counterpart: grows out of the middle of the small circles
+    MorphItem(small(0f, 0f), PtRect(to.x, ySave, to.w, row), false, e, density, Icons.dataSaver, ORANGE, c.dataSaver.value,
+        stringResource(R.string.cc_data_saver), stringResource(s(c.dataSaver.value)), fromNothing = true) { c.toggleDataSaver(context) }
 }
 
+/**
+ * One control of the expanded connectivity: its glass grows from the compact circle [src] to [dst] (capsule or [tile]),
+ * the icon circle travels from filling the circle to its corner, the label fades in last.
+ */
 @Composable
-private fun Capsule(r: PtRect, icon: Path, color: Color, on: Boolean, title: String, subtitle: String, tap: () -> Unit) {
-    Box(Modifier.at(r).ccGlass(CircleShape).ccPress(onTap = tap)) {
-        val d = CcLayout.EXP_ICON
-        val inset = (r.h - d) / 2
-        IconCircle(Modifier.offset(inset.dp, inset.dp), d, icon, color, on)
-        Label(Modifier.padding(start = CcLayout.EXP_TEXT_X.dp).align(Alignment.CenterStart), title, subtitle)
+private fun MorphItem(src: PtRect, dst: PtRect, tile: Boolean, e: () -> Float, density: Float, icon: Path, color: Color, on: Boolean,
+                      title: String, subtitle: String, fromNothing: Boolean = false, tap: () -> Unit) {
+    val r = { src.lerp(dst, e()) }
+    val shape = if (tile) RoundedCornerShape(DesignTokens.ccCorner.dp) else CircleShape
+    Box(Modifier.at(density, r).graphicsLayer { if (fromNothing) alpha = e().coerceIn(0f, 1f) }.ccPress(onTap = tap)) {
+        // own glass appears as it leaves the platter
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = (e() / 0.6f).coerceIn(0f, 1f) }.ccGlass(shape))
+        val iconAt = {
+            val t = e()
+            val endX = if (tile) CcLayout.EXP_ICON_INSET else (dst.h - CcLayout.EXP_ICON) / 2
+            val size = src.w + (CcLayout.EXP_ICON - src.w) * t
+            PtRect(endX * t, endX * t, size, size)
+        }
+        Glyph(Modifier.at(density, iconAt).clip(CircleShape)
+            .background(if (on) color else Color.White.copy(alpha = DesignTokens.ccFill.value * 1.6f)), icon, Color.White, 0.52f)
+        val labelMod = if (tile) Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 22.dp)
+            else Modifier.align(Alignment.CenterStart).padding(start = CcLayout.EXP_TEXT_X.dp)
+        Label(labelMod.graphicsLayer { alpha = ((e() - 0.45f) / 0.55f).coerceIn(0f, 1f) }, title, subtitle)
     }
 }
-
-@Composable
-private fun Tile(r: PtRect, icon: Path, color: Color, on: Boolean, title: String, subtitle: String, tap: () -> Unit) {
-    Box(Modifier.at(r).ccGlass(RoundedCornerShape(DesignTokens.ccCorner.dp)).ccPress(onTap = tap)) {
-        IconCircle(Modifier.offset(CcLayout.EXP_ICON_INSET.dp, CcLayout.EXP_ICON_INSET.dp), CcLayout.EXP_ICON, icon, color, on)
-        Label(Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 22.dp), title, subtitle)
-    }
-}
-
-@Composable
-private fun IconCircle(m: Modifier, d: Float, icon: Path, color: Color, on: Boolean) =
-    Glyph(m.size(d.dp).clip(CircleShape).background(if (on) color else Color.White.copy(alpha = DesignTokens.ccFill.value * 1.6f)), icon, Color.White, 0.52f)
 
 @Composable
 private fun Label(m: Modifier, title: String, subtitle: String, align: TextAlign = TextAlign.Start, size: TextUnit = 16.sp) {

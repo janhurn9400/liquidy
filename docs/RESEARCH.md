@@ -250,8 +250,8 @@ Still open:
 | T-CC-EXP connectivity | airplane capsule 68 pt from y = 103 pt, 2 × 2 tiles 153 × 153 pt, three capsules 68 pt, gaps 17.5 pt, icon circles 41 pt | [MEASURED] 21.9 s |
 | T-CC-EXP brightness | capsule 140 × 370 pt at y = 252 pt, glyph above at y = 151 pt, three 56 pt buttons at y = 730 pt, pitch 114.5 pt | [MEASURED] 36.5 s |
 | T-CC-EXP media | panel 325 × 582 pt at y = 175 pt, artwork 277 pt | [MEASURED] 53.6 s (music page) |
-| M-CC | content slides in from 33 pt above, blurred, alpha with progress; spring response 0.36 s, damping 0.86 | offset/blur [MEASURED] frames 1–4 at 1.27 s, spring [ESTIMATED] |
-| M-CC-EXPAND | module grows from its slot to the big panel in ≈ 0.15 s with a small settle, rest fades and blurs; spring 0.34 s / 0.84 | [MEASURED] 21.35 s, 36.0 s |
+| M-CC | the finger drives only the background (blur, dim, status row, + / power); past 45 % of the pull the modules appear on their own clock (M-CC-REVEAL, spring 0.3 s / 0.9 ≈ 0.13 s): fade in, sharpen, grow 0.94 → 1 and slide down 28 pt | [MEASURED] slow pull 7.1–7.7 s (no module during most of the pull), fast pull 1.27 s; thresholds [ESTIMATED] |
+| M-CC-EXPAND | module grows from its slot to the big panel in ≈ 0.15 s with a small settle, rest fades and blurs; spring 0.34 s / 0.84. Connectivity: every control travels out of its own compact circle to its capsule/tile (icon circle to the corner, own glass grows, label last) while the platter dissolves | [MEASURED] 21.35–21.55 s, 36.0 s |
 | M-CC-PRESS | module grows 1.06× under the finger, long press 380 ms | [ESTIMATED] |
 
 Please check on the iPhone: press scale of a module (frame by frame while tapping), the spring of the open/close pull with a slow finger.

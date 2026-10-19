@@ -234,12 +234,16 @@ object Motion {
     /** Makes sure the object is initialised and all tunables are registered. */
     fun touch() = Unit
 
-    // M-CC — Control Center (user's iPhone recording 10-19 16-26). Content slides in from 33 pt above while it fades in
-    // blurred; it follows the finger and settles with a spring. Spring [ESTIMATED], offset/blur [MEASURED] frames 1–4.
+    // M-CC — Control Center (user's iPhone recording 10-19 16-26). The finger drives only the background (blur, dim,
+    // status row, + / power) [MEASURED] slow pull 7.1–7.7 s: no module visible for most of the pull. Past a threshold the
+    // modules appear on their own clock (M-CC-REVEAL): fade in, sharpen, grow slightly and slide down — ≈ 0.13 s.
     val cc = iosSpring("M-CC", "Control Center open/close", response = 0.36f, dampingFraction = 0.86f)
-    val ccPull = tunable("M-CC.pull", "Control Center fully shown after", "Control Center", 110f, 40f, 300f, "pt") // [ESTIMATED]
-    val ccEnterY = tunable("M-CC.enterY", "Content slides in from", "Control Center", 33f, 0f, 80f, "pt") // [MEASURED]
-    val ccEnterBlur = tunable("M-CC.enterBlur", "Content blur while appearing", "Control Center", 8f, 0f, 30f, "pt") // [MEASURED] visually
+    val ccPull = tunable("M-CC.pull", "Background fully shown after", "Control Center", 160f, 40f, 400f, "pt") // [ESTIMATED]
+    val ccRevealAt = tunable("M-CC.revealAt", "Modules appear from progress", "Control Center", 0.45f, 0.05f, 0.95f) // [ESTIMATED]
+    val ccReveal = iosSpring("M-CC-REVEAL", "Control Center modules appear", response = 0.3f, dampingFraction = 0.9f) // [MEASURED] ≈ 0.13 s
+    val ccEnterY = tunable("M-CC.enterY", "Modules slide in from", "Control Center", 28f, 0f, 80f, "pt") // [MEASURED] 1.27 s frame 1
+    val ccEnterScale = tunable("M-CC.enterScale", "Modules grow from", "Control Center", 0.94f, 0.7f, 1f, "×") // [MEASURED] row pitch 55 → 58
+    val ccEnterBlur = tunable("M-CC.enterBlur", "Modules blur while appearing", "Control Center", 8f, 0f, 30f, "pt") // [MEASURED] visually
     val ccCommit = tunable("M-CC.commit", "Opens from progress", "Control Center", 0.4f, 0.1f, 0.9f) // [ESTIMATED]
     val ccFlick = tunable("M-CC.flick", "Opens/closes from velocity", "Control Center", 300f, 50f, 1500f, "pt/s") // [ESTIMATED]
     // M-CC-EXPAND — long press: the module grows from its slot into the big panel while the rest fades and blurs
