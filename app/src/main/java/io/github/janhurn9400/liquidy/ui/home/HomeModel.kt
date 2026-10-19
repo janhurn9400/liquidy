@@ -793,6 +793,7 @@ class HomeModel(
 
     /** Tapping the search field: straight into the list. */
     fun openLibList() {
+        io.github.janhurn9400.liquidy.data.PerfBoost.kick()
         showLibList()
         libListRelease()
     }
@@ -824,6 +825,7 @@ class HomeModel(
         private set
 
     fun openCategory(index: Int) {
+        io.github.janhurn9400.liquidy.data.PerfBoost.kick()
         val cat = library.getOrNull(index) ?: return
         if (cat.isHidden) return // iOS: Face ID — not here yet
         val c = OpenCategory(cat, index, libraryScroll.value)
@@ -1384,6 +1386,7 @@ class HomeModel(
     /** Screen went off with the home screen in front: everything waits far away, so the first frame after unlocking is already zoomed. */
     fun prepareUnlock() { unlockJob?.cancel(); unlockT = UNLOCK_WAITING }
     fun playUnlock() {
+        io.github.janhurn9400.liquidy.data.PerfBoost.kick()
         unlockJob?.cancel()
         unlockJob = scope.launch {
             val lead = Motion.unlockLead.value
@@ -1549,6 +1552,7 @@ class HomeModel(
     }
 
     fun openFolder(id: String, iconTopLeft: Offset, iconScale: Float = 1f) {
+        io.github.janhurn9400.liquidy.data.PerfBoost.kick()
         val f = OpenFolder(id, iconTopLeft, iconScale)
         openFolder = f
         folderDrag = null
@@ -1780,6 +1784,7 @@ class HomeModel(
     }
 
     fun openSearch() {
+        io.github.janhurn9400.liquidy.data.PerfBoost.kick()
         searchReleaseH = searchProgress.value
         morphTo(1f)
         searchOpen = true

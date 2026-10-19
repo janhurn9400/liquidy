@@ -62,6 +62,8 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        // CPU headroom hints before big animations (frame budget of the current refresh rate)
+        io.github.janhurn9400.liquidy.data.PerfBoost.init(this, (1_000_000_000L / (display?.refreshRate ?: 60f)).toLong())
         registerReceiver(screenReceiver, android.content.IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_USER_PRESENT)
         })
