@@ -72,6 +72,8 @@ private sealed interface Hit {
     data class Icon(val key: String, val iconTopLeft: Offset) : Hit
     data class Badge(val key: String) : Hit
     data object EditDone : Hit
+    /** Duo: the status column below the camera (time, ring) — tap or pull down opens the Control Center. */
+    data object DuoStatus : Hit
     data object PageDots : Hit
     data object EditCustomize : Hit
     data class WidgetHandle(val key: String) : Hit
@@ -488,6 +490,8 @@ fun HomeScreen(
         fun hitTest(p: Offset): Hit {
             val display = model.display
             // Duo: right column (buttons, magnifier) is above everything → check first
+            if (geo.duo && !model.editing && abs(p.x - (w - DUO_STATUS_FROM_RIGHT * density)) < DUO_STATUS_HIT_HALF_W * density &&
+                p.y < DUO_STATUS_HIT_BOTTOM * density) return Hit.DuoStatus
             if (geo.duo) {
                 if (model.editing && geo.editButtonRect(left = false).inflate(6f * density).contains(p)) return Hit.EditDone
                 if (model.editing && geo.editButtonRect(left = true).inflate(6f * density).contains(p)) return Hit.EditCustomize
@@ -1320,6 +1324,7 @@ fun HomeScreen(
                                         hit is Hit.Badge && isWidget(hit.key) -> model.removeWidget(hit.key)
                                         hit is Hit.Badge -> model.pendingRemoval = hit.key
                                         hit is Hit.EditDone -> model.exitEdit()
+                                        hit is Hit.DuoStatus -> model.control.show()
                                         hit is Hit.PageDots -> openOverview()
                                         hit is Hit.EditCustomize -> model.openEditMenu(duo = geo.duo)
                                         hit is Hit.Icon && model.editing && io.github.janhurn9400.liquidy.ui.widgets.hasWidgetConfig(model.widgets[hit.key]) ->
@@ -1423,6 +1428,7 @@ fun HomeScreen(
                                             // App Library: scroll vertically; otherwise pull down → search
                                             mode = when {
                                                 // Pull down from the top right edge → Control Center (iOS: right of the island)
+                                                hit is Hit.DuoStatus && acc.y > 0 -> Mode.Control
                                                 acc.y > 0 && !model.editing && down.position.x > w / 2 &&
                                                     down.position.y < DesignTokens.ccEdgeZone.value * density -> Mode.Control
                                                 // …top left with our own status bar (Android's is hidden then) → Android's notifications
@@ -2042,6 +2048,8 @@ private const val FOLD_BLUR_DP = 18f
 private const val FOLD_DIM = 0.26f
 private const val DUO_WPE_FADE_MS = 250
 private const val DUO_STATUS_FROM_RIGHT = 47f
+private const val DUO_STATUS_HIT_HALF_W = 32f // pt: touch zone of the status column (time + ring + dots) [ESTIMATED]
+private const val DUO_STATUS_HIT_BOTTOM = 120f
 private const val DUO_FOLDED_SEARCH_GAP = 8f
 private const val DUO_SEARCH_DIM = 0.40f // dock column centre
 private const val IOS_STATUS_H = 47f
