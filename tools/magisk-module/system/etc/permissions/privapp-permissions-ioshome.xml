@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Allows the Liquidy launcher its own open animation (remote animation on app launch). -->
+<!-- Allows the Liquidy launcher its own open animation (remote animation on app launch). Every signature|privileged
+     permission the app requests must be listed here, otherwise ROMs that enforce the allowlist (e.g. Android 17
+     emulator images) stop system_server from booting. -->
 <permissions>
     <privapp-permissions package="io.github.janhurn9400.liquidy">
         <permission name="android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS"/>
+        <permission name="android.permission.PACKAGE_USAGE_STATS"/>
     </privapp-permissions>
 </permissions>

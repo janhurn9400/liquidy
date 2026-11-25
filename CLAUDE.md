@@ -17,7 +17,7 @@ Goal: an Android launcher (Kotlin + Compose, minSdk 33) that feels 1:1 like the 
 6. Releases are regular (not pre-release) so `releases/latest/download/liquidy-magisk.zip` keeps working. Versioning: new behaviour/features → minor (0.x.0), fixes/polish → patch.
 
 ## Build & test
-- Emulator: AVD `Pixel_10_Pro_Fold` in iPhone-Duo resolution (2854×2007 @480 dpi, hinge at x = 1427 px, GPU host).
+- Emulator: AVD `Pixel_10_Pro_Fold` (android-37.0 google_apis, created in Android Studio, then config.ini set to iPhone-Duo resolution 2854×2007 @480 dpi, hinge at x = 1427 px, skin 2854x2007, GPU host, 6 cores, 4 GB RAM). If the log says "hvf is not enabled" (black screen, crash): the AVD/system image is broken — recreate it in Android Studio, a new emulator version alone didn't help (2026-11-25).
   Start: `~/Library/Android/sdk/emulator/emulator -avd Pixel_10_Pro_Fold -gpu host -no-boot-anim -writable-system`
   (`-writable-system` ALWAYS: Liquidy is installed there as a system app in `/system/priv-app/Liquidy` + permission/hidden-API XML from
   tools/magisk-module — without Magisk via `adb root && adb remount`. Only then does the own app-open animation run. `adb install -r`
