@@ -429,5 +429,28 @@ object CcLayout {
     const val SLIDER_GLYPH_FROM_BOTTOM = 35f
     // + / power stick out of the grid edge
     const val BUTTON_OUT = 2.5f
+
+    // Duo [MEASURED] iPhone Duo simulator iOS 27.1 (951 × 669 pt unfolded, 466 × 678 pt folded)
+    // unfolded: the Control Center fills only the right page (right of the hinge, blurred), grid x 535 pt, top 112 pt,
+    // + / power centred at y 47 pt (+ at the grid's left edge, power at its right edge)
+    const val DUO_OPEN_GRID_FROM_RIGHT = 416f // grid left = width − 416 (951 → 535)
+    const val DUO_OPEN_TOP = 112f
+    // folded: grid from x 30 pt, top 109 pt (right of it the status column)
+    const val DUO_FOLDED_GRID_LEFT = 30f
+    const val DUO_FOLDED_TOP = 109f
+    const val DUO_BUTTON_Y = 47f
+    // status column below the ring (centre offsets from the ring centre): "100 %" +19, Wi-Fi +60, bars +119, carrier +134
+    const val DUO_STATUS_PERCENT = 19f
+    const val DUO_STATUS_WIFI = 60f
+    const val DUO_STATUS_BARS = 119f
+    const val DUO_STATUS_CARRIER = 134f
+    // expanded panels must fit 669 pt: connectivity from y 28 with 12 pt gaps and 140 pt tiles; brightness/volume
+    // glyph y 56, slider from y 96, buttons at y 560 [DERIVED from the phone layout to fit the Duo height]
+    const val DUO_EXP_TOP = 28f
+    const val DUO_EXP_GAP = 12f
+    const val DUO_EXP_TILE = 140f
+    const val DUO_BIG_GLYPH_Y = 56f
+    const val DUO_BIG_SLIDER_Y = 96f
+    const val DUO_BIG_BUTTON_Y = 560f
 }
 

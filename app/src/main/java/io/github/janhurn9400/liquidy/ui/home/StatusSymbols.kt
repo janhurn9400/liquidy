@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -30,7 +32,12 @@ import kotlin.math.roundToInt
  * (folded), everything below moves down (clock 26 pt below its bottom edge). Everything relative to the display width/cutout.
  */
 @Composable
-fun DuoStatusSymbols(info: StatusInfo, columnCenterX: Float, density: Float, color: Color) {
+fun DuoStatusSymbols(info: StatusInfo, columnCenterX: Float, density: Float, color: Color,
+                     /** Control Center 0…1 (its module reveal) — null on the plain home screen. */
+                     cc: (() -> Float)? = null,
+                     /** true while the Control Center opens, false while it closes (the two look different, M-CC Duo). */
+                     ccOpening: () -> Boolean = { true },
+                     carrier: String = "") {
     val view = LocalView.current
     // Camera hole/notch (some foldables) only if it really lies above the clock (clock width ≈ 2 × CLOCK_HALF_W)
     // Position from the real cutout shape (path), not from the bounding rects: on some devices they're coarse
@@ -45,26 +52,83 @@ fun DuoStatusSymbols(info: StatusInfo, columnCenterX: Float, density: Float, col
             r.right > columnCenterX - CLOCK_HALF_W * density && r.left < columnCenterX + CLOCK_HALF_W * density }
         .maxOfOrNull { it.bottom } ?: 0
     val clockY = maxOf(CLOCK_Y * density, cutoutBottom + CLOCK_BELOW_CUTOUT * density)
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val small = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = color)
+    val label = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = color)
     Layout(content = {
         BasicText(info.time, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = color))
-    }) { ms, c ->
+    }, modifier = Modifier.graphicsLayer { alpha = cc?.let { f -> homeAlpha(f(), ccOpening()) } ?: 1f }) { ms, c ->
         val t = ms[0].measure(Constraints())
         layout(c.maxWidth, c.maxHeight) { t.place((columnCenterX - t.width / 2f).roundToInt(), (clockY - t.height / 2f).roundToInt()) }
     }
     Canvas(Modifier.fillMaxSize()) {
         val cy = clockY + RING_BELOW * density
-        val c = Offset(columnCenterX, cy)
+        val k = cc?.invoke()?.coerceIn(0f, 1f) ?: 0f
+        val opening = ccOpening()
+        val home = if (cc == null) 1f else homeAlpha(k, opening)
+        // Control Center group: opening = slides in from the right after the home symbols faded; closing = flows up
+        // into the ring (which stays where it is — it is the same ring on both screens)
+        val ccAlpha: Float; val dx: Float; val pull: Float
+        if (cc == null) { ccAlpha = 0f; dx = 0f; pull = 1f }
+        else if (opening) {
+            // home symbols gone first, a short empty gap, then the column slides in from the right (simulator 9.44 s)
+            val f = io.github.janhurn9400.liquidy.motion.Motion.ccStatusStart.value
+            val s = ((k - f) / (1f - f)).coerceIn(0f, 1f)
+            ccAlpha = s; dx = (1f - s) * (1f - s) * io.github.janhurn9400.liquidy.motion.Motion.ccStatusSlide.value * density; pull = 1f
+        } else { ccAlpha = k; dx = 0f; pull = k }
         val r = RING_R * density; val sw = RING_STROKE * density
-        val tl = Offset(c.x - r, c.y - r); val sz = Size(2 * r, 2 * r)
-        drawArc(color.copy(alpha = 0.3f), RING_START, RING_SWEEP, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Round))
-        drawArc(if (info.charging) CHARGE_GREEN else color, RING_START, RING_SWEEP * info.battery, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Round))
-        if (info.airplane) airplane(c, r * 0.5f, color)
-        else wifi(Offset(c.x, c.y + r * 0.22f), r * 0.62f, if (info.wifi < 0) 0 else info.wifi + 1, color, dimNone = info.wifi < 0)
-        val dy = cy + DOTS_BELOW * density; val pitch = DOT_PITCH * density
-        for (k in 0 until 4) drawCircle(color.copy(alpha = if (k < info.cell) 1f else 0.3f), DOT_D / 2 * density,
-            Offset(columnCenterX + (k - 1.5f) * pitch, dy))
+        fun ring(x: Float, a: Float) {
+            if (a <= 0.001f) return
+            val tl = Offset(x - r, cy - r); val sz = Size(2 * r, 2 * r)
+            drawArc(color.copy(alpha = 0.3f * a), RING_START, RING_SWEEP, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Round))
+            drawArc((if (info.charging) CHARGE_GREEN else color).copy(alpha = a), RING_START, RING_SWEEP * info.battery, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Round))
+        }
+        // home: ring + Wi-Fi inside + 4 cellular dots below
+        val closingRing = cc != null && !opening
+        ring(columnCenterX, if (closingRing) 1f else home)
+        val homeGlyph = if (closingRing) 1f - k else home
+        val c = Offset(columnCenterX, cy)
+        if (homeGlyph > 0.001f) {
+            val hc = color.copy(alpha = homeGlyph)
+            if (info.airplane) airplane(c, r * 0.5f, hc)
+            else wifi(Offset(c.x, c.y + r * 0.22f), r * 0.62f, if (info.wifi < 0) 0 else info.wifi + 1, hc, dimNone = info.wifi < 0)
+            val dy = cy + DOTS_BELOW * density; val pitch = DOT_PITCH * density
+            for (i in 0 until 4) drawCircle(color.copy(alpha = homeGlyph * if (i < info.cell) 1f else 0.3f), DOT_D / 2 * density,
+                Offset(columnCenterX + (i - 1.5f) * pitch, dy))
+        }
+        if (ccAlpha <= 0.001f) return@Canvas
+        val x = columnCenterX + dx
+        if (!closingRing) ring(x, ccAlpha)
+        fun at(off: Float) = cy + off * density * pull // closing: everything converges into the ring centre
+        // battery glyph inside the ring
+        val bw = r * 0.95f; val bh = r * 0.5f
+        drawRoundRect(color.copy(alpha = ccAlpha), Offset(x - bw / 2, cy - bh / 2), Size(bw * 0.88f, bh), CornerRadius(bh / 2))
+        drawRoundRect(color.copy(alpha = ccAlpha * 0.6f), Offset(x + bw * 0.42f, cy - bh * 0.2f), Size(bw * 0.08f, bh * 0.4f), CornerRadius(bw * 0.04f))
+        fun text(t: String, style: TextStyle, y: Float, a: Float) {
+            if (t.isEmpty() || a <= 0.001f) return
+            val l = measurer.measure(t, style)
+            drawText(l, color = color.copy(alpha = a), topLeft = Offset(x - l.size.width / 2f, y - l.size.height / 2f))
+        }
+        text("${(info.battery * 100).roundToInt()}%", small, at(DUO_CC_PERCENT), ccAlpha)
+        wifi(Offset(x, at(DUO_CC_WIFI) + r * 0.22f), r * 0.62f, if (info.wifi < 0) 0 else info.wifi + 1, color.copy(alpha = ccAlpha), dimNone = info.wifi < 0)
+        val by = at(DUO_CC_BARS); val bwid = 3f * density; val bpitch = 5f * density; val bhgt = 7f * density
+        for (i in 0 until 4) drawRoundRect(color.copy(alpha = ccAlpha * if (i < info.cell) 1f else 0.35f),
+            Offset(x + (i - 1.5f) * bpitch - bwid / 2, by - bhgt / 2), Size(bwid, bhgt), CornerRadius(bwid / 2))
+        text(carrier, label, at(DUO_CC_CARRIER), ccAlpha)
     }
 }
+
+/** Home time/ring/dots while the Control Center moves: opening = gone quickly; closing = back as it finishes. */
+private fun homeAlpha(k: Float, opening: Boolean): Float {
+    val c = k.coerceIn(0f, 1f)
+    return if (opening) (1f - c / io.github.janhurn9400.liquidy.motion.Motion.ccHomeStatusFade.value).coerceIn(0f, 1f)
+    else ((1f - c - 0.4f) / 0.6f).coerceIn(0f, 1f)
+}
+
+private val DUO_CC_PERCENT = io.github.janhurn9400.liquidy.design.CcLayout.DUO_STATUS_PERCENT
+private val DUO_CC_WIFI = io.github.janhurn9400.liquidy.design.CcLayout.DUO_STATUS_WIFI
+private val DUO_CC_BARS = io.github.janhurn9400.liquidy.design.CcLayout.DUO_STATUS_BARS
+private val DUO_CC_CARRIER = io.github.janhurn9400.liquidy.design.CcLayout.DUO_STATUS_CARRIER
 
 /**
  * iOS-style status bar for normal phones: time on the left (centre at 19 % of the width), on the right cellular bars,

@@ -170,7 +170,10 @@ class MainActivity : ComponentActivity() {
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
             val statusVisible = WindowInsets.areStatusBarsVisible
             LaunchedEffect(statusVisible, hideStatus, homeModel.control.visible) {
-                if (statusVisible && hideStatus && homeModel.control.visible) applyStatusBar(true)
+                // Control Center open: Android's bar never shows (also on the Duo, whose own column replaces it);
+                // once it closes the normal state comes back
+                if (homeModel.control.visible) { if (statusVisible) applyStatusBar(true) }
+                else applyStatusBar(hideStatus)
             }
             // Search: dark background → light status bar icons [MEASURED] IMG_3131
             val welcomeActive = io.github.janhurn9400.liquidy.ui.welcome.WelcomeStore.active

@@ -655,7 +655,8 @@ fun HomeScreen(
             // Edit stack: home screen blurred in ≈ 2 frames (frame 287→288), independent of the slower panel
             val stackEdit = (model.stackEdit.value * 4f).coerceIn(0f, 1f) * DesignTokens.folderBgBlur.value
             val config = model.widgetConfig.value * DesignTokens.folderBgBlur.value // widget settings: home screen blurred
-            val control = model.control.progress.value.coerceIn(0f, 1f) * DesignTokens.ccBlur.value
+            // Duo unfolded: the Control Center blurs only the right page itself (its backdrop), not the whole window
+            val control = if (geo.duo && geo.unfolded) 0f else model.control.progress.value.coerceIn(0f, 1f) * DesignTokens.ccBlur.value
             if (io.github.janhurn9400.liquidy.tuning.DebugOptions.blurOff) return 0f
             return maxOf(pf * DesignTokens.folderBgBlur.value, if (withSearch) searchBlur else 0f, cat, today, stackEdit, config, control) * density
         }
@@ -1513,7 +1514,8 @@ fun HomeScreen(
                 // hide with folder/search like the Android bar
                 val folder = ((model.openFolder?.progress?.value ?: 0f) / 0.3f).coerceIn(0f, 1f)
                 alpha = (1f - folder) * (if (geo.duo) 1f else 1f - model.searchOpenAmount.value.coerceIn(0f, 1f)) *
-                    (1f - model.control.progress.value.coerceIn(0f, 1f)) // the Control Center has its own status row
+                    // the Control Center has its own status row; on the Duo it takes over the status column (drawn there)
+                    (if (geo.duo) (if (model.control.visible) 0f else 1f) else 1f - model.control.progress.value.coerceIn(0f, 1f))
             }) {
                 if (geo.duo) DuoStatusSymbols(info, w - DUO_STATUS_FROM_RIGHT * density, density, color)
                 else IosStatusBar(info, statusBarPx.takeIf { it > 0f } ?: (IOS_STATUS_H * density), density, color)
@@ -1725,7 +1727,9 @@ fun HomeScreen(
         }
 
         // ── Control Center (above everything) ──────────────────────────────────────
-        io.github.janhurn9400.liquidy.ui.control.ControlCenter(model.control, density, w, h)
+        io.github.janhurn9400.liquidy.ui.control.ControlCenter(model.control, density, w, h,
+            duo = geo.duo, unfolded = geo.unfolded, statusColumnX = w - DUO_STATUS_FROM_RIGHT * density,
+            drawBackdrop = { drawImage(wallpaper); drawLayer(homeContentLayer) })
         if (model.control.open) androidx.activity.compose.BackHandler { model.control.back() }
     }
     } // end CompositionLocalProvider

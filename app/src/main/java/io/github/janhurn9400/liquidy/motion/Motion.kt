@@ -244,6 +244,17 @@ object Motion {
     val ccEnterY = tunable("M-CC.enterY", "Modules slide in from", "Control Center", 28f, 0f, 80f, "pt") // [MEASURED] 1.27 s frame 1
     val ccEnterScale = tunable("M-CC.enterScale", "Modules grow from", "Control Center", 0.94f, 0.7f, 1f, "×") // [MEASURED] row pitch 55 → 58
     val ccEnterBlur = tunable("M-CC.enterBlur", "Modules blur while appearing", "Control Center", 8f, 0f, 30f, "pt") // [MEASURED] visually
+    // M-CC close — much faster than opening: modules gone in ≈ 80 ms on the phone (recording 10-19, 1.37 s), ≈ 2 frames on
+    // the Duo simulator (24.37 s) [MEASURED]
+    val ccClose = iosSpring("M-CC-CLOSE", "Control Center close", response = 0.2f, dampingFraction = 1.0f)
+    // M-CC Duo [MEASURED] iPhone Duo simulator iOS 27.1, slow pull 9.44 s: the modules appear right away (first frame of
+    // the pull, faint) and slide ≈ 45 pt down; the status column slides ≈ 33 pt in from the right, ≈ 0.15 s after the
+    // home time/ring faded out (≈ 85 ms); closing: Wi-Fi + carrier flow up into the ring (≈ 130 ms), the time fades in
+    val ccRevealAtDuo = tunable("M-CC.revealAtDuo", "Duo: modules appear from progress", "Control Center", 0.03f, 0f, 0.9f)
+    val ccEnterYDuo = tunable("M-CC.enterYDuo", "Duo: modules slide in from", "Control Center", 45f, 0f, 90f, "pt")
+    val ccStatusSlide = tunable("M-CC.statusSlide", "Duo: status column slides in from", "Control Center", 33f, 0f, 80f, "pt")
+    val ccHomeStatusFade = tunable("M-CC.homeStatusFade", "Duo: home time/ring gone at reveal", "Control Center", 0.3f, 0.05f, 1f)
+    val ccStatusStart = tunable("M-CC.statusStart", "Duo: status column starts sliding at reveal", "Control Center", 0.55f, 0f, 0.95f) // [MEASURED] gap ≈ 90 ms
     val ccCommit = tunable("M-CC.commit", "Opens from progress", "Control Center", 0.4f, 0.1f, 0.9f) // [ESTIMATED]
     val ccFlick = tunable("M-CC.flick", "Opens/closes from velocity", "Control Center", 300f, 50f, 1500f, "pt/s") // [ESTIMATED]
     // M-CC-EXPAND — long press: the module grows from its slot into the big panel while the rest fades and blurs

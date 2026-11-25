@@ -256,3 +256,16 @@ Still open:
 
 Please check on the iPhone: press scale of a module (frame by frame while tapping), the spring of the open/close pull with a slow finger.
 
+### Control Center on the iPhone Duo (simulator iOS 27.1, DeviceHub recording 11-25, 951 × 669 pt unfolded)
+
+| ID | Value | Status |
+|---|---|---|
+| T-CC Duo unfolded | the Control Center covers only the right page: grid left = width − 416 pt, top 112 pt; only the right page is blurred, the left page is dimmed; + / power at y 47 pt at the grid edges | [MEASURED] 9.66 s |
+| T-CC Duo folded | grid from x 30 pt, top 109 pt | [MEASURED] |
+| Status column | replaces the home column (time, ring with Wi-Fi, 4 dots) with ring + battery glyph, "100 %" +19 pt, Wi-Fi +60 pt, bars +119 pt, carrier +134 pt below the ring centre | [MEASURED] |
+| M-CC Duo open | modules appear at the start of the pull and slide ≈ 45 pt down; home time/ring/dots fade out (≈ 45 ms), ≈ 90 ms gap, then the CC column slides ≈ 33 pt in from the right | [MEASURED] 9.44–9.66 s |
+| M-CC Duo close | ≈ 2 frames for the modules; Wi-Fi + carrier flow up into the ring (≈ 130 ms), the ring stays, then the time fades in | [MEASURED] 24.37–24.75 s |
+| Expanded panels Duo | connectivity from y 28 pt, 12 pt gaps, 140 pt tiles; slider from y 96 pt, buttons y 560 pt (fit 669 pt) | [DERIVED] — the simulator shows no modules |
+
+Please check on the iPhone Duo: the module contents (the simulator renders only placeholders), long-press expansion.
+

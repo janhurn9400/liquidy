@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
@@ -104,9 +105,13 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     /** Modules 0…1 (M-CC-REVEAL): not tied to the finger — they appear on their own once the pull passes a threshold. */
     val reveal = Animatable(0f)
 
-    private fun revealTo(on: Boolean) {
+    /** iPhone Duo style: the modules appear right away instead of past half the pull (M-CC Duo). */
+    var duo = false
+    private val revealAt get() = if (duo) Motion.ccRevealAtDuo.value else Motion.ccRevealAt.value
+
+    private fun revealTo(on: Boolean, closing: Boolean = false) {
         val t = if (on) 1f else 0f
-        if (reveal.targetValue != t) scope.launch { reveal.animateTo(t, Motion.ccReveal.spec()) }
+        if (reveal.targetValue != t) scope.launch { reveal.animateTo(t, if (closing) Motion.ccClose.spec() else Motion.ccReveal.spec()) }
     }
 
     fun pull(pt: Float, screenPt: Float) {
@@ -115,7 +120,7 @@ class ControlCenterModel(private val scope: CoroutineScope) {
         val extra = if (pt > full) Motion.rubberBand(pt - full, screenPt) else 0f
         scope.launch { progress.snapTo(p) }
         scope.launch { over.snapTo(extra) }
-        revealTo(p >= Motion.ccRevealAt.value)
+        revealTo(p >= revealAt)
     }
 
     /** [velocity] in pt/s, positive = down. */
@@ -134,9 +139,10 @@ class ControlCenterModel(private val scope: CoroutineScope) {
 
     fun hide(velocity: Float = 0f) {
         open = false
-        revealTo(false)
+        revealTo(false, closing = true)
         scope.launch {
-            progress.animateTo(0f, Motion.cc.spec(), initialVelocity = velocity / Motion.ccPull.value)
+            // closing is much quicker than opening (M-CC close)
+            progress.animateTo(0f, Motion.ccClose.spec(), initialVelocity = velocity / Motion.ccPull.value)
             if (!open) { expanded = null; expand.snapTo(0f) } // closed while a module was big → next time compact again
         }
         scope.launch { over.animateTo(0f, Motion.cc.spec()) }
@@ -166,7 +172,7 @@ class ControlCenterModel(private val scope: CoroutineScope) {
         else {
             val p = (1f + dyPt / Motion.ccPull.value).coerceIn(0f, 1f)
             scope.launch { progress.snapTo(p) }; scope.launch { over.snapTo(0f) }
-            revealTo(p >= Motion.ccRevealAt.value)
+            revealTo(p >= revealAt)
         }
     }
 }
@@ -176,14 +182,26 @@ private data class PtRect(val x: Float, val y: Float, val w: Float, val h: Float
     fun lerp(o: PtRect, t: Float) = PtRect(x + (o.x - x) * t, y + (o.y - y) * t, w + (o.w - w) * t, h + (o.h - h) * t)
 }
 
-/** Grid geometry of the compact page (T-CC) for a screen [screenWpt] wide. */
-private class CcGrid(screenWpt: Float) {
+/**
+ * Grid geometry of the compact page (T-CC): phone = centred below the status row; iPhone Duo unfolded = the right page
+ * only, folded = left-aligned next to the status column (CcLayout DUO_*). Expanded panels centre on the grid and use
+ * tighter Duo metrics so they fit its 669 pt height.
+ */
+private class CcGrid(screenWpt: Float, val duo: Boolean, unfolded: Boolean) {
     val cell = DesignTokens.ccCell.value
     val gx = DesignTokens.ccGapX.value
     val gy = DesignTokens.ccGapY.value
     val width = 4 * cell + 3 * gx
-    val left = (screenWpt - width) / 2
-    val top = DesignTokens.ccTop.value
+    val left = when { !duo -> (screenWpt - width) / 2; unfolded -> screenWpt - CcLayout.DUO_OPEN_GRID_FROM_RIGHT; else -> CcLayout.DUO_FOLDED_GRID_LEFT }
+    val top = when { !duo -> DesignTokens.ccTop.value; unfolded -> CcLayout.DUO_OPEN_TOP; else -> CcLayout.DUO_FOLDED_TOP }
+    val centerX get() = left + width / 2
+    val buttonY get() = if (duo) CcLayout.DUO_BUTTON_Y else DesignTokens.ccButtonY.value
+    val expTop get() = if (duo) CcLayout.DUO_EXP_TOP else CcLayout.EXP_TOP
+    val expGap get() = if (duo) CcLayout.DUO_EXP_GAP else CcLayout.EXP_GAP
+    val expTile get() = if (duo) CcLayout.DUO_EXP_TILE else CcLayout.EXP_TILE
+    val bigGlyphY get() = if (duo) CcLayout.DUO_BIG_GLYPH_Y else CcLayout.BIG_GLYPH_Y
+    val bigSliderY get() = if (duo) CcLayout.DUO_BIG_SLIDER_Y else CcLayout.BIG_SLIDER_Y
+    val bigButtonY get() = if (duo) CcLayout.DUO_BIG_BUTTON_Y else CcLayout.BIG_BUTTON_Y
     fun slot(col: Int, row: Int, cols: Int = 1, rows: Int = 1) =
         PtRect(left + col * (cell + gx), top + row * (cell + gy), cols * cell + (cols - 1) * gx, rows * cell + (rows - 1) * gy)
     val connectivity get() = slot(0, 0, 2, 2)
@@ -191,11 +209,10 @@ private class CcGrid(screenWpt: Float) {
     val volume get() = slot(2, 2, 1, 2)
     val brightness get() = slot(3, 2, 1, 2)
     fun from(m: CcExpand) = when (m) { CcExpand.Connectivity -> connectivity; CcExpand.Media -> media; CcExpand.Volume -> volume; CcExpand.Brightness -> brightness }
-    fun to(m: CcExpand, screenWpt: Float): PtRect = when (m) {
-        CcExpand.Connectivity -> PtRect(left, CcLayout.EXP_TOP, width,
-            3 * CcLayout.EXP_ROW + 2 * CcLayout.EXP_TILE + 5 * CcLayout.EXP_GAP + CcLayout.EXP_ROW)
-        CcExpand.Media -> PtRect((screenWpt - CcLayout.MEDIA_W) / 2, CcLayout.MEDIA_Y, CcLayout.MEDIA_W, CcLayout.MEDIA_H)
-        CcExpand.Volume, CcExpand.Brightness -> PtRect((screenWpt - CcLayout.BIG_SLIDER_W) / 2, CcLayout.BIG_SLIDER_Y, CcLayout.BIG_SLIDER_W, CcLayout.BIG_SLIDER_H)
+    fun to(m: CcExpand): PtRect = when (m) {
+        CcExpand.Connectivity -> PtRect(left, expTop, width, 4 * CcLayout.EXP_ROW + 2 * expTile + 5 * expGap)
+        CcExpand.Media -> PtRect(centerX - CcLayout.MEDIA_W / 2, if (duo) (CcLayout.DUO_EXP_TOP + 15f) else CcLayout.MEDIA_Y, CcLayout.MEDIA_W, CcLayout.MEDIA_H)
+        CcExpand.Volume, CcExpand.Brightness -> PtRect(centerX - CcLayout.BIG_SLIDER_W / 2, bigSliderY, CcLayout.BIG_SLIDER_W, CcLayout.BIG_SLIDER_H)
     }
 }
 
@@ -213,7 +230,12 @@ private fun Modifier.at(r: PtRect) = this
 
 /** Full-screen Control Center over the (blurred) home screen. */
 @Composable
-fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, screenH: Float) {
+fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, screenH: Float,
+                  /** iPhone Duo style (foldable), [unfolded] = two pages; [statusColumnX] = centre of the right column (px). */
+                  duo: Boolean = false, unfolded: Boolean = false, statusColumnX: Float = 0f,
+                  /** Duo unfolded: draws wallpaper + home content — only the right page gets blurred behind the panel. */
+                  drawBackdrop: (DrawScope.() -> Unit)? = null) {
+    model.duo = duo
     if (!model.visible) return
     val context = LocalContext.current
     // keep the shown state fresh while open (cheap reads); root is asked for once, the first time it opens
@@ -228,7 +250,15 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
     val e = { model.expand.value }
     val screenPt = screenH / density
     val wPt = screenW / density
-    val grid = CcGrid(wPt)
+    val grid = CcGrid(wPt, duo, unfolded)
+    // Duo unfolded: only the right page (right of the hinge) is blurred; the left page just dims [MEASURED simulator]
+    if (duo && unfolded && drawBackdrop != null) Box(Modifier.fillMaxSize().graphicsLayer {
+        alpha = p().coerceIn(0f, 1f)
+        val b = DesignTokens.ccBlur.value * density
+        renderEffect = BlurEffect(b, b, TileMode.Clamp)
+    }) {
+        Canvas(Modifier.fillMaxSize()) { clipRect(left = size.width / 2) { drawBackdrop() } }
+    }
     Box(
         Modifier
             .fillMaxSize()
@@ -273,7 +303,7 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
                 val sc = Motion.ccEnterScale.value + (1f - Motion.ccEnterScale.value) * r
                 scaleX = sc; scaleY = sc
                 transformOrigin = TransformOrigin(0.5f, grid.top * density / size.height)
-                translationY = (-(1f - r) * Motion.ccEnterY.value + model.over.value) * density
+                translationY = (-(1f - r) * (if (duo) Motion.ccEnterYDuo.value else Motion.ccEnterY.value) + model.over.value) * density
                 val b = (1f - r).coerceIn(0f, 1f) * Motion.ccEnterBlur.value * density
                 renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
             }
@@ -287,7 +317,15 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
         }) {
             Modules(context, model, grid)
         }
-        model.expanded?.let { m -> Expanded(context, model, m, grid, density, wPt) }
+        model.expanded?.let { m -> Expanded(context, model, m, grid, density) }
+    }
+    // Duo: the status column below the camera turns into the Control Center's (battery ring, Wi-Fi, carrier) and back
+    if (duo) {
+        val info by io.github.janhurn9400.liquidy.data.rememberStatusInfo()
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - e().coerceIn(0f, 1f); translationY = model.over.value * density }) {
+            io.github.janhurn9400.liquidy.ui.home.DuoStatusSymbols(info, statusColumnX, density, Color.White,
+                cc = { model.reveal.value }, ccOpening = { model.reveal.targetValue == 1f }, carrier = SystemControls.carrier.value.ifEmpty { "—" })
+        }
     }
 }
 
@@ -297,12 +335,12 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
 @Composable
 private fun Chrome(g: CcGrid) {
     val bs = DesignTokens.ccButton.value
-    val by = DesignTokens.ccButtonY.value - bs / 2
+    val by = g.buttonY - bs / 2
     val fill = Color.White.copy(alpha = DesignTokens.ccFill.value)
     Glyph(Modifier.at(PtRect(g.left - CcLayout.BUTTON_OUT, by, bs, bs)).ccGlass(CircleShape, fill), Icons.plus, Color.White, 0.55f)
     Glyph(Modifier.at(PtRect(g.left + g.width - bs + CcLayout.BUTTON_OUT, by, bs, bs)).ccGlass(CircleShape, fill)
         .ccPress(onTap = { RootShell.run("input keyevent --longpress 26") }), Icons.power, Color.White, 0.6f)
-    StatusRow(Modifier.at(PtRect(g.left + 4f, DesignTokens.ccStatusY.value - 10f, g.width - 8f, 20f)))
+    if (!g.duo) StatusRow(Modifier.at(PtRect(g.left + 4f, DesignTokens.ccStatusY.value - 10f, g.width - 8f, 20f)))
 }
 
 @Composable
@@ -507,9 +545,10 @@ private fun Slider(m: Modifier, value: Float, icon: Path, glyph: Color, glyphPt:
 // ── expanded modules ─────────────────────────────────────────────────────────────────
 
 @Composable
-private fun Expanded(context: Context, model: ControlCenterModel, m: CcExpand, g: CcGrid, density: Float, wPt: Float) {
+private fun Expanded(context: Context, model: ControlCenterModel, m: CcExpand, g: CcGrid, density: Float) {
     val from = g.from(m)
-    val to = g.to(m, wPt)
+    val to = g.to(m)
+    val wPt = g.centerX * 2
     val e = { model.expand.value }
     val rect = { from.lerp(to, e()) }
     val c = SystemControls
@@ -518,7 +557,7 @@ private fun Expanded(context: Context, model: ControlCenterModel, m: CcExpand, g
             val bright = m == CcExpand.Brightness
             // glyph above the big slider and (brightness) three round buttons below fade in with it
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = ((e() - 0.2f) / 0.6f).coerceIn(0f, 1f) }) {
-                Glyph(Modifier.at(PtRect((wPt - CcLayout.BIG_GLYPH) / 2, CcLayout.BIG_GLYPH_Y - CcLayout.BIG_GLYPH / 2, CcLayout.BIG_GLYPH, CcLayout.BIG_GLYPH)),
+                Glyph(Modifier.at(PtRect((wPt - CcLayout.BIG_GLYPH) / 2, g.bigGlyphY - CcLayout.BIG_GLYPH / 2, CcLayout.BIG_GLYPH, CcLayout.BIG_GLYPH)),
                     if (bright) Icons.sun else Icons.speaker, Color.White, 0.9f)
                 if (bright) {
                     val items = listOf(
@@ -529,8 +568,8 @@ private fun Expanded(context: Context, model: ControlCenterModel, m: CcExpand, g
                     items.forEachIndexed { i, (t, tap) ->
                         val cx = wPt / 2 + (i - 1) * CcLayout.BIG_BUTTON_PITCH
                         val d = CcLayout.BIG_BUTTON_D
-                        RoundToggle(Modifier.at(PtRect(cx - d / 2, CcLayout.BIG_BUTTON_Y - d / 2, d, d)), t.first, t.third) { tap() }
-                        Label(Modifier.at(PtRect(cx - 50f, CcLayout.BIG_BUTTON_Y + d / 2 + 6f, 100f, 34f)), stringResource(t.second),
+                        RoundToggle(Modifier.at(PtRect(cx - d / 2, g.bigButtonY - d / 2, d, d)), t.first, t.third) { tap() }
+                        Label(Modifier.at(PtRect(cx - 50f, g.bigButtonY + d / 2 + 6f, 100f, 34f)), stringResource(t.second),
                             stringResource(if (t.third) R.string.cc_on else R.string.cc_off), TextAlign.Center, 12.sp)
                     }
                 }
@@ -561,14 +600,15 @@ private fun Expanded(context: Context, model: ControlCenterModel, m: CcExpand, g
             // circle to its big place (airplane circle → capsule, Wi-Fi circle → tile, …) [MEASURED] 21.35–21.55 s
             Box(Modifier.at(density, rect).graphicsLayer { alpha = (1f - e() / 0.5f).coerceIn(0f, 1f) }
                 .ccGlass(RoundedCornerShape(DesignTokens.ccCorner.dp)))
-            ConnectivityMorph(context, g.connectivity, to, e, density)
+            ConnectivityMorph(context, g, to, e, density)
         }
     }
 }
 
 /** Expanded connectivity: each item morphs from its compact circle ([src]) to its capsule/tile ([dst]). */
 @Composable
-private fun ConnectivityMorph(context: Context, platter: PtRect, to: PtRect, e: () -> Float, density: Float) {
+private fun ConnectivityMorph(context: Context, g: CcGrid, to: PtRect, e: () -> Float, density: Float) {
+    val platter = g.connectivity
     val c = SystemControls
     val d = DesignTokens.ccInner.value
     val inset = DesignTokens.ccInnerInset.value
@@ -576,7 +616,7 @@ private fun ConnectivityMorph(context: Context, platter: PtRect, to: PtRect, e: 
     val cx = far + d / 2; val o = CcLayout.QUAD_OFFSET; val q = CcLayout.QUAD_D
     fun big(x: Float, y: Float) = PtRect(platter.x + x, platter.y + y, d, d)
     fun small(dx: Float, dy: Float) = PtRect(platter.x + cx + dx - q / 2, platter.y + cx + dy - q / 2, q, q)
-    val gap = CcLayout.EXP_GAP; val row = CcLayout.EXP_ROW; val tile = CcLayout.EXP_TILE
+    val gap = g.expGap; val row = CcLayout.EXP_ROW; val tile = g.expTile
     val tw = (to.w - gap) / 2
     var y = to.y
     fun next(h: Float): Float { val v = y; y += h + gap; return v }
