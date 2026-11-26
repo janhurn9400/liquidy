@@ -241,6 +241,8 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     var pageCount by mutableStateOf(1)
     /** Grid rows per page (set by the compact page) — to find the page an item lands on. */
     var rowsPerPage = 6
+    /** Per grid row: its lag behind the page while pages change (M-CC-PAGE-STAGGER), shared by modules and empty slots. */
+    var rowFollow: List<Animatable<Float, androidx.compose.animation.core.AnimationVector1D>> = emptyList()
 
     fun pageTo(i: Int, velocity: Float = 0f) {
         scope.launch { page.animateTo(i.coerceIn(0, pageCount - 1).toFloat(), Motion.ccPage.spec(), velocity) }
@@ -564,6 +566,7 @@ private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, dens
     // M-CC-PAGE-STAGGER: one follower per grid row chases the page position; the leading row (direction of travel) is
     // fast and springy, the trailing one softer → the rows spread and close up like the original instead of one rigid sheet
     val rowFollow = remember(pages, g.rows) { List(pages * g.rows) { Animatable(model.page.value) } }
+    model.rowFollow = rowFollow
     LaunchedEffect(rowFollow) {
         var last = model.page.value
         androidx.compose.runtime.snapshotFlow { model.page.value }.collect { p ->
@@ -596,8 +599,10 @@ private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, dens
             LaunchedEffect(target, live == null) { anim.to(target, size = live == null) }
             if (live != null) LaunchedEffect(live) { anim.w.snapTo(live.w); anim.h.snapTo(live.h) }
             Box(Modifier.at(density) { anim.value() }.graphicsLayer {
-                // modules of other pages fade with the distance to the shown page
+                // modules of other pages fade with the distance to the shown page; alpha modulated per draw (no offscreen
+                // layer) — an offscreen layer clipped the − badge and the resize handle that reach outside the module
                 alpha = (1f - abs(onPage - model.page.value)).coerceIn(0f, 1f)
+                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
                 // row lag against the whole grid (which already moves with the page)
                 rowFollow.getOrNull(row)?.let { f ->
                     translationY = (model.page.value - f.value) * g.pageH * density
@@ -789,7 +794,12 @@ private fun EditSlots(context: Context, model: ControlCenterModel, g: CcGrid) {
             if (r * 16 + c in taken) continue
             val q = g.slot(c, r)
             val a = (1f - abs((r / g.rows) - model.page.value)).coerceIn(0f, 1f)
-            if (a > 0.01f) drawCircle(Color.White.copy(alpha = CcLayout.EDIT_SLOT_ALPHA * a), rad, Offset((q.x + q.w / 2) * density, (q.y + q.h / 2) * density))
+            // empty slots move with their row exactly like the modules in it (same lag, same stretch)
+            val f = model.rowFollow.getOrNull(r)
+            val lag = f?.let { (model.page.value - it.value) * g.pageH * density } ?: 0f
+            val st = f?.let { 1f + Motion.ccPageStretchMax.value * (abs(it.velocity) * g.pageH / Motion.ccPageStretchAt.value).coerceIn(0f, 1f) } ?: 1f
+            val c = Offset((q.x + q.w / 2) * density, (q.y + q.h / 2) * density + lag)
+            if (a > 0.01f) drawOval(Color.White.copy(alpha = CcLayout.EDIT_SLOT_ALPHA * a), Offset(c.x - rad / st, c.y - rad * st), Size(2 * rad / st, 2 * rad * st))
         }
     }
 }
@@ -807,7 +817,7 @@ private fun EditOverlay(model: ControlCenterModel, store: io.github.janhurn9400.
     val current by rememberUpdatedState(item)
     // while another module is resized its badge and handle fade out (only the resized one keeps them) [user's iPhone 11-26]
     val others by animateFloatAsState(if (model.resizing != null && model.resizing?.id != item.id) 0f else 1f, label = "editFade")
-    Box(Modifier.fillMaxSize().graphicsLayer { alpha = e * others }.pointerInput(Unit) {
+    Box(Modifier.fillMaxSize().graphicsLayer { alpha = e * others; compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha }.pointerInput(Unit) {
         // swallow taps on the module itself while editing
         awaitEachGesture { awaitFirstDown().consume(); while (true) { val ev = awaitPointerEvent(); ev.changes.forEach { it.consume() }; if (ev.changes.none { it.pressed }) break } }
     }) {
