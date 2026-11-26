@@ -17,6 +17,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -131,7 +133,11 @@ object StatusOverlay {
             setViewTreeLifecycleOwner(o); setViewTreeSavedStateRegistryOwner(o)
             setContent {
                 val info by rememberStatusInfo()
-                Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().graphicsLayer {
+                    scaleX = L.SCALE; scaleY = L.SCALE
+                    transformOrigin = TransformOrigin((L.WINDOW_W - L.COLUMN_FROM_RIGHT) / L.WINDOW_W, 0f)
+                    translationY = L.SHIFT_Y * d
+                }) {
                     DuoStatusSymbols(info, (L.WINDOW_W - L.COLUMN_FROM_RIGHT) * d, d, color)
                 }
             }
