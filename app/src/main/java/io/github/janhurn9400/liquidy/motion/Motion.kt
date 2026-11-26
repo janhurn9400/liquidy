@@ -318,6 +318,18 @@ object Motion {
     // M-CC-PAGE — Control Center pages: vertical swipe in the grid; the next page slides in, carrying the flick and settling
     // with a ≈ 10 pt overshoot [MEASURED user's iPhone 11-26 18:20, 20.8 s @ 60 fps: response 0.59 s, ζ 0.95, rms 2.4 pt]
     val ccPage = iosSpring("M-CC-PAGE", "Control Center page change", response = 0.59f, dampingFraction = 0.95f)
+    // M-CC-PAGE-STAGGER — while pages change the rows don't move as one sheet: each row chases the page on its own spring,
+    // the row at the leading edge (in the direction of travel) fast and springy, the trailing one softer. Measured on the
+    // user's iPhone 11-26 18:20 (20.9 s, every row tracked @ 60 fps): mid-flight ≈ 9 pt spread per row, overshoot 7 pt
+    // (trailing row) → 26 pt (leading row), all settled together after ≈ 0.6 s [DERIVED from the row tracks]
+    val ccPageLeadResponse = tunable("M-CC-PAGE-STAGGER.leadResponse", "Page change: leading row response", "Control Center", 0.2f, 0.05f, 0.8f, "s")
+    val ccPageLeadDamping = tunable("M-CC-PAGE-STAGGER.leadDamping", "Page change: leading row damping", "Control Center", 0.6f, 0.2f, 1.2f)
+    val ccPageTrailResponse = tunable("M-CC-PAGE-STAGGER.trailResponse", "Page change: trailing row response", "Control Center", 0.32f, 0.05f, 0.8f, "s")
+    val ccPageTrailDamping = tunable("M-CC-PAGE-STAGGER.trailDamping", "Page change: trailing row damping", "Control Center", 0.9f, 0.2f, 1.2f)
+    // …and while moving fast each module stretches along the motion and narrows (Screen Recording tile measured: up to
+    // +6.6 % height / −8 % width at full speed, relaxed again after ≈ 0.3 s) [MEASURED 11-26 18:20, 20.8 s]
+    val ccPageStretchMax = tunable("M-CC-PAGE-STRETCH.max", "Page change: max stretch", "Control Center", 0.07f, 0f, 0.2f)
+    val ccPageStretchAt = tunable("M-CC-PAGE-STRETCH.at", "Page change: full stretch at speed", "Control Center", 1500f, 200f, 5000f, "pt/s")
     val ccPageFlick = tunable("M-CC-PAGE.flick", "Page flick (pages/s)", "Control Center", 0.6f, 0.1f, 5f)
     // M-CC-RESIZE — modules move/grow to their new spot when the layout reflows [ESTIMATED] like M-REFLOW
     val ccReflow = iosSpring("M-CC-REFLOW", "Control Center modules reflow", response = 0.35f, dampingFraction = 0.85f)

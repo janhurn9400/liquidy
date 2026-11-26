@@ -561,6 +561,28 @@ private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, dens
     val pos = io.github.janhurn9400.liquidy.data.CcLayoutStore.pack(items, g.rows)
     val pages = io.github.janhurn9400.liquidy.data.CcLayoutStore.pages(items, g.rows)
     androidx.compose.runtime.SideEffect { model.pageCount = pages; model.rowsPerPage = g.rows }
+    // M-CC-PAGE-STAGGER: one follower per grid row chases the page position; the leading row (direction of travel) is
+    // fast and springy, the trailing one softer → the rows spread and close up like the original instead of one rigid sheet
+    val rowFollow = remember(pages, g.rows) { List(pages * g.rows) { Animatable(model.page.value) } }
+    LaunchedEffect(rowFollow) {
+        var last = model.page.value
+        androidx.compose.runtime.snapshotFlow { model.page.value }.collect { p ->
+            val dir = kotlin.math.sign(p - last).takeIf { it != 0f } ?: 0f
+            last = p
+            rowFollow.forEachIndexed { i, f ->
+                val inPage = i % g.rows
+                // moving to an earlier page the content travels down → bottom row leads; to a later page the top row leads
+                val rank = if (dir < 0f) (g.rows - 1 - inPage) else inPage
+                val k = rank / (g.rows - 1).coerceAtLeast(1).toFloat()
+                val resp = Motion.ccPageLeadResponse.value + (Motion.ccPageTrailResponse.value - Motion.ccPageLeadResponse.value) * k
+                val damp = Motion.ccPageLeadDamping.value + (Motion.ccPageTrailDamping.value - Motion.ccPageLeadDamping.value) * k
+                launch {
+                    f.animateTo(p, androidx.compose.animation.core.spring(damp,
+                        io.github.janhurn9400.liquidy.motion.IosSpring.stiffnessFor(resp)))
+                }
+            }
+        }
+    }
     for (it in items) {
         val (col, row) = pos[it.id] ?: continue
         val target = g.slot(col, row, it.w, it.h)
@@ -576,6 +598,14 @@ private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, dens
             Box(Modifier.at(density) { anim.value() }.graphicsLayer {
                 // modules of other pages fade with the distance to the shown page
                 alpha = (1f - abs(onPage - model.page.value)).coerceIn(0f, 1f)
+                // row lag against the whole grid (which already moves with the page)
+                rowFollow.getOrNull(row)?.let { f ->
+                    translationY = (model.page.value - f.value) * g.pageH * density
+                    // stretch along the motion with the row's speed (M-CC-PAGE-STRETCH)
+                    val v = abs(f.velocity) * g.pageH // pt/s
+                    val st = 1f + Motion.ccPageStretchMax.value * (v / Motion.ccPageStretchAt.value).coerceIn(0f, 1f)
+                    scaleY = st; scaleX = 1f / st
+                }
             }) {
                 // glass and glyph stay one element while resizing; only the text changes with a blur (ControlModule)
                 Module(context, model, it.id, it.w, it.h, g)
