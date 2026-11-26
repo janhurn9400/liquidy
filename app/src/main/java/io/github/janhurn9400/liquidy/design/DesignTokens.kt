@@ -529,6 +529,9 @@ object StatusOverlayLayout {
     // Duo unfolded: native blur strips from the hinge (radius steps up per strip, T-CC.duoBlurFeather wide); 8 instead
     // of 4 (user 11-26: steps faintly visible) — the strips are narrow, the cost is mostly the one wide last strip
     const val BLUR_STEPS = 8
+    // width of that ramp over apps (dp): wider than the home screen's measured T-CC.duoBlurFeather (125) because native
+    // windows can only step, not fade — a wider ramp hides the steps (user 11-26) [ESTIMATED]
+    const val BLUR_FEATHER = 200f
     // a pull too short to show the panel: close its window again after this long (ms)
     const val CLOSE_CHECK_MS = 600L
     // Android took over a pull from the status bar zone: open on the spring after the queued finger snaps (≈ 2 frames)

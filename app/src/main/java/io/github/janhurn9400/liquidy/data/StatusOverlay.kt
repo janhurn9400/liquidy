@@ -297,7 +297,7 @@ object StatusOverlay {
         // blur windows first, so they sit below the panel
         if (wm.isCrossWindowBlurEnabled) blurWindows = if (unfolded) {
             val start = (w / 2).roundToInt()
-            val feather = io.github.janhurn9400.liquidy.design.DesignTokens.ccDuoBlurFeather.value * d
+            val feather = L.BLUR_FEATHER * d
             (1..L.BLUR_STEPS).mapNotNull { i ->
                 val x0 = start + (feather * (i - 1) / L.BLUR_STEPS).roundToInt()
                 val x1 = if (i == L.BLUR_STEPS) bounds.width() else start + (feather * i / L.BLUR_STEPS).roundToInt()
