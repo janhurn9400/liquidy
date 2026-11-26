@@ -237,7 +237,8 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     var resizing by mutableStateOf<LiveResize?>(null)
 
     /** Pages: what doesn't fit flows onto the next page; [page] 0… scrolls vertically (M-CC-PAGE). */
-    val page = Animatable(0f)
+    /** In pages; stops only below CcLayout.PAGE_SETTLE (the default 0.01 page ≈ 5 pt snapped visibly at the end). */
+    val page = Animatable(0f, CcLayout.PAGE_SETTLE)
     var pageCount by mutableStateOf(1)
     /** Grid rows per page (set by the compact page) — to find the page an item lands on. */
     var rowsPerPage = 6
@@ -565,7 +566,7 @@ private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, dens
     androidx.compose.runtime.SideEffect { model.pageCount = pages; model.rowsPerPage = g.rows }
     // M-CC-PAGE-STAGGER: one follower per grid row chases the page position; the leading row (direction of travel) is
     // fast and springy, the trailing one softer → the rows spread and close up like the original instead of one rigid sheet
-    val rowFollow = remember(pages, g.rows) { List(pages * g.rows) { Animatable(model.page.value) } }
+    val rowFollow = remember(pages, g.rows) { List(pages * g.rows) { Animatable(model.page.value, CcLayout.PAGE_SETTLE) } }
     model.rowFollow = rowFollow
     LaunchedEffect(rowFollow) {
         var last = model.page.value

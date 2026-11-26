@@ -413,6 +413,8 @@ private fun dpToken(id: String, label: String, group: String, default: Float, mi
  * (1206 px = 402 pt): connectivity 21.9 s, brightness 36.5 s, media page 53.6 s, open grid 5.2 s.
  */
 object CcLayout {
+    // page springs (page + per-row followers, in pages) settle below this: ≈ 0.25 pt on a 490 pt page, not visible
+    const val PAGE_SETTLE = 0.0005f
     // compact connectivity: four small circles in the bottom-right quarter
     const val QUAD_D = 25f
     const val QUAD_OFFSET = 15f       // their centres lie ± this around the big circle's centre
