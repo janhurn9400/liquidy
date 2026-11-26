@@ -295,6 +295,9 @@ Please check on the iPhone Duo: the module contents (the simulator renders only 
     (array) cannot. SystemUI keeps drawing a filled emulated cutout until it restarts.
 - Chosen: the symbols float over the app as an accessibility overlay (data/StatusOverlay, no root), black or white from
   the brightness behind them (AccessibilityService.takeScreenshot, sampled every 3 s).
+- On the iPhone Duo the symbols keep their home-screen size and spot inside apps (its apps are laid out around the
+  column). Android apps are not, so over apps ours are a deliberate, unavoidable deviation: smaller and higher
+  (T: StatusOverlayLayout.SCALE / SHIFT_Y) to stay out of the apps' toolbars. The home screen keeps the measured position.
 - Android's own status icons must all go (two batteries look silly): `icon_blacklist` hides Wi-Fi/cellular but not the
   battery and clock on Android 17; transparent SystemUI icon colours (fabricated overlay) changed nothing. Works:
   `cmd statusbar send-disable-flag clock notification-icons system-icons` (StatusBarManager disable flags) — allowed for
