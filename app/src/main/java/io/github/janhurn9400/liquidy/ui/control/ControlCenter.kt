@@ -569,18 +569,29 @@ private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, dens
     model.rowFollow = rowFollow
     LaunchedEffect(rowFollow) {
         var last = model.page.value
-        androidx.compose.runtime.snapshotFlow { model.page.value }.collect { p ->
+        var released: Float? = null
+        androidx.compose.runtime.snapshotFlow { model.page.value to model.page.isRunning }.collect { (p, running) ->
             val dir = kotlin.math.sign(p - last).takeIf { it != 0f } ?: 0f
             last = p
+            val target = if (running) model.page.targetValue else null
+            // released: start one free spring per row towards the target page (once), so each row overshoots on its own
+            if (target != null && target == released) return@collect
+            // page settled where the rows are already heading → let their own springs finish
+            if (target == null && released != null && p == released) return@collect
+            released = target
             rowFollow.forEachIndexed { i, f ->
                 val inPage = i % g.rows
                 // moving to an earlier page the content travels down → bottom row leads; to a later page the top row leads
-                val rank = if (dir < 0f) (g.rows - 1 - inPage) else inPage
+                val d = if (target != null) kotlin.math.sign(target - f.value) else dir
+                val rank = if (d < 0f) (g.rows - 1 - inPage) else inPage
                 val k = rank / (g.rows - 1).coerceAtLeast(1).toFloat()
-                val resp = Motion.ccPageLeadResponse.value + (Motion.ccPageTrailResponse.value - Motion.ccPageLeadResponse.value) * k
-                val damp = Motion.ccPageLeadDamping.value + (Motion.ccPageTrailDamping.value - Motion.ccPageLeadDamping.value) * k
+                val (r0, r1, d0, d1) = if (target != null)
+                    listOf(Motion.ccPageLeadResponse.value, Motion.ccPageTrailResponse.value, Motion.ccPageLeadDamping.value, Motion.ccPageTrailDamping.value)
+                else listOf(Motion.ccPageDragLeadResponse.value, Motion.ccPageDragTrailResponse.value, Motion.ccPageDragLeadDamping.value, Motion.ccPageDragTrailDamping.value)
+                val resp = r0 + (r1 - r0) * k
+                val damp = d0 + (d1 - d0) * k
                 launch {
-                    f.animateTo(p, androidx.compose.animation.core.spring(damp,
+                    f.animateTo(target ?: p, androidx.compose.animation.core.spring(damp,
                         io.github.janhurn9400.liquidy.motion.IosSpring.stiffnessFor(resp)))
                 }
             }

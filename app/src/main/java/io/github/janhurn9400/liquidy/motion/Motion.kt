@@ -322,10 +322,17 @@ object Motion {
     // the row at the leading edge (in the direction of travel) fast and springy, the trailing one softer. Measured on the
     // user's iPhone 11-26 18:20 (20.9 s, every row tracked @ 60 fps): mid-flight ≈ 9 pt spread per row, overshoot 7 pt
     // (trailing row) → 26 pt (leading row), all settled together after ≈ 0.6 s [DERIVED from the row tracks]
-    val ccPageLeadResponse = tunable("M-CC-PAGE-STAGGER.leadResponse", "Page change: leading row response", "Control Center", 0.2f, 0.05f, 0.8f, "s")
-    val ccPageLeadDamping = tunable("M-CC-PAGE-STAGGER.leadDamping", "Page change: leading row damping", "Control Center", 0.6f, 0.2f, 1.2f)
-    val ccPageTrailResponse = tunable("M-CC-PAGE-STAGGER.trailResponse", "Page change: trailing row response", "Control Center", 0.32f, 0.05f, 0.8f, "s")
-    val ccPageTrailDamping = tunable("M-CC-PAGE-STAGGER.trailDamping", "Page change: trailing row damping", "Control Center", 0.9f, 0.2f, 1.2f)
+    // While the finger drags, every row chases the page on a short spring (lead fast, trail softer)…
+    val ccPageDragLeadResponse = tunable("M-CC-PAGE-STAGGER.dragLeadResponse", "Page drag: leading row response", "Control Center", 0.2f, 0.05f, 0.8f, "s")
+    val ccPageDragLeadDamping = tunable("M-CC-PAGE-STAGGER.dragLeadDamping", "Page drag: leading row damping", "Control Center", 0.6f, 0.2f, 1.2f)
+    val ccPageDragTrailResponse = tunable("M-CC-PAGE-STAGGER.dragTrailResponse", "Page drag: trailing row response", "Control Center", 0.32f, 0.05f, 0.8f, "s")
+    val ccPageDragTrailDamping = tunable("M-CC-PAGE-STAGGER.dragTrailDamping", "Page drag: trailing row damping", "Control Center", 0.9f, 0.2f, 1.2f)
+    // …after release every row springs to the target page on its own spring carrying its velocity, so rows overshoot
+    // themselves (fitted to the measured 26 pt leading / 7 pt trailing overshoot, ≈ 45 pt spread mid-flight)
+    val ccPageLeadResponse = tunable("M-CC-PAGE-STAGGER.leadResponse", "Page change: leading row response", "Control Center", 0.46f, 0.05f, 1.2f, "s")
+    val ccPageLeadDamping = tunable("M-CC-PAGE-STAGGER.leadDamping", "Page change: leading row damping", "Control Center", 0.66f, 0.2f, 1.2f)
+    val ccPageTrailResponse = tunable("M-CC-PAGE-STAGGER.trailResponse", "Page change: trailing row response", "Control Center", 0.5f, 0.05f, 1.2f, "s")
+    val ccPageTrailDamping = tunable("M-CC-PAGE-STAGGER.trailDamping", "Page change: trailing row damping", "Control Center", 0.8f, 0.2f, 1.2f)
     // …and while moving fast each module stretches along the motion and narrows (Screen Recording tile measured: up to
     // +6.6 % height / −8 % width at full speed, relaxed again after ≈ 0.3 s) [MEASURED 11-26 18:20, 20.8 s]
     val ccPageStretchMax = tunable("M-CC-PAGE-STRETCH.max", "Page change: max stretch", "Control Center", 0.07f, 0f, 0.2f)
