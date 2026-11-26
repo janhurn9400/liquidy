@@ -66,6 +66,9 @@ object StatusOverlay {
     private var owner: OverlayOwner? = null
     private var foreground: String? = null
     private var color by mutableStateOf(Color.White)
+    /** The floating symbols are hidden while the panel shows its own — by alpha, never by window visibility: showing a
+     *  hidden window again takes the system a few frames (a visible blink at the hand-back). */
+    private var floatingAlpha by mutableStateOf(1f)
     private val main = Handler(Looper.getMainLooper())
     // one screenshot per app switch, only for the symbol colour — no periodic captures (privacy, battery)
     private val sampler = Runnable { sample() }
@@ -150,6 +153,7 @@ object StatusOverlay {
             setContent {
                 val info by rememberStatusInfo()
                 Box(Modifier.fillMaxSize().graphicsLayer {
+                    alpha = floatingAlpha
                     scaleX = L.SCALE; scaleY = L.SCALE
                     transformOrigin = TransformOrigin((L.WINDOW_W - L.COLUMN_FROM_RIGHT) / L.WINDOW_W, 0f)
                     translationY = L.SHIFT_Y * d
@@ -330,14 +334,14 @@ object StatusOverlay {
                     // the panel draws nothing until it is visible: hide the floating symbols only once two frames WITH
                     // the panel's own symbols are out (else a frame without any symbols = flicker)
                     androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { }
-                    main.post { if (ccView != null) view?.visibility = android.view.View.INVISIBLE }
+                    main.post { if (ccView != null) floatingAlpha = 0f }
                     // closing: bring the floating symbols back just before the panel stops drawing — at this progress
                     // both stand in the same pose and colour on top of each other
                     androidx.compose.runtime.snapshotFlow {
                         !m.open && m.progress.value < L.HANDBACK_PROGRESS &&
                             kotlin.math.abs(m.unfold.value) < L.HANDBACK_PROGRESS && kotlin.math.abs(m.unfold.velocity) < L.HANDBACK_VELOCITY
                     }.first { it }
-                    main.post { view?.visibility = android.view.View.VISIBLE }
+                    floatingAlpha = 1f
                     androidx.compose.runtime.snapshotFlow { m.visible }.first { !it }
                     main.post { closeCc() }
                 }
@@ -362,18 +366,12 @@ object StatusOverlay {
         val v = ccView ?: return
         val owner = ccOwner; val blur = blurWindows
         ccView = null; ccModel = null; ccOwner = null; blurWindows = emptyList(); pendingRelease = null
-        // show the floating symbols first and remove the panel only once they are drawn again (no frame without symbols)
-        val remove = Runnable {
-            runCatching { host?.getSystemService(WindowManager::class.java)?.removeView(v) }
-            owner?.stop()
-            blur.forEach { runCatching { it.dismiss() } }
-            if (ccView == null) blockExpand(false)
-        }
-        val f = view
-        if (f == null || f.visibility == android.view.View.VISIBLE) { remove.run(); return }
-        f.visibility = android.view.View.VISIBLE
-        f.viewTreeObserver.registerFrameCommitCallback { main.post(remove) }
-        f.invalidate()
+        // the floating symbols are already back (alpha, see floatingAlpha) — the panel can go
+        floatingAlpha = 1f
+        runCatching { host?.getSystemService(WindowManager::class.java)?.removeView(v) }
+        owner?.stop()
+        blur.forEach { runCatching { it.dismiss() } }
+        blockExpand(false)
     }
 
     /** Brightness of the app behind the symbols → black or white symbols (like iOS over light / dark apps). */
