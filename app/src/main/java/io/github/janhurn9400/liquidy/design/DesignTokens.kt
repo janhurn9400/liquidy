@@ -117,9 +117,9 @@ object DesignTokens {
     val ccButton = dpToken("T-CC.button", "+ / power size", "Control Center", 29f, 20f, 44f)
     val ccArt = dpToken("T-CC.art", "Media artwork", "Control Center", 48f, 30f, 70f)
     val ccBlur = dpToken("T-CC.blur", "Background blur", "Control Center", 26f, 0f, 60f) // [ESTIMATED] visually
-    // Duo unfolded: width of the progressive blur ramp from the sharp left page to the blurred right page, centred on
-    // the hinge (a hard clip, then a 36 pt crossfade, both showed a visible seam) [ESTIMATED] visually
-    val ccDuoBlurFeather = dpToken("T-CC.duoBlurFeather", "Duo: blur ramp width", "Control Center", 110f, 0f, 300f)
+    // Duo unfolded: progressive blur ramp starting at the hinge (0 there, full after this width); the left page is only
+    // dimmed [MEASURED] simulator unfolded 2026-11-26 (a hard clip, then a crossfade, both showed a visible seam)
+    val ccDuoBlurFeather = dpToken("T-CC.duoBlurFeather", "Duo: blur ramp width", "Control Center", 125f, 0f, 300f)
     val ccDim = tunable("T-CC.dim", "Background dim", "Control Center", 0.28f, 0f, 0.8f) // [ESTIMATED] visually
     val ccFill = tunable("T-CC.fill", "Module glass white", "Control Center", 0.11f, 0f, 0.5f) // [ESTIMATED] visually
     val ccEdgeZone = dpToken("T-CC.edge", "Pull zone from the top", "Control Center", 44f, 16f, 120f) // [ESTIMATED]

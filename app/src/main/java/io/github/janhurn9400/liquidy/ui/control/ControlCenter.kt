@@ -312,7 +312,7 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
     val wPt = screenW / density
     val grid = CcGrid(wPt, duo, unfolded)
     // Duo unfolded: only the right page (right of the hinge) is blurred; the left page just dims [MEASURED simulator]
-    // Progressive blur across the hinge (T-CC.duoBlurFeather): a crossfade from sharp to blurred showed both images
+    // Progressive blur from the hinge rightwards (T-CC.duoBlurFeather): a crossfade from sharp to blurred showed both images
     // half on top of each other — a visible seam. Instead several layers with growing blur radius, each faded in over
     // its own slice of the ramp; every layer blurs the whole backdrop, so pixels near the hinge blur with real neighbours.
     if (duo && unfolded && drawBackdrop != null) Box(Modifier.fillMaxSize().graphicsLayer {
@@ -323,7 +323,7 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
             .drawWithContent {
                 drawContent()
                 val w = DesignTokens.ccDuoBlurFeather.value * density
-                val start = size.width / 2 - w / 2
+                val start = size.width / 2 // ramp begins at the hinge
                 val x0 = start + w * (i - 1) / DUO_BLUR_STEPS; val x1 = start + w * i / DUO_BLUR_STEPS
                 drawRect(Brush.horizontalGradient(0f to Color.Transparent, 1f to Color.Black, startX = x0, endX = x1),
                     blendMode = BlendMode.DstIn)
