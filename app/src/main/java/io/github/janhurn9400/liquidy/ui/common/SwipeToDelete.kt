@@ -58,6 +58,7 @@ fun SwipeToDelete(
     val offset = remember { Animatable(0f) }      // row shift, px (≤ 0)
     val full = remember { Animatable(0f) }        // 0…1 snap of the capsule to the full row width
     val collapse = remember { Animatable(1f) }    // row height share while being removed
+    val gone = remember { Animatable(0f) }        // 0…1 the remaining sliver leaves on delete
     var armed by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     val d = DesignTokens.swipeButton.value * density
@@ -68,17 +69,22 @@ fun SwipeToDelete(
         if (deleting) return
         deleting = true
         scope.launch {
-            launch { full.animateTo(1f, Motion.swipeSnap.spec()) }
+            // release at the full-swipe point: the sliver slides out, then the row's height collapses from the bottom
+            // (the red capsule gets cut, the rows below move up) [MEASURED user's iPhone 11-26]
+            full.animateTo(1f, Motion.swipeSnap.spec())
+            gone.animateTo(1f, Motion.swipeSnap.spec())
             collapse.animateTo(0f, Motion.swipeCollapse.spec(visibilityThreshold = 0.001f))
             onDelete()
         }
     }
 
-    BoxWithConstraints(modifier.fillMaxWidth().layout { m, c ->
+    // clip OUTSIDE the shrinking layout: it then clips to the collapsing height (the capsule gets cut from the bottom and
+    // the rows below move up over nothing, like the original) — inside it clipped to the full height
+    BoxWithConstraints(modifier.fillMaxWidth().graphicsLayer { clip = true }.layout { m, c ->
         val p = m.measure(c)
         val h = (p.height * collapse.value).roundToInt()
         layout(p.width, h) { p.place(0, 0) }
-    }.graphicsLayer { clip = true }) {
+    }) {
         val rowW = constraints.maxWidth.toFloat()
         val fullAt = rowW * DesignTokens.swipeFullAt.value
         // ── actions behind the row ──
@@ -96,7 +102,8 @@ fun SwipeToDelete(
             val dia = d * grow
             // pulled past the open point → capsule anchored at the right inset; snapped → full row width
             val stretchW = maxOf(dia, pull - 2 * inset)
-            val fullW = size.width - 2 * inset
+            val sliver = DesignTokens.swipeSliver.value * density * (1f - gone.value)
+            val fullW = size.width - sliver - 2 * inset
             val w = stretchW + (fullW - stretchW) * full.value
             val right = size.width - inset
             if (dia < 1f && full.value <= 0f) return@Canvas
@@ -110,8 +117,9 @@ fun SwipeToDelete(
         }
         // ── the row itself ──
         Box(Modifier.graphicsLayer {
-                // armed: the row leaves to the left so the full-width capsule stands free (round on both ends)
-                translationX = offset.value + (-size.width - offset.value) * full.value
+                // armed: the row leaves to the left down to a small sliver, so the full capsule stands free (round on both ends)
+                val sliver = DesignTokens.swipeSliver.value * density * (1f - gone.value)
+                translationX = offset.value + (-(size.width - sliver) - offset.value) * full.value
             }
             // the moved row is a highlighted card with rounded ends (the original lifts it off the list)
             .drawBehind {
