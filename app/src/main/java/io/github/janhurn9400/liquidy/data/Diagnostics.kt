@@ -43,8 +43,8 @@ object Diagnostics {
 
     private const val ISSUES_NEW = "https://github.com/janhurn9400/liquidy/issues/new"
 
-    /** Where email bug reports go. TODO: placeholder — replace with the project's own address once it exists. */
-    const val REPORT_EMAIL = "liquidy.reports@example.com"
+    /** Where email bug reports go (the project's own address). */
+    const val REPORT_EMAIL = "liquidylauncher@gmail.com"
 
     /** Email reports are offered only once a real address is set (the placeholder would send reports nowhere). */
     val emailEnabled: Boolean get() = !REPORT_EMAIL.endsWith("@example.com")
