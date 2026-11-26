@@ -524,6 +524,8 @@ object StatusOverlayLayout {
     // touch area over the (scaled) symbols that opens the Control Center — only this small spot blocks the app below
     const val TOUCH_W = 60f
     const val TOUCH_H = 72f
+    // Duo unfolded: native blur strips from the hinge (radius steps up per strip, T-CC.duoBlurFeather wide)
+    const val BLUR_STEPS = 4
     // luminance (0…1) of the app content behind the symbols above which they turn black
     const val LIGHT_BACKDROP = 0.6f
     // first sample after an app change, once its window has drawn (ms) [ESTIMATED]
