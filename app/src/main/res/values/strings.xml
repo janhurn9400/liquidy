@@ -130,6 +130,14 @@
     <string name="settings_statusbar">Custom Status Bar</string>
     <string name="settings_status_over_apps">Symbols over Apps</string>
     <string name="settings_status_over_apps_service">Turn On Service</string>
+    <string name="settings_status_over_apps_footer">The status symbols float over other apps at the top right, like on the home screen. Pull them down to open the Control Center.</string>
+    <string name="settings_status_position">Position</string>
+    <string name="settings_status_position_footer">Move the symbols if they cover something in your apps. They float over this page while you adjust them.</string>
+    <string name="settings_status_horizontal">Horizontal</string>
+    <string name="settings_status_vertical">Vertical</string>
+    <string name="settings_status_reset">Reset Position</string>
+    <string name="settings_status_show_in">Show in Apps</string>
+    <string name="settings_status_show_in_footer">Turn an app off if the symbols get in the way there. In that app Android\'s own status bar shows instead.</string>
     <string name="settings_statusbar_footer">Hides the Android status bar on the Home Screen and shows the launcher\'s own with the same information. Swipe down from the top to see Android\'s.</string>
     <string name="settings_statusbar_footer_duo">Hides the Android status bar on the Home Screen and shows compact status symbols above the Dock (a full bar in the normal style). Swipe down from the top to see Android\'s.</string>
     <string name="welcome_status_title">Status Bar</string>

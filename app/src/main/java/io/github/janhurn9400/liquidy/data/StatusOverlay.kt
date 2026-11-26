@@ -54,7 +54,43 @@ object StatusOverlay {
     var enabled by mutableStateOf(true)
         private set
 
-    fun load(c: Context) { enabled = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("on", true) }
+    /** User position offset on top of the default app pose (dp; + = right / down), Settings › Symbols over Apps. */
+    var offsetX by mutableStateOf(0f)
+        private set
+    var offsetY by mutableStateOf(0f)
+        private set
+    /** Packages where the symbols don't float (Android's own status bar shows there instead). */
+    var excluded by mutableStateOf<Set<String>>(emptySet())
+        private set
+    /** Settings page open: the symbols float over the launcher too, so the position sliders can be judged live. */
+    private var previewing by mutableStateOf(false)
+    /** True while the floating symbols preview over Liquidy's own settings (they then hide their own copy). */
+    val isPreviewing: Boolean get() = previewing && host != null && enabled
+
+    fun load(c: Context) {
+        val p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        enabled = p.getBoolean("on", true)
+        offsetX = p.getFloat("dx", 0f); offsetY = p.getFloat("dy", 0f)
+        excluded = p.getStringSet("excluded", emptySet()).orEmpty().toSet()
+    }
+
+    fun setOffset(c: Context, dx: Float, dy: Float) {
+        offsetX = dx.coerceIn(L.OFFSET_X_MIN, L.OFFSET_X_MAX); offsetY = dy.coerceIn(L.OFFSET_Y_MIN, L.OFFSET_Y_MAX)
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putFloat("dx", offsetX).putFloat("dy", offsetY).apply()
+        placeTouch()
+    }
+
+    fun setShownIn(c: Context, pkg: String, shown: Boolean) {
+        excluded = if (shown) excluded - pkg else excluded + pkg
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putStringSet("excluded", excluded).apply()
+        host?.let { update(it) }
+    }
+
+    fun setPreview(on: Boolean) {
+        if (previewing == on) return
+        previewing = on
+        host?.let { update(it) }
+    }
     fun set(c: Context, on: Boolean) {
         enabled = on
         c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("on", on).apply()
@@ -137,9 +173,13 @@ object StatusOverlay {
     }
 
     private fun update(s: AccessibilityService) {
-        androidIcons(active())
         val pkg = foreground
-        val show = active() && !home && pkg != null && pkg != "android"
+        val shownHere = pkg !in excluded
+        // in an app where the user turned the symbols off, Android's own status bar comes back
+        // the settings preview only counts while Liquidy itself is in front (the page stays composed in the background)
+        val preview = previewing && home
+        androidIcons(active() && (home || shownHere))
+        val show = active() && (preview || (!home && pkg != null && pkg != "android" && shownHere))
         if (show) { show(s); main.removeCallbacks(sampler); main.postDelayed(sampler, L.SAMPLE_DELAY_MS) } else hide()
     }
 
@@ -156,8 +196,8 @@ object StatusOverlay {
                     alpha = floatingAlpha
                     scaleX = L.SCALE; scaleY = L.SCALE
                     transformOrigin = TransformOrigin((L.WINDOW_W - L.COLUMN_FROM_RIGHT) / L.WINDOW_W, 0f)
-                    translationY = L.SHIFT_Y * d
-                    translationX = L.SHIFT_X * d
+                    translationY = (L.SHIFT_Y + offsetY) * d
+                    translationX = (L.SHIFT_X + offsetX) * d
                 }) {
                     DuoStatusSymbols(info, (L.WINDOW_W - L.COLUMN_FROM_RIGHT) * d, d, color)
                 }
@@ -253,7 +293,7 @@ object StatusOverlay {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.END
-            x = ((L.COLUMN_FROM_RIGHT - L.SHIFT_X - L.TOUCH_W / 2) * d).roundToInt()
+            x = touchX(d); y = touchY(d)
             layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             title = "Liquidy status symbols touch"
         }
@@ -263,6 +303,19 @@ object StatusOverlay {
             v.systemGestureExclusionRects = listOf(android.graphics.Rect(0, 0, v.width, v.height))
         }
         runCatching { wm.addView(t, lp); touch = t }
+    }
+
+    private fun touchX(d: Float) = ((L.COLUMN_FROM_RIGHT - L.SHIFT_X - offsetX - L.TOUCH_W / 2) * d).roundToInt()
+    private fun touchY(d: Float) = (offsetY.coerceAtLeast(0f) * d).roundToInt()
+
+    /** The touch area follows the user's position offset. */
+    private fun placeTouch() {
+        val t = touch ?: return
+        val s = host ?: return
+        val d = s.resources.displayMetrics.density
+        val lp = t.layoutParams as? WindowManager.LayoutParams ?: return
+        lp.x = touchX(d); lp.y = touchY(d)
+        runCatching { s.getSystemService(WindowManager::class.java).updateViewLayout(t, lp) }
     }
 
     /** One native-blur window covering [left, right) × full height; radius set per frame while the panel moves. */
@@ -312,7 +365,8 @@ object StatusOverlay {
                 val scope = androidx.compose.runtime.rememberCoroutineScope()
                 val m = androidx.compose.runtime.remember { ControlCenterModel(scope).also { it.duo = true; ccModel = it } }
                 ControlCenter(m, d, w, h, duo = true, unfolded = unfolded, statusColumnX = w - L.COLUMN_FROM_RIGHT * d,
-                    statusBase = color, statusStartScale = L.SCALE, statusStartShiftY = L.SHIFT_Y * d, statusStartShiftX = L.SHIFT_X * d)
+                    statusBase = color, statusStartScale = L.SCALE, statusStartShiftY = (L.SHIFT_Y + offsetY) * d,
+                    statusStartShiftX = (L.SHIFT_X + offsetX) * d)
                 androidx.compose.runtime.LaunchedEffect(m) {
                     // native blur follows the panel like the home screen's (T-CC.blur × progress), stepped per strip
                     launch {

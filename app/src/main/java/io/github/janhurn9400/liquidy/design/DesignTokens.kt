@@ -523,6 +523,12 @@ object StatusOverlayLayout {
     const val SCALE = 0.75f
     const val SHIFT_Y = -11f
     const val SHIFT_X = 6f
+    // user position offset range (dp) for Settings › Symbols over Apps — up only until the clock reaches the edge,
+    // right only until the ring reaches it
+    const val OFFSET_X_MIN = -60f
+    const val OFFSET_X_MAX = 18f
+    const val OFFSET_Y_MIN = -10f
+    const val OFFSET_Y_MAX = 60f
     // touch area over the (scaled) symbols that opens the Control Center — only this small spot blocks the app below
     const val TOUCH_W = 60f
     const val TOUCH_H = 72f

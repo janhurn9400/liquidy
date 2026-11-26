@@ -130,6 +130,14 @@
     <string name="settings_statusbar">Eigene Statusleiste</string>
     <string name="settings_status_over_apps">Symbole über Apps</string>
     <string name="settings_status_over_apps_service">Dienst einschalten</string>
+    <string name="settings_status_over_apps_footer">Die Statussymbole schweben oben rechts über anderen Apps, wie auf dem Homescreen. Zieh sie nach unten, um das Kontrollzentrum zu öffnen.</string>
+    <string name="settings_status_position">Position</string>
+    <string name="settings_status_position_footer">Verschiebe die Symbole, wenn sie in deinen Apps etwas verdecken. Solange du sie einstellst, schweben sie über dieser Seite.</string>
+    <string name="settings_status_horizontal">Horizontal</string>
+    <string name="settings_status_vertical">Vertikal</string>
+    <string name="settings_status_reset">Position zurücksetzen</string>
+    <string name="settings_status_show_in">In Apps anzeigen</string>
+    <string name="settings_status_show_in_footer">Schalte eine App aus, wenn die Symbole dort stören. In dieser App erscheint stattdessen die Statusleiste von Android.</string>
     <string name="settings_statusbar_footer">Blendet die Android-Statusleiste auf dem Home-Bildschirm aus und zeigt eine eigene mit denselben Infos. Wisch von oben zeigt die von Android.</string>
     <string name="settings_statusbar_footer_duo">Blendet die Android-Statusleiste auf dem Home-Bildschirm aus und zeigt kompakte Statussymbole über dem Dock (im normalen Stil eine ganze Leiste). Wisch von oben zeigt die von Android.</string>
     <string name="welcome_status_title">Statusleiste</string>

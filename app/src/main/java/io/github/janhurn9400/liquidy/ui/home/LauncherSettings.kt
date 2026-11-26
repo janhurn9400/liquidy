@@ -153,7 +153,8 @@ fun LauncherSettingsSheet(model: HomeModel, onClose: () -> Unit) {
                 if (duo && OwnStatusBar.enabled) {
                     val info by io.github.janhurn9400.liquidy.data.rememberStatusInfo()
                     // the Control Center takes over this status column while it is visible (one set of symbols, black → white)
-                    if (!model.control.visible) DuoStatusSymbols(info, (screenW - DUO_COLUMN_FROM_RIGHT) * density, density, Color.Black)
+                    if (!model.control.visible && !io.github.janhurn9400.liquidy.data.StatusOverlay.isPreviewing)
+                        DuoStatusSymbols(info, (screenW - DUO_COLUMN_FROM_RIGHT) * density, density, Color.Black)
                 }
                 val back = !wide && selected != null
                 val btnModifier = if (duo) Modifier.offset { IntOffset(((screenW - DUO_COLUMN_FROM_RIGHT - 22f) * density).roundToInt(), ((DUO_BUTTON_Y - 22f) * density).roundToInt()) }
@@ -254,6 +255,7 @@ private fun Detail(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolea
             when (sub) {
                 SubPage.IconPacks -> IconPackPage(categoryTitle(c)) { subPage = SubPage.None }
                 SubPage.Glass -> GlassPage(categoryTitle(c)) { subPage = SubPage.None }
+                SubPage.StatusOverApps -> StatusOverAppsPage(categoryTitle(c), model) { subPage = SubPage.None }
                 SubPage.Font -> FontPage(categoryTitle(c), model) { subPage = SubPage.None }
                 SubPage.Module -> ModulePage(categoryTitle(c), tick) { subPage = SubPage.None }
                 SubPage.Report -> ReportPage(categoryTitle(c), onClose = { subPage = SubPage.None; model.closeSettings() }) { subPage = SubPage.None }
@@ -330,8 +332,9 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                     if (FoldableStyle.duoStyle && OwnStatusBar.enabled) {
                         Divider()
                         val service = remember(tick) { io.github.janhurn9400.liquidy.data.PowerButtonService.enabled(context) }
-                        if (service) ToggleRow(stringResource(R.string.settings_status_over_apps), io.github.janhurn9400.liquidy.data.StatusOverlay.enabled) {
-                            io.github.janhurn9400.liquidy.data.StatusOverlay.set(context, it)
+                        if (service) LinkRow(stringResource(R.string.settings_status_over_apps),
+                            stringResource(if (io.github.janhurn9400.liquidy.data.StatusOverlay.enabled) R.string.stack_on else R.string.stack_off)) {
+                            openSub(SubPage.StatusOverApps)
                         } else LinkRow(stringResource(R.string.settings_status_over_apps), stringResource(R.string.settings_status_over_apps_service)) {
                             open(context, android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         }
@@ -835,7 +838,87 @@ private fun LinkRow(label: String, value: String? = null, onClick: () -> Unit) {
     }
 }
 
-private enum class SubPage { None, IconPacks, Glass, Font, Module, Report }
+private enum class SubPage { None, IconPacks, Glass, Font, Module, Report, StatusOverApps }
+
+/**
+ * Subpage "Symbols over Apps" (Duo): on/off, position sliders (the symbols float over this page meanwhile, so the
+ * position can be judged live) and a per-app list — where turned off, Android's own status bar shows instead.
+ */
+@Composable
+private fun StatusOverAppsPage(backLabel: String, model: HomeModel, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val noRipple = remember { MutableInteractionSource() }
+    val so = io.github.janhurn9400.liquidy.data.StatusOverlay
+    val lay = io.github.janhurn9400.liquidy.design.StatusOverlayLayout
+    androidx.compose.runtime.DisposableEffect(Unit) { so.setPreview(true); onDispose { so.setPreview(false) } }
+    // one row per app package (several launcher entries of one app share the setting)
+    val apps = remember(model.apps) {
+        model.apps.values.filter { it.component.packageName != context.packageName }
+            .distinctBy { it.component.packageName }.sortedBy { it.label.lowercase() }
+    }
+    androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        item {
+            Spacer(Modifier.height(TOP_PAD.dp))
+            Row(Modifier.clickable(noRipple, null, onClick = onBack).padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Canvas(Modifier.size(10.dp, 17.dp)) {
+                    val sw = 2.4.dp.toPx(); val c = Color(0xFF007AFF)
+                    drawLine(c, Offset(size.width * 0.9f, size.height * 0.05f), Offset(size.width * 0.1f, size.height * 0.5f), sw, StrokeCap.Round)
+                    drawLine(c, Offset(size.width * 0.1f, size.height * 0.5f), Offset(size.width * 0.9f, size.height * 0.95f), sw, StrokeCap.Round)
+                }
+                Spacer(Modifier.width(6.dp))
+                BasicText(backLabel, style = LABEL.copy(color = Color(0xFF007AFF)))
+            }
+            BasicText(stringResource(R.string.settings_status_over_apps), Modifier.padding(bottom = 18.dp),
+                style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 28.sp, color = Color.Black))
+            Section(null, footer = stringResource(R.string.settings_status_over_apps_footer)) {
+                ToggleRow(stringResource(R.string.settings_status_over_apps), so.enabled) { so.set(context, it) }
+            }
+            Section(stringResource(R.string.settings_status_position), footer = stringResource(R.string.settings_status_position_footer)) {
+                @Composable fun SliderRow(label: String, value: Float, min: Float, max: Float, set: (Float) -> Unit) {
+                    Row(Modifier.fillMaxWidth().height(ROW_H.dp).padding(start = 20.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        BasicText(label, Modifier.width(SLIDER_LABEL_W.dp), style = LABEL)
+                        io.github.janhurn9400.liquidy.ui.welcome.GlassSlider((value - min) / (max - min), { set(min + it * (max - min)) },
+                            Modifier.weight(1f))
+                    }
+                }
+                SliderRow(stringResource(R.string.settings_status_horizontal), so.offsetX, lay.OFFSET_X_MIN, lay.OFFSET_X_MAX) {
+                    so.setOffset(context, it, so.offsetY)
+                }
+                Divider()
+                SliderRow(stringResource(R.string.settings_status_vertical), so.offsetY, lay.OFFSET_Y_MIN, lay.OFFSET_Y_MAX) {
+                    so.setOffset(context, so.offsetX, it)
+                }
+                Divider()
+                LinkRow(stringResource(R.string.settings_status_reset)) { so.setOffset(context, 0f, 0f) }
+            }
+            BasicText(stringResource(R.string.settings_status_show_in), Modifier.padding(start = 20.dp, bottom = 8.dp),
+                style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = GREY))
+        }
+        // the app list as one white group, built from rows so it scrolls lazily
+        items(apps.size, key = { apps[it].component.packageName }) { i ->
+            val a = apps[i]
+            val shape = when {
+                apps.size == 1 -> RoundedCornerShape(GROUP_CORNER.dp)
+                i == 0 -> RoundedCornerShape(topStart = GROUP_CORNER.dp, topEnd = GROUP_CORNER.dp)
+                i == apps.lastIndex -> RoundedCornerShape(bottomStart = GROUP_CORNER.dp, bottomEnd = GROUP_CORNER.dp)
+                else -> RoundedCornerShape(0.dp)
+            }
+            Column(Modifier.fillMaxWidth().clip(shape).background(Color.White)) {
+                Row(Modifier.fillMaxWidth().height(ROW_H.dp).padding(start = 16.dp, end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.foundation.Image(a.icon, null, Modifier.size(APP_ROW_ICON.dp))
+                    Spacer(Modifier.width(12.dp))
+                    BasicText(a.label, Modifier.weight(1f), style = LABEL, maxLines = 1)
+                    GlassToggle(a.component.packageName !in so.excluded, { so.setShownIn(context, a.component.packageName, it) })
+                }
+                if (i != apps.lastIndex) Divider(start = 16f + APP_ROW_ICON + 12f)
+            }
+        }
+        item {
+            BasicText(stringResource(R.string.settings_status_show_in_footer), Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 40.dp),
+                style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = GREY))
+        }
+    }
+}
 
 /**
  * Subpage "Liquid Glass" like iOS (Settings › Appearance › Liquid Glass, user screenshot 10-14): preview card
@@ -1179,6 +1262,8 @@ private const val SIDEBAR_MAX = 320f
 private const val SIDEBAR_SHARE = 0.34f
 private const val DUO_RIGHT_ROOM = 85f        // content ends 85 pt before the right edge (866 of 951)
 private const val DUO_COLUMN_FROM_RIGHT = 47f
+private const val SLIDER_LABEL_W = 96f   // label column in the position slider rows
+private const val APP_ROW_ICON = 30f     // app icon in the per-app list
 private const val DUO_BUTTON_Y = 190f
 private const val TOP_PAD = 34f
 private const val SHIZUKU_URL = "https://shizuku.rikka.app/download/"
