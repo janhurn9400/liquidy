@@ -115,7 +115,10 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     val over = Animatable(0f)
     var open by mutableStateOf(false)
         private set
-    val visible: Boolean get() = open || progress.value > 0.001f
+    /** Duo: also while the status column still converges into the ring after closing (M-CC-UNFOLD is slower than the
+     *  close spring) — stopping earlier cut that animation off and the symbols jumped to their end pose (flicker). */
+    val visible: Boolean get() = open || progress.value > 0.001f ||
+        (duo && (unfold.isRunning || kotlin.math.abs(unfold.value) > 0.001f))
 
     var expanded by mutableStateOf<CcExpand?>(null)
         private set

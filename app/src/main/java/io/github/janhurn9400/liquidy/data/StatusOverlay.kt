@@ -333,7 +333,10 @@ object StatusOverlay {
                     main.post { if (ccView != null) view?.visibility = android.view.View.INVISIBLE }
                     // closing: bring the floating symbols back just before the panel stops drawing — at this progress
                     // both stand in the same pose and colour on top of each other
-                    androidx.compose.runtime.snapshotFlow { !m.open && m.progress.value < L.HANDBACK_PROGRESS }.first { it }
+                    androidx.compose.runtime.snapshotFlow {
+                        !m.open && m.progress.value < L.HANDBACK_PROGRESS &&
+                            kotlin.math.abs(m.unfold.value) < L.HANDBACK_PROGRESS && kotlin.math.abs(m.unfold.velocity) < L.HANDBACK_VELOCITY
+                    }.first { it }
                     main.post { view?.visibility = android.view.View.VISIBLE }
                     androidx.compose.runtime.snapshotFlow { m.visible }.first { !it }
                     main.post { closeCc() }

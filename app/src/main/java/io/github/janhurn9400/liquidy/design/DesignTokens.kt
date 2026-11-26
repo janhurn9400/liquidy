@@ -532,6 +532,8 @@ object StatusOverlayLayout {
     const val OPEN_AFTER_CANCEL_MS = 40L
     // closing: below this panel progress the floating symbols take over again (poses are identical there)
     const val HANDBACK_PROGRESS = 0.03f
+    // …and the status column has (almost) finished converging into the ring (unfold, per s)
+    const val HANDBACK_VELOCITY = 0.5f
     // luminance (0…1) of the app content behind the symbols above which they turn black
     const val LIGHT_BACKDROP = 0.6f
     // first sample after an app change, once its window has drawn (ms) [ESTIMATED]
