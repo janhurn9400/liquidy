@@ -154,11 +154,43 @@ object StatusOverlay {
 
     private var home = false
 
+    /**
+     * Who draws the Duo symbols on the home screen: the launcher (true) or — while an app opens or closes — the floating
+     * window, which carries them between the home pose and the smaller app pose (M-APP-OPEN / M-HOME-RETURN), so
+     * the two sets are never on screen at once. The launcher hides its own while false.
+     */
+    var homeOwnsSymbols by mutableStateOf(true)
+        private set
+    /** Floating symbols pose: 0 = home screen pose (full size, measured spot), 1 = app pose (SCALE, SHIFT, user offset). */
+    private var poseTarget by mutableStateOf(1f)
+    private var leavingHome = false
+    private var returning = false
+
     /** MainActivity resumed / paused: the launcher draws its own symbols (more reliable than window events — Liquidy's
      *  own app launch transition also reports window changes under its package). */
     fun homeVisible(on: Boolean) {
         home = on
-        host?.let { update(it) }
+        val s = host ?: run { homeOwnsSymbols = true; return }
+        if (on && view != null && floatingAlpha > 0f && !previewing) {
+            // back home: grow into the home pose first, then the launcher takes over (onArrivedHome)
+            returning = true; poseTarget = 0f
+            color = Color.White // fades to the launcher's white while growing back
+            main.removeCallbacks(sampler)
+            return
+        }
+        // leaving home: the next app's window event comes later — assume an app (excluded ones hide again on their event)
+        if (!on) { returning = false; leavingHome = true; foreground = UNKNOWN_APP }
+        update(s)
+        if (on) homeOwnsSymbols = true
+    }
+
+    /** The floating symbols reached the home pose: the launcher draws them again, the floating window can go. */
+    private fun onArrivedHome() {
+        if (!returning) return
+        returning = false
+        homeOwnsSymbols = true
+        // two frames for the launcher to draw its own, then remove ours (no frame without symbols)
+        main.postDelayed({ if (home) host?.let { update(it) } }, L.HANDOVER_MS)
     }
 
     /** From TYPE_WINDOW_STATE_CHANGED: the package now in front. */
@@ -173,6 +205,7 @@ object StatusOverlay {
     }
 
     private fun update(s: AccessibilityService) {
+        if (home && returning) return // growing back into the home pose; onArrivedHome decides afterwards
         val pkg = foreground
         val shownHere = pkg !in excluded
         // in an app where the user turned the symbols off, Android's own status bar comes back
@@ -184,7 +217,11 @@ object StatusOverlay {
     }
 
     private fun show(s: AccessibilityService) {
-        if (view != null) return
+        if (view != null) { if (leavingHome) { leavingHome = false; poseTarget = 1f; homeOwnsSymbols = false }; return }
+        val fromHome = leavingHome && !previewing
+        leavingHome = false
+        poseTarget = if (fromHome) 0f else 1f
+        if (fromHome) color = Color.White // the launcher's Duo symbols are white
         val wm = s.getSystemService(WindowManager::class.java)
         val d = s.resources.displayMetrics.density
         val o = OverlayOwner().also { owner = it; it.start() }
@@ -192,14 +229,31 @@ object StatusOverlay {
             setViewTreeLifecycleOwner(o); setViewTreeSavedStateRegistryOwner(o)
             setContent {
                 val info by rememberStatusInfo()
+                val pose = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(poseTarget) }
+                androidx.compose.runtime.LaunchedEffect(poseTarget) {
+                    if (poseTarget == 1f && pose.value < 1f) {
+                        // leaving home: first a frame in the home pose on top of the launcher's, then the launcher lets go
+                        androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { }
+                        homeOwnsSymbols = false
+                        pose.animateTo(1f, io.github.janhurn9400.liquidy.motion.Motion.appOpen.spec())
+                    } else if (poseTarget == 0f && returning) {
+                        pose.animateTo(0f, io.github.janhurn9400.liquidy.motion.Motion.homeReturn.spec())
+                        onArrivedHome()
+                    } else pose.snapTo(poseTarget)
+                }
+                // leaving home: hand over in the home pose, then go small
+                androidx.compose.runtime.LaunchedEffect(Unit) { if (poseTarget == 0f && !returning) poseTarget = 1f }
+                val tint by androidx.compose.animation.animateColorAsState(color, label = "symbolColor")
                 Box(Modifier.fillMaxSize().graphicsLayer {
                     alpha = floatingAlpha
-                    scaleX = L.SCALE; scaleY = L.SCALE
+                    val t = pose.value
+                    val sc = 1f + (L.SCALE - 1f) * t
+                    scaleX = sc; scaleY = sc
                     transformOrigin = TransformOrigin((L.WINDOW_W - L.COLUMN_FROM_RIGHT) / L.WINDOW_W, 0f)
-                    translationY = (L.SHIFT_Y + offsetY) * d
-                    translationX = (L.SHIFT_X + offsetX) * d
+                    translationY = (L.SHIFT_Y + offsetY) * d * t
+                    translationX = (L.SHIFT_X + offsetX) * d * t
                 }) {
-                    DuoStatusSymbols(info, (L.WINDOW_W - L.COLUMN_FROM_RIGHT) * d, d, color)
+                    DuoStatusSymbols(info, (L.WINDOW_W - L.COLUMN_FROM_RIGHT) * d, d, tint)
                 }
             }
         }

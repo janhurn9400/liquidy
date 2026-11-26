@@ -620,9 +620,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
-        io.github.janhurn9400.liquidy.data.StatusOverlay.homeVisible(false)
         // paused by another app (not by the screen going off or the keyguard)
-        if (power.isInteractive && !keyguard.isKeyguardLocked) homeOnTop = false
+        if (power.isInteractive && !keyguard.isKeyguardLocked) {
+            homeOnTop = false
+            io.github.janhurn9400.liquidy.data.StatusOverlay.homeVisible(false)
+        }
         if (::repository.isInitialized) Tunables.save(this) // not after forwarding (nothing initialised)
     }
 

@@ -549,6 +549,8 @@ object StatusOverlayLayout {
     const val HANDBACK_PROGRESS = 0.03f
     // …and the status column has (almost) finished converging into the ring (unfold, per s)
     const val HANDBACK_VELOCITY = 0.5f
+    // back home: time for the launcher to draw its own symbols before the floating ones go (ms, ≈ 2 frames)
+    const val HANDOVER_MS = 40L
     // luminance (0…1) of the app content behind the symbols above which they turn black
     const val LIGHT_BACKDROP = 0.6f
     // first sample after an app change, once its window has drawn (ms) [ESTIMATED]

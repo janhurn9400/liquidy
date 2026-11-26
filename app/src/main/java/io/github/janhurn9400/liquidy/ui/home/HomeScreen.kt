@@ -1537,7 +1537,9 @@ fun HomeScreen(
                 val folder = ((model.openFolder?.progress?.value ?: 0f) / 0.3f).coerceIn(0f, 1f)
                 alpha = (1f - folder) * (if (geo.duo) 1f else 1f - model.searchOpenAmount.value.coerceIn(0f, 1f)) *
                     // the Control Center has its own status row; on the Duo it takes over the status column (drawn there)
-                    (if (geo.duo) (if (model.control.visible) 0f else 1f) else 1f - model.control.progress.value.coerceIn(0f, 1f))
+                    (if (geo.duo) (if (model.control.visible) 0f else 1f) else 1f - model.control.progress.value.coerceIn(0f, 1f)) *
+                    // app open/close: the floating symbols (data/StatusOverlay) carry them from/to the app pose meanwhile
+                    (if (geo.duo && !io.github.janhurn9400.liquidy.data.StatusOverlay.homeOwnsSymbols) 0f else 1f)
             }) {
                 if (geo.duo) DuoStatusSymbols(info, w - DUO_STATUS_FROM_RIGHT * density, density, color)
                 else IosStatusBar(info, statusBarPx.takeIf { it > 0f } ?: (IOS_STATUS_H * density), density, color)
