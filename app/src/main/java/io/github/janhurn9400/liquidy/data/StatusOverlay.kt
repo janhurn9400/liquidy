@@ -48,6 +48,7 @@ import kotlinx.coroutines.launch
 object StatusOverlay {
     private const val PREFS = "status_overlay"
     private const val UNKNOWN_APP = "?"
+    private const val OPEN_ON_CANCEL = Float.MAX_VALUE // marker: Android took the pull over → open on the spring
 
     /** User setting (Settings › Appearance › Status Bar, Duo only). */
     var enabled by mutableStateOf(true)
@@ -86,18 +87,29 @@ object StatusOverlay {
     private fun active() = enabled && FoldableStyle.duoStyle && OwnStatusBar.enabled
 
     private var iconsHidden: Boolean? = null
+    private var expandBlocked = false
+    private var flagsSent: String? = null
 
     /**
      * Android's own status icons (clock, notifications, Wi-Fi, battery) would sit right next to ours: hide them all with
      * StatusBarManager disable flags via `cmd statusbar` — allowed for the shell user, so root or Shizuku (tested in the
      * emulator; an icon_blacklist or tint overlay left the battery / did nothing). Without either they stay.
+     * While our Control Center is pulled or open, Android's shade must not expand too: its top-edge gesture reads the
+     * same finger (both panels opened at once in the emulator) → statusbar-expansion is blocked meanwhile.
      */
-    private fun androidIcons(hide: Boolean) {
-        if (iconsHidden == hide) return
+    private fun androidIcons(hide: Boolean) { iconsHidden = hide; sendFlags() }
+
+    private fun blockExpand(on: Boolean) { if (expandBlocked != on) { expandBlocked = on; sendFlags() } }
+
+    private fun sendFlags() {
+        val flags = buildList {
+            if (iconsHidden == true) addAll(listOf("clock", "notification-icons", "system-icons"))
+            if (expandBlocked) add("statusbar-expansion")
+        }.joinToString(" ").ifEmpty { "none" }
+        if (flags == flagsSent) return
         // remembered only once it worked: right after boot the Shizuku binder / root probe may not be there yet
         Thread {
-            val ok = Privileged.run("cmd statusbar send-disable-flag " + if (hide) "clock notification-icons system-icons" else "none")
-            if (ok) main.post { iconsHidden = hide }
+            if (Privileged.run("cmd statusbar send-disable-flag $flags")) main.post { flagsSent = flags }
         }.start()
     }
 
@@ -179,14 +191,53 @@ object StatusOverlay {
     private var ccView: ComposeView? = null
     private var ccOwner: OverlayOwner? = null
     private var blurWindows: List<android.app.Dialog> = emptyList()
+    private var ccModel: ControlCenterModel? = null
+    private var pullPt = 0f
+    private var pendingRelease: Float? = null
 
     private fun showTouch(s: AccessibilityService) {
         if (touch != null) return
         val wm = s.getSystemService(WindowManager::class.java)
         val d = s.resources.displayMetrics.density
         val t = android.view.View(s)
+        // like the home screen's status column: a tap opens, a pull down follows the finger and opens/closes on release
+        val slop = android.view.ViewConfiguration.get(s).scaledTouchSlop
+        val screenPt = s.getSystemService(WindowManager::class.java).currentWindowMetrics.bounds.height() / d
+        var downY = 0f; var pulling = false
+        var tracker: android.view.VelocityTracker? = null
         t.setOnTouchListener { _, ev ->
-            if (ev.actionMasked == android.view.MotionEvent.ACTION_UP) openCc(s)
+            when (ev.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    downY = ev.rawY; pulling = false
+                    blockExpand(true)
+                    tracker?.recycle(); tracker = android.view.VelocityTracker.obtain().also { it.addMovement(ev) }
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    tracker?.addMovement(ev)
+                    val dy = ev.rawY - downY
+                    if (!pulling && dy > slop) { pulling = true; openCc(s, tap = false) }
+                    if (pulling) { pullPt = (dy - slop).coerceAtLeast(0f) / d; ccModel?.pull(pullPt, screenPt) }
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    tracker?.addMovement(ev)
+                    if (pulling && ev.actionMasked == android.view.MotionEvent.ACTION_CANCEL) {
+                        // a pull that starts inside the status bar zone is taken over by Android's own top-edge gesture
+                        // after a few frames (measured: from the clock it cancels, from the ring it doesn't) — the user
+                        // clearly pulled down, so finish opening on the panel's own spring
+                        // after the finger's queued snaps (they run on the next frame and would cut the spring short)
+                        if (ccModel != null) main.postDelayed({ ccModel?.show() }, L.OPEN_AFTER_CANCEL_MS)
+                        else pendingRelease = OPEN_ON_CANCEL
+                    } else if (pulling) {
+                        tracker?.computeCurrentVelocity(1000)
+                        val v = (tracker?.yVelocity ?: 0f) / d
+                        ccModel?.release(v) ?: run { pendingRelease = v }
+                        // pulled too little to show anything: nothing will ever become visible → close it again
+                        main.postDelayed({ if (ccModel?.visible == false) closeCc() }, L.CLOSE_CHECK_MS)
+                    } else if (ev.actionMasked == android.view.MotionEvent.ACTION_UP) openCc(s, tap = true)
+                    else blockExpand(false)
+                    tracker?.recycle(); tracker = null; pulling = false
+                }
+            }
             true
         }
         val lp = WindowManager.LayoutParams(
@@ -200,6 +251,11 @@ object StatusOverlay {
             x = ((L.COLUMN_FROM_RIGHT - L.TOUCH_W / 2) * d).roundToInt()
             layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             title = "Liquidy status symbols touch"
+        }
+        // the symbols sit inside Android's right-edge back-gesture zone: without an exclusion the back gesture steals the
+        // pull after a few frames (ACTION_CANCEL, measured in the emulator)
+        t.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
+            v.systemGestureExclusionRects = listOf(android.graphics.Rect(0, 0, v.width, v.height))
         }
         runCatching { wm.addView(t, lp); touch = t }
     }
@@ -226,7 +282,7 @@ object StatusOverlay {
         dlg
     }.getOrNull()
 
-    private fun openCc(s: AccessibilityService) {
+    private fun openCc(s: AccessibilityService, tap: Boolean) {
         if (ccView != null) return
         val wm = s.getSystemService(WindowManager::class.java)
         val bounds = wm.currentWindowMetrics.bounds
@@ -249,9 +305,9 @@ object StatusOverlay {
             setContent {
                 // the model's springs need the composition's frame clock
                 val scope = androidx.compose.runtime.rememberCoroutineScope()
-                val m = androidx.compose.runtime.remember { ControlCenterModel(scope).also { it.duo = true } }
+                val m = androidx.compose.runtime.remember { ControlCenterModel(scope).also { it.duo = true; ccModel = it } }
                 ControlCenter(m, d, w, h, duo = true, unfolded = unfolded, statusColumnX = w - L.COLUMN_FROM_RIGHT * d,
-                    statusBase = color)
+                    statusBase = color, statusStartScale = L.SCALE, statusStartShiftY = L.SHIFT_Y * d)
                 androidx.compose.runtime.LaunchedEffect(m) {
                     // native blur follows the panel like the home screen's (T-CC.blur × progress), stepped per strip
                     launch {
@@ -263,7 +319,14 @@ object StatusOverlay {
                             }
                         }
                     }
-                    m.show()
+                    // tap: open; pull: the finger already moved before the first frame — catch up, or finish a quick flick
+                    when {
+                        tap -> m.show()
+                        pendingRelease == OPEN_ON_CANCEL -> { m.pull(pullPt, h / d); m.show(); pendingRelease = null }
+                        pendingRelease != null -> { m.pull(pullPt, h / d); m.release(pendingRelease ?: 0f); pendingRelease = null }
+                        else -> m.pull(pullPt, h / d)
+                    }
+                    androidx.compose.runtime.snapshotFlow { m.visible }.first { it }
                     androidx.compose.runtime.snapshotFlow { m.visible }.first { !it }
                     main.post { closeCc() }
                 }
@@ -289,8 +352,9 @@ object StatusOverlay {
     private fun closeCc() {
         val v = ccView ?: return
         runCatching { host?.getSystemService(WindowManager::class.java)?.removeView(v) }
-        ccOwner?.stop(); ccOwner = null; ccView = null
+        ccOwner?.stop(); ccOwner = null; ccView = null; ccModel = null; pendingRelease = null
         dropBlur()
+        blockExpand(false)
         view?.visibility = android.view.View.VISIBLE
     }
 

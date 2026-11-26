@@ -526,6 +526,10 @@ object StatusOverlayLayout {
     const val TOUCH_H = 72f
     // Duo unfolded: native blur strips from the hinge (radius steps up per strip, T-CC.duoBlurFeather wide)
     const val BLUR_STEPS = 4
+    // a pull too short to show the panel: close its window again after this long (ms)
+    const val CLOSE_CHECK_MS = 600L
+    // Android took over a pull from the status bar zone: open on the spring after the queued finger snaps (≈ 2 frames)
+    const val OPEN_AFTER_CANCEL_MS = 40L
     // luminance (0…1) of the app content behind the symbols above which they turn black
     const val LIGHT_BACKDROP = 0.6f
     // first sample after an app change, once its window has drawn (ms) [ESTIMATED]
