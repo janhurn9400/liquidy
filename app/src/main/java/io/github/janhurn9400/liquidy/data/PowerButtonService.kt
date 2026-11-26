@@ -5,15 +5,18 @@ import android.content.Context
 import android.view.accessibility.AccessibilityEvent
 
 /**
- * Optional accessibility service, used for exactly one thing: opening Android's power menu from the Control Center's
- * power button on phones without root or Shizuku (GLOBAL_ACTION_POWER_DIALOG). It reads no screen content and
- * receives no events (see res/xml/power_button_service.xml).
+ * Optional accessibility service: opens Android's power menu from the Control Center's power button on phones without
+ * root or Shizuku (GLOBAL_ACTION_POWER_DIALOG), and in Duo style draws the status symbols over other apps
+ * ([StatusOverlay]). It reads no window content; it only gets the package name of the app in front and may take a
+ * screenshot to measure the brightness behind the symbols (see res/xml/power_button_service.xml).
  */
 class PowerButtonService : AccessibilityService() {
-    override fun onServiceConnected() { instance = this }
-    override fun onUnbind(intent: android.content.Intent?): Boolean { instance = null; return super.onUnbind(intent) }
-    override fun onDestroy() { instance = null; super.onDestroy() }
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onServiceConnected() { instance = this; StatusOverlay.attach(this) }
+    override fun onUnbind(intent: android.content.Intent?): Boolean { StatusOverlay.detach(); instance = null; return super.onUnbind(intent) }
+    override fun onDestroy() { StatusOverlay.detach(); instance = null; super.onDestroy() }
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) StatusOverlay.onForeground(event.packageName?.toString())
+    }
     override fun onInterrupt() {}
 
     companion object {

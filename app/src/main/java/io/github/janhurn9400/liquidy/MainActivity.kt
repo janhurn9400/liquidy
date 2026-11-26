@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
         io.github.janhurn9400.liquidy.data.Haptics.load(this)
         io.github.janhurn9400.liquidy.data.FoldableStyle.load(this)
         io.github.janhurn9400.liquidy.data.OwnStatusBar.load(this)
+        io.github.janhurn9400.liquidy.data.StatusOverlay.load(this)
         io.github.janhurn9400.liquidy.glass.GlassClarity.load(this)
         io.github.janhurn9400.liquidy.data.FontChoice.load(this)
         io.github.janhurn9400.liquidy.data.ShizukuShell.init(this)
@@ -424,6 +425,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         homeOnTop = true
+        io.github.janhurn9400.liquidy.data.StatusOverlay.homeVisible(true)
         resumedAt = android.os.SystemClock.uptimeMillis()
         log("resume armed=$unlockArmed locked=${keyguard.isKeyguardLocked}")
         startUnlockPoll()
@@ -618,6 +620,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        io.github.janhurn9400.liquidy.data.StatusOverlay.homeVisible(false)
         // paused by another app (not by the screen going off or the keyguard)
         if (power.isInteractive && !keyguard.isKeyguardLocked) homeOnTop = false
         if (::repository.isInitialized) Tunables.save(this) // not after forwarding (nothing initialised)

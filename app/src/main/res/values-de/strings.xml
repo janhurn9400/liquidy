@@ -128,6 +128,8 @@
     <string name="settings_version">Version</string>
     <string name="settings_build">Build</string>
     <string name="settings_statusbar">Eigene Statusleiste</string>
+    <string name="settings_status_over_apps">Symbole über Apps</string>
+    <string name="settings_status_over_apps_service">Dienst einschalten</string>
     <string name="settings_statusbar_footer">Blendet die Android-Statusleiste auf dem Home-Bildschirm aus und zeigt eine eigene mit denselben Infos. Wisch von oben zeigt die von Android.</string>
     <string name="settings_statusbar_footer_duo">Blendet die Android-Statusleiste auf dem Home-Bildschirm aus und zeigt kompakte Statussymbole über dem Dock (im normalen Stil eine ganze Leiste). Wisch von oben zeigt die von Android.</string>
     <string name="welcome_status_title">Statusleiste</string>
@@ -354,9 +356,9 @@
     <string name="settings_font_footer">Hinzugefügte Schriften (.ttf oder .otf) bleiben auf diesem Gerät. Verwende nur Schriften, die du nutzen darfst.</string>
     <string name="settings_font_bad_file">Diese Datei ließ sich nicht als Schrift laden</string>
     <string name="cc_power_needs_access">Um das Ausschaltmenü ohne Root zu öffnen, schalte den Liquidy-Dienst für die Ein/Aus-Taste ein</string>
-    <string name="power_service_label">Liquidy Ein/Aus-Taste</string>
-    <string name="power_service_summary">Öffnet das Ausschaltmenü aus dem Kontrollzentrum</string>
-    <string name="power_service_description">Damit die Ein/Aus-Taste im Kontrollzentrum von Liquidy das Ausschaltmenü von Android öffnen kann. Der Dienst macht sonst nichts: Er liest keine Bildschirminhalte und empfängt keine Ereignisse.</string>
+    <string name="power_service_label">Liquidy Ein/Aus-Taste &amp; Statussymbole</string>
+    <string name="power_service_summary">Öffnet das Ausschaltmenü aus dem Kontrollzentrum und zeigt die Duo-Statussymbole über Apps</string>
+    <string name="power_service_description">Damit die Ein/Aus-Taste im Kontrollzentrum von Liquidy das Ausschaltmenü von Android öffnen kann und im Duo-Stil die Statussymbole über anderen Apps erscheinen. Der Dienst liest keine Bildschirminhalte: Er erfährt nur, welche App vorne ist (um die Symbole über dem Homescreen und der Tastatur auszublenden), und misst die Helligkeit hinter den Symbolen, um sie schwarz oder weiß zu zeichnen. Nichts wird gespeichert oder gesendet.</string>
     <string name="settings_sec_switches">Kontrollzentrum</string>
     <string name="settings_switches">Systemschalter</string>
     <string name="settings_switches_why">WLAN, Bluetooth, Mobile Daten, Flugmodus, Dunkelmodus, Energiesparen … Android lässt diese nur Apps mit Root oder Shizuku schalten; ohne öffnet ein Tippen Androids eigenes Panel oder die passende Einstellung.</string>

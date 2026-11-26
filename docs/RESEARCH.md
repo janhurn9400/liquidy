@@ -281,3 +281,19 @@ Please check on the iPhone Duo: the module contents (the simulator renders only 
 |---|---|---|
 | M-CC-RESIZE | dragging a module's handle: the tile follows the finger continuously (sizes round 1×1, wide 2×1, tall 1×2, large 2×2); the glyph never moves or scales (centred in the top-left cell, no circle of its own); the corners morph from circle/capsule to the rounded square; the text is set for the nearest size and blurred by the distance to it (sharp on a size, strongest halfway); past 1×1 / 2×2 only a small glass-like overshoot (≤ 10 pt); on release it springs to the size | [MEASURED] 4.4–7.0 s; overshoot and blur strength [ESTIMATED] |
 | M-CC-PAGE | what doesn't fit flows onto further pages (6 rows each); vertical swipe inside the grid turns pages, the next page slides in carrying the flick: response 0.59 s, ζ 0.95 (≈ 10 pt overshoot); adding a control to a full page shows the page it landed on; while a module is resized the other modules' − badges and handles fade out. Modules do NOT move as one sheet (M-CC-PAGE-STAGGER): every row tracked — mid-flight ≈ 9 pt spread per row, the leading row (direction of travel) arrives first and overshoots 26 pt, the trailing one 7 pt (after release every row runs its own spring to the target page carrying its velocity — fitted: leading 0.46 s / ζ 0.66, trailing 0.5 s / ζ 0.8 → 27 / 6 pt overshoot, 47 pt spread; while dragging rows chase the finger on 0.2 s / ζ 0.6 → 0.32 s / ζ 0.9); at speed each module stretches along the motion (+6.6 % height / −8 % width, M-CC-PAGE-STRETCH) | [MEASURED] user's iPhone 11-26 18:20 (20.8 s @ 60 fps, rms 2.4 pt) |
+
+## Status symbols over apps (Duo, tested in the emulator 2026-11-26)
+- Goal: the Duo clock + ring stay at their home-screen spot while another app is in front, the app stays full screen.
+- Android cannot keep only a region free for apps: insets always cover a whole screen edge. Tested with display-cutout
+  resources (root, `cmd overlay fabricate` / an RRO in /product/overlay):
+  - right-edge cutout (`@right @bind_right_cutout` + `config_mainBuiltInDisplayCutoutSideOverride`): apps get a
+    full-height right inset; edge-to-edge apps pad their content, older ones (Chrome) get a black strip — even with
+    `am compat enable ENFORCE_EDGE_TO_EDGE`.
+  - top-right cutout no taller than the status bar (156 px here): only the Android status icons move left, apps unchanged.
+  - top-right cutout as tall as the ring (≈ 290 px): Chrome gets a black band across the full width, Settings ignores it.
+  - `config_mainBuiltInDisplayCutoutRectApproximation` (string) can be fabricated at runtime by root; the side override
+    (array) cannot. SystemUI keeps drawing a filled emulated cutout until it restarts.
+- Chosen: the symbols float over the app as an accessibility overlay (data/StatusOverlay, no root), black or white from
+  the brightness behind them (AccessibilityService.takeScreenshot, sampled every 3 s).
+- Android's own status icons: `settings put secure icon_blacklist …` (needs WRITE_SECURE_SETTINGS) hides Wi-Fi and
+  cellular on Android 17, but not the battery and not the clock.

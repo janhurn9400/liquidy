@@ -128,6 +128,8 @@
     <string name="settings_version">Version</string>
     <string name="settings_build">Build</string>
     <string name="settings_statusbar">Custom Status Bar</string>
+    <string name="settings_status_over_apps">Symbols over Apps</string>
+    <string name="settings_status_over_apps_service">Turn On Service</string>
     <string name="settings_statusbar_footer">Hides the Android status bar on the Home Screen and shows the launcher\'s own with the same information. Swipe down from the top to see Android\'s.</string>
     <string name="settings_statusbar_footer_duo">Hides the Android status bar on the Home Screen and shows compact status symbols above the Dock (a full bar in the normal style). Swipe down from the top to see Android\'s.</string>
     <string name="welcome_status_title">Status Bar</string>
@@ -354,9 +356,9 @@
     <string name="settings_font_footer">Added fonts (.ttf or .otf) stay on this device. Only use fonts you have the right to use.</string>
     <string name="settings_font_bad_file">This file couldn\'t be loaded as a font</string>
     <string name="cc_power_needs_access">To open the power menu without root, turn on Liquidy\'s power button service</string>
-    <string name="power_service_label">Liquidy Power Button</string>
-    <string name="power_service_summary">Opens the power menu from the Control Center</string>
-    <string name="power_service_description">Lets the power button in Liquidy\'s Control Center open Android\'s power menu. The service does nothing else: it reads no screen content and receives no events.</string>
+    <string name="power_service_label">Liquidy Power Button &amp; Status Symbols</string>
+    <string name="power_service_summary">Opens the power menu from the Control Center and shows the Duo status symbols over apps</string>
+    <string name="power_service_description">Lets the power button in Liquidy\'s Control Center open Android\'s power menu, and in Duo style shows the status symbols over other apps. The service reads no screen content: it only learns which app is in front (to hide the symbols over the home screen and the keyboard) and looks at the brightness behind the symbols to draw them black or white. Nothing is stored or sent.</string>
     <string name="settings_sec_switches">Control Center</string>
     <string name="settings_switches">System Switches</string>
     <string name="settings_switches_why">Wi-Fi, Bluetooth, mobile data, airplane mode, dark mode, battery saver … Android only lets apps with root or Shizuku switch these; without, a tap opens Android\'s own panel or settings page.</string>

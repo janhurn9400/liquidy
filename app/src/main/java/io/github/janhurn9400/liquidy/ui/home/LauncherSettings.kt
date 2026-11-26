@@ -326,6 +326,16 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                 Section(stringResource(R.string.settings_sec_statusbar),
                     footer = stringResource(if (FoldableStyle.duoStyle) R.string.settings_statusbar_footer_duo else R.string.settings_statusbar_footer)) {
                     ToggleRow(stringResource(R.string.settings_statusbar), OwnStatusBar.enabled) { OwnStatusBar.set(context, it) }
+                    // Duo: the status symbols also float over other apps (accessibility overlay, data/StatusOverlay)
+                    if (FoldableStyle.duoStyle && OwnStatusBar.enabled) {
+                        Divider()
+                        val service = remember(tick) { io.github.janhurn9400.liquidy.data.PowerButtonService.enabled(context) }
+                        if (service) ToggleRow(stringResource(R.string.settings_status_over_apps), io.github.janhurn9400.liquidy.data.StatusOverlay.enabled) {
+                            io.github.janhurn9400.liquidy.data.StatusOverlay.set(context, it)
+                        } else LinkRow(stringResource(R.string.settings_status_over_apps), stringResource(R.string.settings_status_over_apps_service)) {
+                            open(context, android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        }
+                    }
                 }
             }
             Category.HomeScreen -> {
