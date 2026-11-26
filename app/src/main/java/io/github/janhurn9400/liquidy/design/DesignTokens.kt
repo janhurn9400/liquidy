@@ -348,6 +348,13 @@ object DesignTokens {
     val wpeSliderX = dpToken("T-WPE-SHEET.sliderX", "Slider left", "Wallpaper", 41.8f, 10f, 80f)
     val wpeSliderH = dpToken("T-WPE-SHEET.sliderH", "Slider track height", "Wallpaper", 14.5f, 4f, 24f)
     val wpeThumb = dpToken("T-WPE-SHEET.thumb", "Slider thumb", "Wallpaper", 32f, 20f, 44f)
+
+    // T-SWIPE — swipe to delete in lists [MEASURED user's iPhone recording 11-26, Messages, 3 px/pt, 30 fps]:
+    // round red button 49.3 pt (148 px) grows from a dot as the row slides, right inset 10.7 pt (32 px); pulled further it
+    // stretches into a capsule; past the full-swipe point it snaps to the full row width (left edge 87 pt from the screen)
+    val swipeButton = dpToken("T-SWIPE.button", "Swipe action: button diameter", "Lists", 49.3f, 30f, 60f)
+    val swipeInset = dpToken("T-SWIPE.inset", "Swipe action: inset from the row end", "Lists", 10.7f, 0f, 24f)
+    val swipeFullAt = tunable("T-SWIPE.fullAt", "Full swipe from this share of the row width", "Lists", 0.6f, 0.3f, 0.9f) // red 568 → snap, row ≈ 380 pt [MEASURED]
     /** 18 colours from the iOS colour sheet, sampled (recording6 17.5 s). */
     val wallpaperSwatches = intArrayOf(
         0xFF47D3FE.toInt(), 0xFF6BA2FE.toInt(), 0xFFB185FD.toInt(), 0xFFE14FFE.toInt(), 0xFFFF6BA0.toInt(), 0xFFFE8B7F.toInt(),

@@ -309,4 +309,11 @@ object Motion {
     val ccPressScale = tunable("M-CC-PRESS.scale", "Module grows while pressed", "Control Center", 1.1f, 1f, 1.2f, "×")
     val ccPress = iosSpring("M-CC-PRESS", "Module press", response = 0.22f, dampingFraction = 0.7f)
     val ccLongPress = tunable("M-CC-PRESS.long", "Long press expands after", "Control Center", 380f, 150f, 900f, "ms") // [ESTIMATED]
+
+    // M-SWIPE — swipe to delete [MEASURED user's iPhone 11-26, Messages @ 30 fps]: past the full-swipe point the red capsule
+    // snaps to full width in ≈ 3 frames (0.1 s); settle open/closed after release [ESTIMATED]; the deleted row's height
+    // collapses in ≈ 3 frames (148 → 100 → 40 → 0 px)
+    val swipeSnap = iosSpring("M-SWIPE.snap", "Swipe: snap to full width", response = 0.2f, dampingFraction = 0.95f)
+    val swipeSettle = iosSpring("M-SWIPE.settle", "Swipe: open / close", response = 0.35f, dampingFraction = 0.9f)
+    val swipeCollapse = iosSpring("M-SWIPE.collapse", "Swipe: deleted row collapses", response = 0.22f, dampingFraction = 1f)
 }

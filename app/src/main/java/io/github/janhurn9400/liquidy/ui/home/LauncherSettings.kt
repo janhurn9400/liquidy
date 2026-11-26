@@ -707,27 +707,25 @@ private fun FontPage(backLabel: String, model: HomeModel, onBack: () -> Unit) {
     }
 }
 
-/** One font in the list: its name set in itself, checkmark when chosen, red minus for added files. */
+/** One font in the list: its name set in itself, checkmark when chosen; added files can be swiped away (iOS). */
 @Composable
 private fun FontRow(o: io.github.janhurn9400.liquidy.data.FontChoice.Option, noRipple: MutableInteractionSource, last: Boolean, changed: () -> Unit) {
     val context = LocalContext.current
     val fc = io.github.janhurn9400.liquidy.data.FontChoice
-    Row(Modifier.fillMaxWidth().height(ROW_H.dp).clickable(noRipple, null) { fc.select(context, o) }.padding(start = 20.dp, end = 18.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        if (o.removable) {
-            Box(Modifier.padding(end = 12.dp).size(22.dp).clip(CircleShape).background(Color(0xFFFF3B30))
-                .clickable(noRipple, null) { fc.remove(context, o); changed() }, contentAlignment = Alignment.Center) {
-                Box(Modifier.size(10.dp, 2.dp).clip(RoundedCornerShape(1.dp)).background(Color.White))
+    val row = @Composable {
+        Row(Modifier.fillMaxWidth().height(ROW_H.dp).background(Color.White).clickable(noRipple, null) { fc.select(context, o) }
+            .padding(start = 20.dp, end = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            BasicText(o.name, Modifier.weight(1f), maxLines = 1, style = TextStyle(fontFamily = o.family, fontSize = 17.sp, color = Color.Black))
+            if (fc.key == o.key) Canvas(Modifier.size(15.dp, 13.dp)) {
+                val sw = 2.2.dp.toPx(); val c = Color(0xFF007AFF)
+                drawLine(c, Offset(size.width * 0.05f, size.height * 0.55f), Offset(size.width * 0.38f, size.height * 0.92f), sw, StrokeCap.Round)
+                drawLine(c, Offset(size.width * 0.38f, size.height * 0.92f), Offset(size.width * 0.95f, size.height * 0.08f), sw, StrokeCap.Round)
             }
         }
-        BasicText(o.name, Modifier.weight(1f), maxLines = 1, style = TextStyle(fontFamily = o.family, fontSize = 17.sp, color = Color.Black))
-        if (fc.key == o.key) Canvas(Modifier.size(15.dp, 13.dp)) {
-            val sw = 2.2.dp.toPx(); val c = Color(0xFF007AFF)
-            drawLine(c, Offset(size.width * 0.05f, size.height * 0.55f), Offset(size.width * 0.38f, size.height * 0.92f), sw, StrokeCap.Round)
-            drawLine(c, Offset(size.width * 0.38f, size.height * 0.92f), Offset(size.width * 0.95f, size.height * 0.08f), sw, StrokeCap.Round)
-        }
     }
-    if (!last) Divider()
+    if (o.removable) io.github.janhurn9400.liquidy.ui.common.SwipeToDelete(onDelete = { fc.remove(context, o); changed() }) {
+        Column { row(); if (!last) Divider() }
+    } else { row(); if (!last) Divider() }
 }
 
 /**
