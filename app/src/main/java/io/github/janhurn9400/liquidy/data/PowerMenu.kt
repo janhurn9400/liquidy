@@ -13,7 +13,9 @@ import android.content.Intent
  * (Long-pressing power through `input keyevent` opens the assistant on Pixel defaults, so it's only the last resort.)
  */
 object PowerMenu {
-    private val code: Int? by lazy {
+    // hidden API on purpose (exempted through HiddenApiBypass); null → the fallbacks below
+    @get:android.annotation.SuppressLint("BlockedPrivateApi")
+    private val code: Int? by lazy @android.annotation.SuppressLint("BlockedPrivateApi") {
         runCatching {
             org.lsposed.hiddenapibypass.HiddenApiBypass.addHiddenApiExemptions("Landroid/view/IWindowManager")
             Class.forName("android.view.IWindowManager\$Stub").getDeclaredField("TRANSACTION_showGlobalActions").apply { isAccessible = true }.getInt(null)

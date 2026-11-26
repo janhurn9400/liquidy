@@ -33,7 +33,7 @@ Goal: an Android launcher (Kotlin + Compose, minSdk 33) that feels 1:1 like the 
   "Export" → clipboard + logcat tag `Tuning` (`adb logcat -s Tuning`).
 - Comparison: screenshots in `shots/` (gitignored), measurement scripts in `tools/measure/`, references in `docs/reference/iphone/` (local only, not in the repo).
 
-## Status (2026-11-26, v0.7.0 released; public repo, GPL-3.0)
+## Status (2026-11-26, v0.8.0 released; public repo, GPL-3.0)
 - Phase 0: done. Phases 1–4 built, fine-tuning ongoing (the user does NOT tune values themselves — derive values from their videos, put emulator captures next to them frame by frame).
 - Phase 1: grid/labels/dock/pill ±1 px; pager M-PAGE verified (0.362 s / 0.904).
 - Phase 2: edit mode (long press, measured jiggle, badges, edit buttons, dragging + reflow, dock ↔ grid, edge page flip with peek incl. new page, delete dialog, persistent layout `LayoutStore`), context menu with native Android shortcuts.
