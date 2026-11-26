@@ -807,23 +807,48 @@ private fun ControlModule(m: Modifier, g: CcGrid, icon: CcIcon, label: String, o
 private fun EditSlots(context: Context, model: ControlCenterModel, g: CcGrid) {
     val e = model.edit.value.coerceIn(0f, 1f)
     if (e <= 0.001f) return
-    // only free cells (the glass modules would show the circles through)
+    // only free cells (the glass modules would show the circles through). Cells of other modules fade (M-CC-SLOT-FADE)
+    // instead of vanishing when the layout reflows; under the module being resized a slot fades by how much of it the
+    // live size already covers, and only late (CcLayout.SLOT_FADE_FROM) — like the original
     val items = model.store(context).items.toList()
     val pos = io.github.janhurn9400.liquidy.data.CcLayoutStore.pack(items, g.rows)
+    val live = model.resizing
     val taken = HashSet<Int>()
+    // the resized module's committed cells stay taken (its hysteresis commits move them) — the live size only adds
     for (it in items) pos[it.id]?.let { (c0, r0) -> for (dx in 0 until it.w) for (dy in 0 until it.h) taken.add((r0 + dy) * 16 + c0 + dx) }
+    val cols = io.github.janhurn9400.liquidy.data.CcLayoutStore.COLS
+    val total = g.rows * model.pageCount
+    val fades = remember { HashMap<Int, Animatable<Float, androidx.compose.animation.core.AnimationVector1D>>() }
+    val liveOrigin = live?.let { r -> pos[r.id]?.let { (c0, r0) -> g.slot(c0, r0) } }
+    LaunchedEffect(taken, total) {
+        for (r in 0 until total) for (c in 0 until cols) {
+            val idx = r * 16 + c
+            val t = if (idx in taken) 0f else 1f
+            val a = fades.getOrPut(idx) { Animatable(t) }
+            if (a.targetValue != t) launch { a.animateTo(t, Motion.ccSlotFade.spec()) }
+        }
+    }
     Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = e }) {
         val rad = g.cell / 2 * density
-        for (r in 0 until g.rows * model.pageCount) for (c in 0 until io.github.janhurn9400.liquidy.data.CcLayoutStore.COLS) {
-            if (r * 16 + c in taken) continue
+        for (r in 0 until total) for (c in 0 until cols) {
+            val idx = r * 16 + c
+            var vis = fades[idx]?.value ?: if (idx in taken) 0f else 1f
             val q = g.slot(c, r)
-            val a = (1f - abs((r / g.rows) - model.page.value)).coerceIn(0f, 1f)
+            if (liveOrigin != null && live != null) {
+                // share of this slot covered by the live module rect (pt)
+                val ox = (minOf(q.x + q.w, liveOrigin.x + live.w) - maxOf(q.x, liveOrigin.x)).coerceAtLeast(0f)
+                val oy = (minOf(q.y + q.h, liveOrigin.y + live.h) - maxOf(q.y, liveOrigin.y)).coerceAtLeast(0f)
+                val cover = (ox * oy) / (q.w * q.h)
+                vis *= 1f - ((cover - CcLayout.SLOT_FADE_FROM) / (1f - CcLayout.SLOT_FADE_FROM)).coerceIn(0f, 1f)
+            }
+            if (vis <= 0.01f) continue
+            val a = (1f - abs((r / g.rows) - model.page.value)).coerceIn(0f, 1f) * vis
             // empty slots move with their row exactly like the modules in it (same lag, same stretch)
             val f = model.rowFollow.getOrNull(r)
             val lag = f?.let { (model.page.value - it.value) * g.pageH * density } ?: 0f
             val st = f?.let { 1f + Motion.ccPageStretchMax.value * (abs(it.velocity) * g.pageH / Motion.ccPageStretchAt.value).coerceIn(0f, 1f) } ?: 1f
-            val c = Offset((q.x + q.w / 2) * density, (q.y + q.h / 2) * density + lag)
-            if (a > 0.01f) drawOval(Color.White.copy(alpha = CcLayout.EDIT_SLOT_ALPHA * a), Offset(c.x - rad / st, c.y - rad * st), Size(2 * rad / st, 2 * rad * st))
+            val cc = Offset((q.x + q.w / 2) * density, (q.y + q.h / 2) * density + lag)
+            if (a > 0.01f) drawOval(Color.White.copy(alpha = CcLayout.EDIT_SLOT_ALPHA * a), Offset(cc.x - rad / st, cc.y - rad * st), Size(2 * rad / st, 2 * rad * st))
         }
     }
 }

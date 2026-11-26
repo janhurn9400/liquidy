@@ -311,6 +311,8 @@ object Motion {
     // from a valid size — sharp on a size, strongest halfway — and its layout swaps at the blurriest point)
     // past the smallest/largest size the tile only gives a little, like Liquid Glass under the finger (user 2026-11-26:
     // "not as extremely far"): at most this many pt, half of it after this much finger travel [ESTIMATED]
+    // empty edit slots under modules that reflow fade instead of vanishing (M-CC-SLOT-FADE) [ESTIMATED]
+    val ccSlotFade = iosSpring("M-CC-SLOT-FADE", "Edit slots: fade under reflowing modules", response = 0.25f, dampingFraction = 1f)
     val ccResizeOver = tunable("M-CC-RESIZE.over", "Resize past the sizes at most", "Control Center", 10f, 0f, 60f, "pt")
     val ccResizeOverRange = tunable("M-CC-RESIZE.overRange", "Resize past the sizes: half at", "Control Center", 40f, 5f, 200f, "pt")
     val ccResizeBlur = tunable("M-CC-RESIZE.blur", "Module text blur halfway between sizes", "Control Center", 8f, 0f, 30f, "pt")

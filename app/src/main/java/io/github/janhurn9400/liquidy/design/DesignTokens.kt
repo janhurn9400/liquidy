@@ -488,6 +488,9 @@ object CcLayout {
     const val PAGE_DOT_TOUCH = 28f
     const val PAGE_DOT_OFF = 0.35f
     const val EDIT_SLOT_ALPHA = 0.12f
+    // an empty slot under the module being resized fades out only late: from this share of it covered until fully
+    // covered (user 11-26 on the original: "fade out, quite at the end") [ESTIMATED]
+    const val SLOT_FADE_FROM = 0.6f
     const val EDIT_BADGE = 24f
     const val EDIT_BADGE_OUT = 4f
     const val EDIT_HANDLE_TOUCH = 40f
