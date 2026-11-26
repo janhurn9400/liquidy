@@ -438,6 +438,9 @@ object CcLayout {
     // + / power centred at y 47 pt (+ at the grid's left edge, power at its right edge)
     const val DUO_OPEN_GRID_FROM_RIGHT = 416f // grid left = width − 416 (951 → 535)
     const val DUO_OPEN_TOP = 112f
+    // module pitch 84 pt across and down (68 pt modules, 16 pt gaps) [MEASURED] simulator edit mode 2026-11-26:
+    // columns 569/653/737/821, rows 128 … 548 (the phone uses 17/19 pt)
+    const val DUO_GAP = 16f
     // folded: grid from x 30 pt, top 109 pt (right of it the status column)
     const val DUO_FOLDED_GRID_LEFT = 30f
     const val DUO_FOLDED_TOP = 109f
@@ -455,5 +458,31 @@ object CcLayout {
     const val DUO_BIG_GLYPH_Y = 56f
     const val DUO_BIG_SLIDER_Y = 96f
     const val DUO_BIG_BUTTON_Y = 560f
+
+    // Edit mode ("+") [MEASURED] Duo simulator 2026-11-26: faint circle on every cell (6 rows), "−" badge Ø 24 pt
+    // centred ≈ 8 pt inside the module's top-left, a glass arc hugging the bottom-right corner as resize handle,
+    // "⊕ Add a Control" centred 44 pt above the bottom
+    const val EDIT_ROWS = 6
+    const val EDIT_SLOT_ALPHA = 0.12f
+    const val EDIT_BADGE = 24f
+    const val EDIT_BADGE_OUT = 4f
+    const val EDIT_HANDLE_TOUCH = 40f
+    const val EDIT_HANDLE_GAP = 1f
+    const val EDIT_HANDLE_STROKE = 7f
+    const val EDIT_ADD_FROM_BOTTOM = 44f
+    const val EDIT_ADD_ABOVE_GESTURES = 22f // Android: keep the button's centre this far above the gesture bar
+    // "Add a Control" panel [MEASURED] same simulator: 418 pt wide, centred, top 8 pt, corners 40 pt, dark; search field
+    // 44 pt tall at y 33 with 27 pt side insets; controls Ø 62 pt at a 100 pt pitch, name 12 pt below
+    const val GALLERY_W = 418f
+    const val GALLERY_TOP = 8f
+    const val GALLERY_CORNER = 40f
+    const val GALLERY_BG = 0xF0282A27
+    const val GALLERY_DIM = 0.25f // [ESTIMATED]
+    const val GALLERY_ITEM = 62f
+    const val GALLERY_FIELD_Y = 33f
+    const val GALLERY_FIELD_H = 44f
+    const val GALLERY_PITCH = 91f // 4 per row inside 364 pt (418 − 2 × 27)
+    // a tap still counts if the finger let go up to this far outside a pulled control [ESTIMATED]
+    const val PRESS_TAP_SLACK = 24f
 }
 

@@ -331,4 +331,20 @@
     <string name="cc_night_light">Nachtlicht</string>
     <string name="cc_auto_brightness">Auto-Helligkeit</string>
     <string name="cc_output">Ausgabe</string>
+    <string name="cc_rotation_lock">Ausrichtungssperre</string>
+    <string name="cc_silent">Stummmodus</string>
+    <string name="cc_torch">Taschenlampe</string>
+    <string name="cc_mirror">Bildschirmsynchronisierung</string>
+    <string name="cc_camera">Kamera</string>
+    <string name="cc_battery_saver">Energiesparmodus</string>
+    <string name="cc_timer">Timer</string>
+    <string name="cc_calculator">Rechner</string>
+    <string name="cc_alarm">Wecker</string>
+    <string name="cc_connectivity">Verbindungen</string>
+    <string name="cc_media">Wiedergabe</string>
+    <string name="cc_volume">Lautstärke</string>
+    <string name="cc_brightness">Helligkeit</string>
+    <string name="cc_add_control">Steuerelement hinzufügen</string>
+    <string name="cc_search_controls">Steuerelemente suchen</string>
+    <string name="cc_full">Das Kontrollzentrum ist voll – entferne zuerst ein Steuerelement</string>
 </resources>

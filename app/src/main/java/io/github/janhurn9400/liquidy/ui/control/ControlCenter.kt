@@ -27,6 +27,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.foundation.layout.mandatorySystemGestures
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +60,9 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
+import io.github.janhurn9400.liquidy.glass.stretch
+import io.github.janhurn9400.liquidy.glass.drawGlassGlow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.pointerInput
@@ -80,6 +85,9 @@ import io.github.janhurn9400.liquidy.data.SystemControls
 import io.github.janhurn9400.liquidy.design.CcLayout
 import io.github.janhurn9400.liquidy.design.DesignTokens
 import io.github.janhurn9400.liquidy.glass.drawObjectRim
+import com.kyant.backdrop.backdrops.layerBackdrop
+import io.github.janhurn9400.liquidy.glass.glassPull
+import androidx.compose.foundation.verticalScroll
 import io.github.janhurn9400.liquidy.motion.Motion
 import io.github.janhurn9400.liquidy.ui.Inter
 import kotlinx.coroutines.CoroutineScope
@@ -190,6 +198,7 @@ class ControlCenterModel(private val scope: CoroutineScope) {
         open = false
         revealTo(false, closing = true)
         unfoldTo(false)
+        if (editing || gallery) { editing = false; gallery = false; scope.launch { edit.snapTo(0f) }; scope.launch { galleryAmount.snapTo(0f) } }
         scope.launch {
             // closing is much quicker than opening (M-CC close)
             progress.animateTo(0f, Motion.ccClose.spec(), initialVelocity = velocity / Motion.ccPull.value)
@@ -199,8 +208,46 @@ class ControlCenterModel(private val scope: CoroutineScope) {
         releaseFollow(velocity)
     }
 
-    /** Back/home: a big module closes first, then the Control Center. */
-    fun back() { if (expanded != null && expand.targetValue == 1f) collapse() else hide() }
+    /** Back/home: the gallery closes first, then edit mode, a big module, then the Control Center. */
+    fun back() = when {
+        gallery -> closeGallery()
+        editing -> exitEdit()
+        expanded != null && expand.targetValue == 1f -> collapse()
+        else -> hide()
+    }
+
+    // ── edit mode ("+", M-CC-EDIT) and the "Add a Control" gallery (M-CC-GALLERY)
+    private var layoutStore: io.github.janhurn9400.liquidy.data.CcLayoutStore? = null
+    fun store(context: Context) = layoutStore ?: io.github.janhurn9400.liquidy.data.CcLayoutStore(context).also { layoutStore = it }
+
+    var editing by mutableStateOf(false)
+        private set
+    val edit = Animatable(0f)
+    var gallery by mutableStateOf(false)
+        private set
+    val galleryAmount = Animatable(0f)
+
+    fun enterEdit() {
+        if (editing) return
+        if (expanded != null) collapse()
+        editing = true
+        scope.launch { edit.animateTo(1f, Motion.ccEdit.spec()) }
+    }
+
+    fun exitEdit() {
+        if (!editing) return
+        editing = false
+        closeGallery()
+        scope.launch { edit.animateTo(0f, Motion.ccEdit.spec()) }
+    }
+
+    fun openGallery() { gallery = true; scope.launch { galleryAmount.animateTo(1f, Motion.ccGallery.spec()) } }
+
+    fun closeGallery() {
+        if (!gallery) return
+        gallery = false
+        scope.launch { galleryAmount.animateTo(0f, Motion.ccGallery.spec()) }
+    }
 
     fun expandModule(m: CcExpand) {
         if (expanded == m && expand.targetValue == 1f) return
@@ -249,8 +296,9 @@ private data class PtRect(val x: Float, val y: Float, val w: Float, val h: Float
  */
 private class CcGrid(screenWpt: Float, val duo: Boolean, unfolded: Boolean) {
     val cell = DesignTokens.ccCell.value
-    val gx = DesignTokens.ccGapX.value
-    val gy = DesignTokens.ccGapY.value
+    // Duo: tighter grid than the phone (84 pt pitch both ways) — leaves the original's room below for "Add a Control"
+    val gx = if (duo) CcLayout.DUO_GAP else DesignTokens.ccGapX.value
+    val gy = if (duo) CcLayout.DUO_GAP else DesignTokens.ccGapY.value
     val width = 4 * cell + 3 * gx
     val left = when { !duo -> (screenWpt - width) / 2; unfolded -> screenWpt - CcLayout.DUO_OPEN_GRID_FROM_RIGHT; else -> CcLayout.DUO_FOLDED_GRID_LEFT }
     val top = when { !duo -> DesignTokens.ccTop.value; unfolded -> CcLayout.DUO_OPEN_TOP; else -> CcLayout.DUO_FOLDED_TOP }
@@ -264,10 +312,12 @@ private class CcGrid(screenWpt: Float, val duo: Boolean, unfolded: Boolean) {
     val bigButtonY get() = if (duo) CcLayout.DUO_BIG_BUTTON_Y else CcLayout.BIG_BUTTON_Y
     fun slot(col: Int, row: Int, cols: Int = 1, rows: Int = 1) =
         PtRect(left + col * (cell + gx), top + row * (cell + gy), cols * cell + (cols - 1) * gx, rows * cell + (rows - 1) * gy)
-    val connectivity get() = slot(0, 0, 2, 2)
-    val media get() = slot(2, 0, 2, 2)
-    val volume get() = slot(2, 2, 1, 2)
-    val brightness get() = slot(3, 2, 1, 2)
+    /** Where each module sits right now (filled by [Modules]; the big panels grow out of these). */
+    val placed = HashMap<String, PtRect>()
+    val connectivity get() = placed["connectivity"] ?: slot(0, 0, 2, 2)
+    val media get() = placed["media"] ?: slot(2, 0, 2, 2)
+    val volume get() = placed["volume"] ?: slot(2, 2, 1, 2)
+    val brightness get() = placed["brightness"] ?: slot(3, 2, 1, 2)
     fun from(m: CcExpand) = when (m) { CcExpand.Connectivity -> connectivity; CcExpand.Media -> media; CcExpand.Volume -> volume; CcExpand.Brightness -> brightness }
     fun to(m: CcExpand): PtRect = when (m) {
         CcExpand.Connectivity -> PtRect(left, expTop, width, 4 * CcLayout.EXP_ROW + 2 * expTile + 5 * expGap)
@@ -351,11 +401,12 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
                         val c = ev.changes.firstOrNull { it.id == down.id } ?: break
                         tracker.addPosition(c.uptimeMillis, c.position)
                         val dy = c.position.y - down.position.y
-                        if (!moved && model.expanded == null && abs(dy) > viewConfiguration.touchSlop) moved = true
+                        if (!moved && model.expanded == null && !model.editing && abs(dy) > viewConfiguration.touchSlop) moved = true
                         if (moved) { model.dragOpen(dy / density, screenPt); c.consume() }
                         if (!c.pressed) break
                     }
-                    if (!moved) { if (model.expanded != null) model.collapse() else model.hide() }
+                    // edit mode: tapping an empty spot ends it (like the original)
+                    if (!moved) { when { model.editing -> model.exitEdit(); model.expanded != null -> model.collapse(); else -> model.hide() } }
                     else {
                         val v = tracker.calculateVelocity().y / density
                         if (v < -Motion.ccFlick.value || model.progress.value < 1f - Motion.ccCommit.value) model.hide(v) else model.show(v)
@@ -365,9 +416,9 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
     )
     // the finger drives the background and the chrome (status row, + / power) …
     Box(Modifier.fillMaxSize().graphicsLayer {
-        alpha = p() * (1f - e().coerceIn(0f, 1f))
+        alpha = p() * (1f - e().coerceIn(0f, 1f)) * (1f - model.edit.value.coerceIn(0f, 1f))
         translationY = model.over.value * density
-    }) { Chrome(grid) }
+    }) { Chrome(grid, model) }
     // … the modules appear on their own clock (M-CC-REVEAL): fade in, sharpen, grow slightly and slide down
     Box(
         Modifier
@@ -383,7 +434,8 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
                 val fol = model.follow.value * Motion.ccFollowModulesDuo.value
                 val st = (1f + model.stretch.value).coerceAtLeast(0.5f)
                 scaleX = sc / kotlin.math.sqrt(st); scaleY = sc * st
-                translationY = (-(1f - r) * (if (duo) Motion.ccEnterYDuo.value else Motion.ccEnterY.value) + model.over.value + fol) * density
+                translationY = (-(1f - r) * (if (duo) Motion.ccEnterYDuo.value else Motion.ccEnterY.value) + model.over.value + fol -
+                    model.edit.value * Motion.ccEditLift.value) * density
                 val b = (1f - r).coerceIn(0f, 1f) * Motion.ccEnterBlur.value * density
                 renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
             }
@@ -395,62 +447,384 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
             val b = x * Motion.ccExpandBlur.value * density
             renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
         }) {
-            Modules(context, model, grid)
+            EditSlots(context, model, grid)
+            Modules(context, model, grid, density)
         }
         model.expanded?.let { m -> Expanded(context, model, m, grid, density) }
     }
     // Duo: the status column below the camera turns into the Control Center's (battery ring, Wi-Fi, carrier) and back
     if (duo) {
         val info by io.github.janhurn9400.liquidy.data.rememberStatusInfo()
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - e().coerceIn(0f, 1f); translationY = (model.over.value + model.follow.value) * density }) {
+        Box(Modifier.fillMaxSize().graphicsLayer {
+            alpha = (1f - e().coerceIn(0f, 1f)) * (1f - model.edit.value.coerceIn(0f, 1f))
+            translationY = (model.over.value + model.follow.value) * density
+        }) {
             io.github.janhurn9400.liquidy.ui.home.DuoStatusSymbols(info, statusColumnX, density, Color.White,
                 cc = { model.unfold.value }, ccOpening = { model.unfold.targetValue == 1f }, carrier = SystemControls.carrier.value.ifEmpty { "—" })
         }
     }
+    if (model.editing || model.edit.value > 0.001f) AddControlButton(model, grid, screenPt)
+    if (model.gallery || model.galleryAmount.value > 0.001f) Gallery(context, model, wPt, screenPt, density)
 }
 
 // ── compact page ─────────────────────────────────────────────────────────────────────
 
 /** + and power at the top, status row — they follow the finger with the background. */
 @Composable
-private fun Chrome(g: CcGrid) {
+private fun Chrome(g: CcGrid, model: ControlCenterModel) {
     val bs = DesignTokens.ccButton.value
     val by = g.buttonY - bs / 2
     val fill = Color.White.copy(alpha = DesignTokens.ccFill.value)
-    Glyph(Modifier.at(PtRect(g.left - CcLayout.BUTTON_OUT, by, bs, bs)).ccGlass(CircleShape, fill), Icons.plus, Color.White, 0.55f)
-    Glyph(Modifier.at(PtRect(g.left + g.width - bs + CcLayout.BUTTON_OUT, by, bs, bs)).ccGlass(CircleShape, fill)
-        .ccPress(onTap = { RootShell.run("input keyevent --longpress 26") }), Icons.power, Color.White, 0.6f)
+    Glyph(Modifier.at(PtRect(g.left - CcLayout.BUTTON_OUT, by, bs, bs)).ccGlassPress(CircleShape, fill, onTap = { model.enterEdit() }), Icons.plus, Color.White, 0.55f)
+    // power: Android's power menu (global actions)
+    Glyph(Modifier.at(PtRect(g.left + g.width - bs + CcLayout.BUTTON_OUT, by, bs, bs)).ccGlassPress(CircleShape, fill, onTap = { io.github.janhurn9400.liquidy.data.PowerMenu.show() }), Icons.power, Color.White, 0.6f)
     if (!g.duo) StatusRow(Modifier.at(PtRect(g.left + 4f, DesignTokens.ccStatusY.value - 10f, g.width - 8f, 20f)))
 }
 
 @Composable
-private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid) {
-    val c = SystemControls
-    val hidden = model.expanded
+private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, density: Float) {
+    val store = model.store(context)
+    val items = store.items.toList()
+    val pos = io.github.janhurn9400.liquidy.data.CcLayoutStore.pack(items)
+    for (it in items) {
+        val (col, row) = pos[it.id] ?: continue
+        val target = g.slot(col, row, it.w, it.h)
+        g.placed[it.id] = target
+        key(it.id) {
+            // reflow: modules glide to their new spot / size (M-CC-REFLOW)
+            val anim = remember { RectAnim(target) }
+            LaunchedEffect(target) { anim.to(target) }
+            Box(Modifier.at(density) { anim.value() }) {
+                Module(context, model, it.id, it.w, it.h)
+                EditOverlay(model, store, it, g, density)
+            }
+        }
+    }
+}
 
+/** Animated rect (pt) for a module moving or resizing. */
+private class RectAnim(r: PtRect) {
+    val x = Animatable(r.x); val y = Animatable(r.y); val w = Animatable(r.w); val h = Animatable(r.h)
+    fun value() = PtRect(x.value, y.value, w.value, h.value)
+    suspend fun to(r: PtRect) = kotlinx.coroutines.coroutineScope {
+        launch { x.animateTo(r.x, Motion.ccReflow.spec()) }; launch { y.animateTo(r.y, Motion.ccReflow.spec()) }
+        launch { w.animateTo(r.w, Motion.ccReflow.spec()) }; launch { h.animateTo(r.h, Motion.ccReflow.spec()) }
+    }
+}
+
+/** One module's content, filling its box. */
+@Composable
+private fun Module(context: Context, model: ControlCenterModel, id: String, w: Int, h: Int) {
+    val c = SystemControls
     val view = LocalView.current
     fun big(m: CcExpand) { view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); model.expandModule(m) }
-    fun vis(m: CcExpand) = if (hidden == m) Modifier.graphicsLayer { alpha = 0f } else Modifier
+    fun vis(m: CcExpand) = if (model.expanded == m) Modifier.graphicsLayer { alpha = 0f } else Modifier
+    val full = Modifier.fillMaxSize()
+    when (id) {
+        "connectivity" -> Box(full.then(vis(CcExpand.Connectivity))) { ConnectivityCompact(context) { big(CcExpand.Connectivity) } }
+        "media" -> Box(full.then(vis(CcExpand.Media)).ccGlassPress(RoundedCornerShape(DesignTokens.ccCorner.dp), onTap = {}, onLong = { big(CcExpand.Media) })) { MediaCompact() }
+        "volume" -> Slider(full.then(vis(CcExpand.Volume)), c.volume.floatValue, Icons.speaker, BLUE,
+            onLong = { big(CcExpand.Volume) }) { v -> c.setVolume(context, v) }
+        "brightness" -> Slider(full.then(vis(CcExpand.Brightness)), c.brightness.floatValue, Icons.sun, YELLOW,
+            onLong = { big(CcExpand.Brightness) }) { v -> c.setBrightness(context, v) }
+        "focus" -> if (w == 2 && h == 1) FocusModule(full, c.dnd.value) { c.toggleDnd(context) }
+            else ControlModule(full, w, h, CcIcon.Vector(Icons.moon), stringResource(R.string.cc_focus), c.dnd.value, PURPLE) { c.toggleDnd(context) }
+        else -> {
+            val b = builtIn(id)
+            if (b != null) ControlModule(full, w, h, CcIcon.Vector(b.icon()), stringResource(b.label), b.on(), b.active) { b.tap(context) }
+            else {
+                val t = remember(id) { io.github.janhurn9400.liquidy.data.QsTiles.find(context, id) }
+                if (t != null) ControlModule(full, w, h, CcIcon.Bitmap(t.icon), t.label, false, Color.Black) {
+                    if (!io.github.janhurn9400.liquidy.data.QsTiles.click(t))
+                        android.widget.Toast.makeText(context, R.string.cc_no_root, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+}
 
-    Box(Modifier.at(g.connectivity).then(vis(CcExpand.Connectivity))) { ConnectivityCompact(context) { big(CcExpand.Connectivity) } }
-    Box(Modifier.at(g.media).then(vis(CcExpand.Media)).ccGlass(RoundedCornerShape(DesignTokens.ccCorner.dp))
-        .ccPress(onTap = {}, onLong = { big(CcExpand.Media) })) { MediaCompact() }
-    RoundToggle(Modifier.at(g.slot(0, 2)), Icons.rotationLock, c.rotationLock.value, activeGlyph = RED) { c.toggleRotationLock(context) }
-    RoundToggle(Modifier.at(g.slot(1, 2)), if (c.silent.value) Icons.bellOff else Icons.bell, c.silent.value, activeGlyph = RED) { c.toggleSilent(context) }
-    FocusModule(Modifier.at(g.slot(0, 3, 2, 1)), c.dnd.value) { c.toggleDnd(context) }
-    Slider(Modifier.at(g.volume).then(vis(CcExpand.Volume)), c.volume.floatValue, Icons.speaker, BLUE,
-        onLong = { big(CcExpand.Volume) }) { v -> c.setVolume(context, v) }
-    Slider(Modifier.at(g.brightness).then(vis(CcExpand.Brightness)), c.brightness.floatValue, Icons.sun, YELLOW,
-        onLong = { big(CcExpand.Brightness) }) { v -> c.setBrightness(context, v) }
-    RoundToggle(Modifier.at(g.slot(0, 4)), Icons.torch, c.torch.value, activeGlyph = BLUE) { c.toggleTorch(context) }
-    RoundToggle(Modifier.at(g.slot(1, 4)), Icons.mirror, false) { launch(context, Intent(android.provider.Settings.ACTION_CAST_SETTINGS)) }
-    RoundToggle(Modifier.at(g.slot(2, 4)), Icons.contrast, c.darkMode.value, activeGlyph = Color.Black) { c.toggleDarkMode(context) }
-    RoundToggle(Modifier.at(g.slot(3, 4)), Icons.camera, false) { launch(context, Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)) }
-    RoundToggle(Modifier.at(g.slot(0, 5)), Icons.battery, c.batterySaver.value, activeGlyph = ORANGE) { c.toggleBatterySaver(context) }
-    RoundToggle(Modifier.at(g.slot(1, 5)), Icons.timer, false) { launch(context, Intent(android.provider.AlarmClock.ACTION_SHOW_TIMERS)) }
-    RoundToggle(Modifier.at(g.slot(2, 5)), Icons.calculator, false) {
-        launch(context, Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALCULATOR)) }
-    RoundToggle(Modifier.at(g.slot(3, 5)), Icons.alarm, false) { launch(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS)) }
+/** A built-in on/off or launcher control. */
+private class BuiltIn(val label: Int, val icon: () -> Path, val on: () -> Boolean, val active: Color, val tap: (Context) -> Unit)
+
+private fun builtIn(id: String): BuiltIn? {
+    val c = SystemControls
+    return when (id) {
+        "rotation" -> BuiltIn(R.string.cc_rotation_lock, { Icons.rotationLock }, { c.rotationLock.value }, RED) { c.toggleRotationLock(it) }
+        "silent" -> BuiltIn(R.string.cc_silent, { if (c.silent.value) Icons.bellOff else Icons.bell }, { c.silent.value }, RED) { c.toggleSilent(it) }
+        "torch" -> BuiltIn(R.string.cc_torch, { Icons.torch }, { c.torch.value }, BLUE) { c.toggleTorch(it) }
+        "mirror" -> BuiltIn(R.string.cc_mirror, { Icons.mirror }, { false }, Color.Black) { launch(it, Intent(android.provider.Settings.ACTION_CAST_SETTINGS)) }
+        "darkmode" -> BuiltIn(R.string.cc_dark_mode, { Icons.contrast }, { c.darkMode.value }, Color.Black) { c.toggleDarkMode(it) }
+        "camera" -> BuiltIn(R.string.cc_camera, { Icons.camera }, { false }, Color.Black) { launch(it, Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)) }
+        "saver" -> BuiltIn(R.string.cc_battery_saver, { Icons.battery }, { c.batterySaver.value }, ORANGE) { c.toggleBatterySaver(it) }
+        "timer" -> BuiltIn(R.string.cc_timer, { Icons.timer }, { false }, Color.Black) { launch(it, Intent(android.provider.AlarmClock.ACTION_SHOW_TIMERS)) }
+        "calculator" -> BuiltIn(R.string.cc_calculator, { Icons.calculator }, { false }, Color.Black) {
+            launch(it, Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALCULATOR)) }
+        "alarm" -> BuiltIn(R.string.cc_alarm, { Icons.alarm }, { false }, Color.Black) { launch(it, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS)) }
+        else -> null
+    }
+}
+
+/** Label and glyph of any control for the gallery (built-ins only; Android tiles carry their own). */
+private fun builtInGlyph(id: String): Pair<Int, Path>? = when (id) {
+    "connectivity" -> R.string.cc_connectivity to Icons.wifi
+    "media" -> R.string.cc_media to Icons.play
+    "volume" -> R.string.cc_volume to Icons.speaker
+    "brightness" -> R.string.cc_brightness to Icons.sun
+    "focus" -> R.string.cc_focus to Icons.moon
+    else -> builtIn(id)?.let { it.label to it.icon() }
+}
+
+private sealed interface CcIcon {
+    data class Vector(val path: Path) : CcIcon
+    data class Bitmap(val image: androidx.compose.ui.graphics.ImageBitmap?) : CcIcon
+}
+
+@Composable
+private fun CcGlyph(m: Modifier, icon: CcIcon, color: Color, share: Float) = when (icon) {
+    is CcIcon.Vector -> Glyph(m, icon.path, color, share)
+    is CcIcon.Bitmap -> Box(m, contentAlignment = Alignment.Center) {
+        icon.image?.let {
+            Image(it, null, Modifier.fillMaxSize(share), contentScale = ContentScale.Fit,
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(color))
+        }
+    }
+}
+
+/**
+ * A control in any of its sizes: 1×1 = glass circle with the glyph; 2×1 = capsule with a glyph circle and the name;
+ * 2×2 = rounded square, glyph circle top left, name and state bottom left.
+ */
+@Composable
+private fun ControlModule(m: Modifier, w: Int, h: Int, icon: CcIcon, label: String, on: Boolean, active: Color, tap: () -> Unit) {
+    val fill = if (on) Color.White else Color.White.copy(alpha = DesignTokens.ccFill.value)
+    val glyph = if (on) active else Color.White
+    when {
+        w == 1 && h == 1 -> CcGlyph(m.ccGlassPress(CircleShape, fill, onTap = tap), icon, glyph, 0.42f)
+        h == 1 -> Box(m.ccGlassPress(CircleShape, Color.White.copy(alpha = DesignTokens.ccFill.value), onTap = tap)) {
+            Row(Modifier.fillMaxSize().padding(start = 14.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                CcGlyph(Modifier.size(38.dp).clip(CircleShape).background(fill), icon, glyph, 0.55f)
+                Spacer(Modifier.size(10.dp))
+                BasicText(label, maxLines = 2, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White))
+            }
+        }
+        else -> Box(m.ccGlassPress(RoundedCornerShape(DesignTokens.ccCorner.dp), Color.White.copy(alpha = DesignTokens.ccFill.value), onTap = tap)) {
+            CcGlyph(Modifier.padding(14.dp).size(44.dp).clip(CircleShape).background(fill), icon, glyph, 0.55f)
+            Column(Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 14.dp, end = 10.dp)) {
+                BasicText(label, maxLines = 2, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White))
+                BasicText(stringResource(if (on) R.string.cc_on else R.string.cc_off),
+                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = Color.White.copy(alpha = 0.6f)))
+            }
+        }
+    }
+}
+
+// ── edit mode ─────────────────────────────────────────────────────────────────────
+
+/** Faint circles on every grid cell while editing (where controls can go) [MEASURED simulator]. */
+@Composable
+private fun EditSlots(context: Context, model: ControlCenterModel, g: CcGrid) {
+    val e = model.edit.value.coerceIn(0f, 1f)
+    if (e <= 0.001f) return
+    // only free cells (the glass modules would show the circles through)
+    val items = model.store(context).items.toList()
+    val pos = io.github.janhurn9400.liquidy.data.CcLayoutStore.pack(items)
+    val taken = HashSet<Int>()
+    for (it in items) pos[it.id]?.let { (c0, r0) -> for (dx in 0 until it.w) for (dy in 0 until it.h) taken.add((r0 + dy) * 16 + c0 + dx) }
+    Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = e }) {
+        val rad = g.cell / 2 * density
+        for (r in 0 until CcLayout.EDIT_ROWS) for (c in 0 until io.github.janhurn9400.liquidy.data.CcLayoutStore.COLS) {
+            if (r * 16 + c in taken) continue
+            val q = g.slot(c, r)
+            drawCircle(Color.White.copy(alpha = CcLayout.EDIT_SLOT_ALPHA), rad, Offset((q.x + q.w / 2) * density, (q.y + q.h / 2) * density))
+        }
+    }
+}
+
+/**
+ * Per module while editing: "−" badge top left (removes it) and the resize handle bottom right (drag to switch
+ * between the sizes the control allows); the module itself takes no taps then.
+ */
+@Composable
+private fun EditOverlay(model: ControlCenterModel, store: io.github.janhurn9400.liquidy.data.CcLayoutStore,
+                        item: io.github.janhurn9400.liquidy.data.CcLayoutStore.Item, g: CcGrid, density: Float) {
+    val e = model.edit.value.coerceIn(0f, 1f)
+    if (e <= 0.001f) return
+    val sizes = io.github.janhurn9400.liquidy.data.CcLayoutStore.sizesFor(item.id)
+    val current by rememberUpdatedState(item)
+    Box(Modifier.fillMaxSize().graphicsLayer { alpha = e }.pointerInput(Unit) {
+        // swallow taps on the module itself while editing
+        awaitEachGesture { awaitFirstDown().consume(); while (true) { val ev = awaitPointerEvent(); ev.changes.forEach { it.consume() }; if (ev.changes.none { it.pressed }) break } }
+    }) {
+        if (sizes.size > 1) {
+            // handle: a glass arc hugging the module's own bottom-right rounding (circle, capsule or rounded square)
+            Canvas(Modifier.fillMaxSize()) {
+                val cr = when { current.w == 1 && current.h == 1 -> size.minDimension / 2; current.h == 1 -> size.height / 2
+                    else -> DesignTokens.ccCorner.value * density }
+                val r = cr + CcLayout.EDIT_HANDLE_GAP * density
+                val c = Offset(size.width - cr, size.height - cr)
+                drawArc(Color.White.copy(alpha = 0.75f), 15f, 60f, false, Offset(c.x - r, c.y - r), Size(2 * r, 2 * r),
+                    style = Stroke(CcLayout.EDIT_HANDLE_STROKE * density, cap = StrokeCap.Round))
+            }
+            val hs = CcLayout.EDIT_HANDLE_TOUCH
+            Box(Modifier.align(Alignment.BottomEnd).size(hs.dp)
+                .pointerInput(item.id) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(); down.consume()
+                        val base = current
+                        while (true) {
+                            val ev = awaitPointerEvent(); val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                            ch.consume()
+                            val d = ch.position - down.position
+                            val tw = base.w + (d.x / ((g.cell + g.gx) * density)).roundToInt()
+                            val th = base.h + (d.y / ((g.cell + g.gy) * density)).roundToInt()
+                            val best = sizes.minBy { (sw, sh) -> abs(sw - tw) + abs(sh - th) }
+                            store.resize(base.id, best.first, best.second, CcLayout.EDIT_ROWS)
+                            if (!ch.pressed) break
+                        }
+                    }
+                })
+        }
+        // remove badge
+        val bd = CcLayout.EDIT_BADGE
+        Box(Modifier.offset((-CcLayout.EDIT_BADGE_OUT).dp, (-CcLayout.EDIT_BADGE_OUT).dp).size(bd.dp)
+            .ccGlass(CircleShape, Color(0x99303030))
+            .pointerInput(item.id) { detectTapGestures { store.remove(current.id) } }) {
+            Canvas(Modifier.fillMaxSize()) {
+                val l = size.width * 0.42f
+                drawLine(Color.White, Offset(size.width / 2 - l / 2, size.height / 2), Offset(size.width / 2 + l / 2, size.height / 2),
+                    2.2f * density, StrokeCap.Round)
+            }
+        }
+    }
+}
+
+/** "⊕ Add a Control" centred below the grid while editing. */
+@Composable
+private fun AddControlButton(model: ControlCenterModel, g: CcGrid, screenPt: Float) {
+    val e = model.edit.value.coerceIn(0f, 1f)
+    // above Android's gesture bar (a tap there goes to the system, not to us)
+    val d = androidx.compose.ui.platform.LocalDensity.current
+    val gesturePt = androidx.compose.foundation.layout.WindowInsets.mandatorySystemGestures.getBottom(d) / d.density
+    val y = screenPt - maxOf(CcLayout.EDIT_ADD_FROM_BOTTOM, gesturePt + CcLayout.EDIT_ADD_ABOVE_GESTURES)
+    Row(Modifier.at(PtRect(g.centerX - 90f, y - 18f, 180f, 36f)).graphicsLayer { alpha = e }
+        .pointerInput(Unit) { detectTapGestures { model.openGallery() } },
+        horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(17.dp).clip(CircleShape).background(Color.White)) {
+            Canvas(Modifier.fillMaxSize()) {
+                val l = size.width * 0.5f; val sw = 2f * density; val c = center
+                drawLine(Color.Black, Offset(c.x - l / 2, c.y), Offset(c.x + l / 2, c.y), sw, StrokeCap.Round)
+                drawLine(Color.Black, Offset(c.x, c.y - l / 2), Offset(c.x, c.y + l / 2), sw, StrokeCap.Round)
+            }
+        }
+        Spacer(Modifier.size(7.dp))
+        BasicText(stringResource(R.string.cc_add_control), style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Color.White))
+    }
+}
+
+/**
+ * "Add a Control" gallery [MEASURED simulator 2026-11-26]: dark panel centred on the screen (418 pt wide, top 8 pt,
+ * corners 40 pt), search field on top, then sections — built-in controls, then every app with Android Quick Settings
+ * tiles (app icon + name) — each a row of round controls (Ø 62 pt, pitch 100 pt) with their name below. Tapping one
+ * adds it to the Control Center.
+ */
+@Composable
+private fun Gallery(context: Context, model: ControlCenterModel, wPt: Float, screenPt: Float, density: Float) {
+    val a = { model.galleryAmount.value }
+    val store = model.store(context)
+    val present = store.items.map { it.id }.toSet()
+    val tiles = remember { io.github.janhurn9400.liquidy.data.QsTiles.list(context) }
+    var query by remember { mutableStateOf("") }
+    val q = query.trim().lowercase()
+    // dim + tap outside closes
+    Box(Modifier.fillMaxSize().graphicsLayer { alpha = a().coerceIn(0f, 1f) }.background(Color.Black.copy(alpha = CcLayout.GALLERY_DIM))
+        .pointerInput(Unit) { detectTapGestures { model.closeGallery() } })
+    val pw = minOf(CcLayout.GALLERY_W, wPt - 24f)
+    val ph = screenPt - CcLayout.GALLERY_TOP + 40f
+    // slides up from below with a little bounce (user: "comes up from the bottom")
+    Box(Modifier.at(PtRect((wPt - pw) / 2, CcLayout.GALLERY_TOP, pw, ph))
+        .graphicsLayer { translationY = (1f - a()) * (ph + CcLayout.GALLERY_TOP) * density }
+        .clip(RoundedCornerShape(CcLayout.GALLERY_CORNER.dp))
+        .pointerInput(Unit) { detectTapGestures { } }) {
+        // the panel and its rows are the glass source for the floating search field (it refracts what scrolls under it)
+        val surface = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+        Box(Modifier.matchParentSize().layerBackdrop(surface).background(Color(CcLayout.GALLERY_BG))) {
+            Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                Spacer(Modifier.size((CcLayout.GALLERY_FIELD_Y + CcLayout.GALLERY_FIELD_H + 20f).dp))
+                val builtIns = io.github.janhurn9400.liquidy.data.CcLayoutStore.BUILT_IN
+                    .mapNotNull { id -> builtInGlyph(id)?.let { (l, ic) -> Triple(id, context.getString(l), CcIcon.Vector(ic) as CcIcon) } }
+                    .filter { q.isEmpty() || it.second.lowercase().contains(q) }
+                val add = { id: String ->
+                    if (id !in present && !store.add(id, CcLayout.EDIT_ROWS))
+                        android.widget.Toast.makeText(context, R.string.cc_full, android.widget.Toast.LENGTH_SHORT).show()
+                    model.closeGallery()
+                }
+                if (builtIns.isNotEmpty()) GallerySection(null, null, builtIns, present, add)
+                tiles.groupBy { it.appLabel }.forEach { (app, list) ->
+                    val entries = list.filter { q.isEmpty() || it.label.lowercase().contains(q) || app.lowercase().contains(q) }
+                        .map { Triple(it.id, it.label, CcIcon.Bitmap(it.icon) as CcIcon) }
+                    if (entries.isNotEmpty()) GallerySection(app, list.first().icon, entries, present, add)
+                }
+                Spacer(Modifier.size(60.dp))
+            }
+        }
+        androidx.compose.runtime.CompositionLocalProvider(io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop provides surface) {
+            SearchField(query) { query = it }
+        }
+    }
+}
+
+@Composable
+private fun SearchField(value: String, onChange: (String) -> Unit) {
+    // floats over the list as Liquid Glass and stays put while the controls scroll under it (like the original)
+    Box(Modifier.padding(top = CcLayout.GALLERY_FIELD_Y.dp, start = 27.dp, end = 27.dp).fillMaxWidth().height(CcLayout.GALLERY_FIELD_H.dp),
+        contentAlignment = Alignment.Center) {
+        io.github.janhurn9400.liquidy.glass.LiquidGlass(shape = io.github.janhurn9400.liquidy.glass.glassCapsule(), modifier = Modifier.matchParentSize(),
+            whiteTint = DesignTokens.libListFieldTint.value)
+        androidx.compose.foundation.text.BasicTextField(value, onChange, singleLine = true,
+            textStyle = TextStyle(fontFamily = Inter, fontSize = 19.sp, color = Color.White, textAlign = TextAlign.Center),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 40.dp),
+            decorationBox = { inner ->
+                Box(contentAlignment = Alignment.Center) {
+                    if (value.isEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Canvas(Modifier.size(18.dp)) {
+                            val sw = 2f * density; val r = size.width * 0.36f; val c = Offset(size.width * 0.42f, size.height * 0.42f)
+                            drawCircle(Color.White.copy(alpha = 0.6f), r, c, style = Stroke(sw))
+                            drawLine(Color.White.copy(alpha = 0.6f), c + Offset(r * 0.72f, r * 0.72f), Offset(size.width * 0.95f, size.height * 0.95f), sw, StrokeCap.Round)
+                        }
+                        Spacer(Modifier.size(8.dp))
+                        BasicText(stringResource(R.string.cc_search_controls), style = TextStyle(fontFamily = Inter, fontSize = 19.sp, color = Color.White.copy(alpha = 0.6f)))
+                    }
+                    inner()
+                }
+            })
+    }
+}
+
+@Composable
+private fun GallerySection(title: String?, icon: androidx.compose.ui.graphics.ImageBitmap?, entries: List<Triple<String, String, CcIcon>>,
+                           present: Set<String>, add: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 27.dp)) {
+        if (title != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp)) {
+                if (icon != null) Image(icon, null, Modifier.size(28.dp).clip(RoundedCornerShape(7.dp)))
+                Spacer(Modifier.size(10.dp))
+                BasicText(title, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Color.White))
+            }
+        }
+        entries.chunked(4).forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(bottom = 14.dp)) {
+                row.forEach { (id, label, ic) ->
+                    Column(Modifier.width(CcLayout.GALLERY_PITCH.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        CcGlyph(Modifier.size(CcLayout.GALLERY_ITEM.dp).ccGlassPress(CircleShape, Color.White.copy(alpha = 0.14f), onTap = { add(id) }), ic, Color.White, 0.45f)
+                        Spacer(Modifier.size(6.dp))
+                        BasicText(label, maxLines = 2, style = TextStyle(fontFamily = Inter, fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f), textAlign = TextAlign.Center))
+                    }
+                }
+            }
+        }
+        Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 18.dp).height(1.dp).background(Color.White.copy(alpha = 0.12f)))
+    }
 }
 
 /** Carrier with signal bars on the left, battery on the right (like the original's own status row). */
@@ -500,16 +874,15 @@ private fun StatusRow(m: Modifier) {
 @Composable
 private fun ConnectivityCompact(context: Context, onLong: () -> Unit) {
     val c = SystemControls
-    Box(Modifier.fillMaxSize().ccGlass(RoundedCornerShape(DesignTokens.ccCorner.dp)).ccPress(onTap = {}, onLong = onLong)) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().ccGlassPress(RoundedCornerShape(DesignTokens.ccCorner.dp), onTap = {}, onLong = onLong)) {
         val d = DesignTokens.ccInner.value
         val inset = DesignTokens.ccInnerInset.value
-        val span = 2 * DesignTokens.ccCell.value + DesignTokens.ccGapY.value
+        val span = maxWidth.value // the platter's own size (phone and Duo grids differ)
         val far = span - inset - d
         @Composable
         fun Circle(x: Float, y: Float, size: Float, icon: Path, on: Boolean, color: Color, share: Float, tap: () -> Unit) = Glyph(
-            Modifier.offset(x.dp, y.dp).size(size.dp).clip(CircleShape)
-                .background(if (on) color else Color.White.copy(alpha = DesignTokens.ccFill.value))
-                .ccPress(onTap = tap, onLong = onLong),
+            Modifier.offset(x.dp, y.dp).size(size.dp)
+                .ccGlassPress(CircleShape, if (on) color else Color.White.copy(alpha = DesignTokens.ccFill.value), onTap = tap, onLong = onLong, plain = true),
             icon, Color.White, share)
         Circle(inset, inset, d, Icons.airplane, c.airplane.value, ORANGE, 0.5f) { c.toggleAirplane(context) }
         Circle(far, inset, d, Icons.location, c.location.value, BLUE, 0.46f) { c.toggleLocation(context) }
@@ -563,13 +936,13 @@ private fun TransportRow(media: SystemControls.Media?, glyphPt: Float, playPt: F
 
 @Composable
 private fun RoundToggle(m: Modifier, icon: Path, on: Boolean, activeGlyph: Color = Color.Black, tap: () -> Unit) {
-    Glyph(m.ccGlass(CircleShape, if (on) Color.White else Color.White.copy(alpha = DesignTokens.ccFill.value)).ccPress(onTap = tap),
+    Glyph(m.ccGlassPress(CircleShape, if (on) Color.White else Color.White.copy(alpha = DesignTokens.ccFill.value), onTap = tap),
         icon, if (on) activeGlyph else Color.White, 0.42f)
 }
 
 @Composable
 private fun FocusModule(m: Modifier, on: Boolean, tap: () -> Unit) {
-    Box(m.ccGlass(CircleShape, if (on) Color.White else Color.White.copy(alpha = DesignTokens.ccFill.value)).ccPress(onTap = tap)) {
+    Box(m.ccGlassPress(CircleShape, if (on) Color.White else Color.White.copy(alpha = DesignTokens.ccFill.value), onTap = tap)) {
         Row(Modifier.fillMaxSize().padding(start = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Glyph(Modifier.size(38.dp).clip(CircleShape).background(if (on) PURPLE else Color.White.copy(alpha = 0.9f)), Icons.moon, if (on) Color.White else PURPLE, 0.6f)
             Spacer(Modifier.size(10.dp))
@@ -592,13 +965,25 @@ private fun Slider(m: Modifier, value: Float, icon: Path, glyph: Color, glyphPt:
     val change by rememberUpdatedState(onChange)
     val scope = rememberCoroutineScope()
     val press = remember { Animatable(1f) }
-    Box(m.graphicsLayer { scaleX = press.value; scaleY = press.value }
+    // pulled past full/empty: the slider stretches that way, rubber-banded, and springs back (M-CC-SLIDER-STRETCH)
+    val over = remember { Animatable(0f) }
+    val pull = remember { io.github.janhurn9400.liquidy.glass.GlassPull(scope) }
+    Box(m.graphicsLayer {
+            val o = over.value; val hgt = size.height
+            // rubber band that never gets longer than M-CC-SLIDER-STRETCH (stays clear of the next tile)
+            val st = 1f + (if (hgt > 0f) Motion.rubberBand(abs(o), Motion.ccSliderStretch.value * density) / hgt else 0f)
+            scaleX = press.value / kotlin.math.sqrt(st); scaleY = press.value * st
+            transformOrigin = TransformOrigin(0.5f, if (o > 0f) 1f else 0f)
+        }
+        .glassPull(CircleShape) { pull }
         .ccGlass(CircleShape)
         .pointerInput(Unit) {
             awaitEachGesture {
                 val down = awaitFirstDown()
-                scope.launch { press.animateTo(Motion.ccPressScale.value, Motion.ccPress.spec()) }
+                // sliders never grow when touched (user, iPhone) — only the shimmer and the stretch past the ends
+                pull.press(down.position)
                 var v = current
+                var raw = v
                 var dragging = false
                 var expanded = false
                 val longJob = longNow?.let { l -> scope.launch { delay(Motion.ccLongPress.value.toLong()); if (!dragging) { expanded = true; l() } } }
@@ -608,9 +993,16 @@ private fun Slider(m: Modifier, value: Float, icon: Path, glyph: Color, glyphPt:
                     if (!c.pressed) break
                     if (expanded) { c.consume(); continue }
                     if (!dragging && abs(c.position.y - down.position.y) > viewConfiguration.touchSlop) { dragging = true; longJob?.cancel() }
-                    if (dragging) { v = (v - (c.position.y - c.previousPosition.y) / size.height).coerceIn(0f, 1f); change(v); c.consume() }
+                    if (dragging) {
+                        raw -= (c.position.y - c.previousPosition.y) / size.height
+                        v = raw.coerceIn(0f, 1f); change(v); c.consume()
+                        val o = (raw - v) * size.height
+                        scope.launch { over.snapTo(o) }
+                    }
                 }
                 longJob?.cancel()
+                pull.release()
+                scope.launch { over.animateTo(0f, Motion.glassPullBack.spec()) }
                 scope.launch { press.animateTo(1f, Motion.ccPress.spec()) }
             }
         }
@@ -791,8 +1183,8 @@ private fun MediaBig(context: Context) {
             Glyph(Modifier.size(18.dp), Icons.speaker, Color.White.copy(alpha = 0.6f), 1f)
         }
         Spacer(Modifier.height(22.dp))
-        Row(Modifier.align(Alignment.CenterHorizontally).height(32.dp).clip(CircleShape).background(Color.White.copy(alpha = DesignTokens.ccFill.value))
-            .ccPress(onTap = { launch(context, Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)) }).padding(horizontal = 14.dp),
+        Row(Modifier.align(Alignment.CenterHorizontally).height(32.dp).ccGlassPress(CircleShape, Color.White.copy(alpha = DesignTokens.ccFill.value),
+                onTap = { launch(context, Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)) }, plain = true).padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Glyph(Modifier.size(16.dp), Icons.output, Color.White, 1f)
             Spacer(Modifier.width(6.dp))
@@ -832,27 +1224,95 @@ private fun Modifier.ccGlass(shape: Shape, fill: Color = Color.White.copy(alpha 
         drawObjectRim(this, shape)
     }
 
-/** M-CC-PRESS: grows a little under the finger and springs back; tap and optional long press. */
+/**
+ * M-CC-PRESS: grows a little under the finger and springs back; tap and optional long press. For things without
+ * their own glass (transport buttons, rows) — glass modules use [ccGlassPress].
+ */
 @Composable
 private fun Modifier.ccPress(onTap: () -> Unit, onLong: (() -> Unit)? = null): Modifier {
-    val s = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
-    val tap by rememberUpdatedState(onTap)
-    val long by rememberUpdatedState(onLong)
-    return this
-        .graphicsLayer { scaleX = s.value; scaleY = s.value }
-        .pointerInput(onLong != null) {
-            detectTapGestures(
-                onPress = {
-                    scope.launch { s.animateTo(Motion.ccPressScale.value, Motion.ccPress.spec()) }
-                    tryAwaitRelease()
-                    scope.launch { s.animateTo(1f, Motion.ccPress.spec()) }
-                },
-                onTap = { tap() },
-                onLongPress = if (onLong != null) { _ -> long?.invoke() } else null,
-            )
-        }
+    val s = remember { Animatable(1f) }
+    val pull = remember { io.github.janhurn9400.liquidy.glass.GlassPull(scope) }
+    val tap = rememberUpdatedState(onTap); val long = rememberUpdatedState(onLong)
+    return composedPress(s, pull, tap, long, grow = true, stretch = false)
 }
+
+/**
+ * A glass module that reacts like Liquid Glass (M-CC-PRESS + M-GLASS-PULL): grows a little and shimmers under the
+ * finger; held and pulled, only the glass stretches along x/y (the edge facing away stays put) — the icon inside does
+ * not. [plain] = flat [fill] without hairline and rim (coloured connectivity circles).
+ */
+@Composable
+private fun Modifier.ccGlassPress(shape: Shape, fill: Color = Color.White.copy(alpha = DesignTokens.ccFill.value),
+                                  onTap: () -> Unit, onLong: (() -> Unit)? = null, plain: Boolean = false): Modifier {
+    val scope = rememberCoroutineScope()
+    val s = remember { Animatable(1f) }
+    val pull = remember { io.github.janhurn9400.liquidy.glass.GlassPull(scope) }
+    val tap = rememberUpdatedState(onTap); val long = rememberUpdatedState(onLong)
+    return this
+        .composedPress(s, pull, tap, long, grow = true, stretch = true)
+        // the element (with its icon) stretches only along x/y …
+        .graphicsLayer {
+            val st = pull.stretch(density) ?: return@graphicsLayer
+            transformOrigin = st.origin; scaleX = st.cx; scaleY = st.cy
+        }
+        // … the glass behind it along the pull direction (undo the x/y part, then stretch along the angle)
+        .drawBehind {
+            val st = pull.stretch(density)
+            withTransform({
+                if (st != null) {
+                    val pv = Offset(st.origin.pivotFractionX * size.width, st.origin.pivotFractionY * size.height)
+                    scale(1f / st.cx, 1f / st.cy, pv)
+                    rotate(st.angle, pv); scale(1f + st.e, st.thin, pv); rotate(-st.angle, pv)
+                }
+            }) {
+                val outline = shape.createOutline(size, layoutDirection, this)
+                drawOutline(outline, fill)
+                if (!plain) {
+                    drawOutline(outline, Color.White.copy(alpha = HAIRLINE), style = Stroke(1.2f * density))
+                    drawObjectRim(this, shape)
+                }
+                drawGlassGlow(pull, shape)
+            }
+        }
+        .clip(shape)
+}
+
+/** Shared press handling: scale, shimmer, optional pull, tap / long press (a release near the element still taps). */
+private fun Modifier.composedPress(s: Animatable<Float, *>, pull: io.github.janhurn9400.liquidy.glass.GlassPull,
+                                   onTap: androidx.compose.runtime.State<() -> Unit>, onLong: androidx.compose.runtime.State<(() -> Unit)?>,
+                                   grow: Boolean, stretch: Boolean): Modifier = this
+    .graphicsLayer { scaleX = s.value; scaleY = s.value }
+    .pointerInput(Unit) {
+        kotlinx.coroutines.coroutineScope {
+            val scope = this
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                if (grow) scope.launch { s.animateTo(Motion.ccPressScale.value, Motion.ccPress.spec()) }
+                pull.press(down.position)
+                var longFired = false
+                val longJob = onLong.value?.let { l -> scope.launch { delay(Motion.ccLongPress.value.toLong()); longFired = true; l() } }
+                var moved = false
+                var last = down.position
+                var cancelled = false
+                while (true) {
+                    val ev = awaitPointerEvent()
+                    val c = ev.changes.firstOrNull { it.id == down.id } ?: run { cancelled = true; null } ?: break
+                    last = c.position
+                    val d = c.position - down.position
+                    if (!moved && d.getDistance() > viewConfiguration.touchSlop) { moved = true; longJob?.cancel() }
+                    if (moved) { if (stretch) pull.drag(d); c.consume() }
+                    if (!c.pressed) break
+                }
+                longJob?.cancel()
+                pull.release()
+                scope.launch { s.animateTo(1f, Motion.ccPress.spec()) }
+                val slack = CcLayout.PRESS_TAP_SLACK * density
+                val inside = last.x > -slack && last.y > -slack && last.x < size.width + slack && last.y < size.height + slack
+                if (!cancelled && !longFired && inside) onTap.value()
+            }
+        }
+    }
 
 /** Draws a 24-unit vector path centred, filling [share] of the box. */
 @Composable

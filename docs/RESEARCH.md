@@ -252,7 +252,7 @@ Still open:
 | T-CC-EXP media | panel 325 × 582 pt at y = 175 pt, artwork 277 pt | [MEASURED] 53.6 s (music page) |
 | M-CC | the finger drives only the background (blur, dim, status row, + / power); past 45 % of the pull the modules appear on their own clock (M-CC-REVEAL, spring 0.3 s / 0.9 ≈ 0.13 s): fade in, sharpen, grow 0.94 → 1 and slide down 28 pt | [MEASURED] slow pull 7.1–7.7 s (no module during most of the pull), fast pull 1.27 s; thresholds [ESTIMATED] |
 | M-CC-EXPAND | module grows from its slot to the big panel in ≈ 0.15 s with a small settle, rest fades and blurs; spring 0.34 s / 0.84. Connectivity: every control travels out of its own compact circle to its capsule/tile (icon circle to the corner, own glass grows, label last) while the platter dissolves | [MEASURED] 21.35–21.55 s, 36.0 s |
-| M-CC-PRESS | module grows 1.06× under the finger, long press 380 ms | [ESTIMATED] |
+| M-CC-PRESS | module grows 1.1× under the finger with a white shimmer where the finger is (M-GLASS-PULL), long press 380 ms | [ESTIMATED] user 2026-11-26: buttons glow and grow when tapped |
 
 Please check on the iPhone: press scale of a module (frame by frame while tapping), the spring of the open/close pull with a slow finger.
 

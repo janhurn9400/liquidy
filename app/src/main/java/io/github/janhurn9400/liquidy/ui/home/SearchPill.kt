@@ -53,6 +53,8 @@ import io.github.janhurn9400.liquidy.R
 import io.github.janhurn9400.liquidy.data.AppEntry
 import io.github.janhurn9400.liquidy.design.DesignTokens
 import io.github.janhurn9400.liquidy.glass.LiquidGlass
+import io.github.janhurn9400.liquidy.glass.glassPull
+import io.github.janhurn9400.liquidy.glass.glassPullContent
 import io.github.janhurn9400.liquidy.glass.glassCapsule
 import io.github.janhurn9400.liquidy.motion.Motion
 import io.github.janhurn9400.liquidy.ui.Inter
@@ -217,8 +219,11 @@ fun SearchPill(
         onWallpaper = true,
         modifier = Modifier
             .offset { androidx.compose.ui.unit.IntOffset((centerX - width / 2).roundToPx(), topPx().roundToInt()) }
-            .size(width, height),
+            .size(width, height)
+            .glassPull { io.github.janhurn9400.liquidy.glass.GlassTouch.pullFor(GLASS_PILL) },
     ) {
+        // icons/text inside only stretch along x/y while the glass stretches along the pull
+        Box(Modifier.matchParentSize().glassPullContent { io.github.janhurn9400.liquidy.glass.GlassTouch.pullFor(GLASS_PILL) }) {
         // Pill content: "Search" or dots
         val pillAlpha = if (duoButton != null) 0f else pillContentAlpha
         if (pillAlpha > 0.01f) {
@@ -287,6 +292,7 @@ fun SearchPill(
                 MicGlyph(DesignTokens.searchMicSize.dp, glyph)
             }
         }
+    }
     }
     } // LocalWallpaperBlur (search)
 }

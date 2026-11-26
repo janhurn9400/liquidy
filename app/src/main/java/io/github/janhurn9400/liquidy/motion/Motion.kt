@@ -21,6 +21,21 @@ object Motion {
     /** M-RUBBER for a finger travel [x] over a dimension [d] (same unit): (x·d·c)/(d + c·x). */
     fun rubberBand(x: Float, d: Float): Float { val c = rubberBandC.value; return (x * d * c) / (d + c * x) }
 
+    // M-GLASS-PULL — Liquid Glass under the finger (user, iOS 27): a soft white shimmer where the finger is; moving the
+    // finger stretches the glass along the pull while it stays almost in place; springs back with a small wobble.
+    // [ESTIMATED] from the user's description (first try moved it far too much), to be checked against a recording
+    // Duo simulator 2026-11-26 (search button dragged in a 150 pt circle) + user: only along x/y (no tilt), the edge
+    // opposite the finger stays put, the icon inside never stretches. The first values (≈ +24 % at 250 pt, measured
+    // on a drag far outside the button) were "far too much" on the device → much weaker [ESTIMATED]
+    val glassPullStretch = tunable("M-GLASS-PULL.stretch", "Glass stretch at most", "Motion", 0.12f, 0f, 1f, "×")
+    val glassPullRange = tunable("M-GLASS-PULL.range", "Glass stretch: half at", "Motion", 120f, 10f, 400f, "pt")
+    val glassPullThin = tunable("M-GLASS-PULL.thin", "Glass gets thinner across", "Motion", 0.3f, 0f, 1f, "×")
+    val glassPullBack = iosSpring("M-GLASS-PULL", "Glass springs back", response = 0.4f, dampingFraction = 0.6f)
+    val glassGlowAlpha = tunable("M-GLASS-PULL.glow", "Glass shimmer under the finger", "Motion", 0.35f, 0f, 1f)
+    val glassGlowRadius = tunable("M-GLASS-PULL.glowR", "Glass shimmer reach (× size)", "Motion", 0.8f, 0.2f, 2f, "×")
+    val glassGlowIn = tunable("M-GLASS-PULL.glowIn", "Glass shimmer in", "Motion", 120f, 0f, 500f, "ms")
+    val glassGlowOut = tunable("M-GLASS-PULL.glowOut", "Glass shimmer out", "Motion", 350f, 0f, 1000f, "ms")
+
     // M-PRESS — icon dimming on touch down: immediate (≤ 1 frame). [MEASURED]
     val pressInDelay = tunable("M-PRESS.delay", "Dimming – delay", "Motion", 0f, 0f, 200f, "ms")
     // M-PRESS-CANCEL — fade back without launching the app. [ESTIMATED]
@@ -270,14 +285,28 @@ object Motion {
     val ccStretchKick = tunable("M-CC.stretchKick", "Duo: extra stretch kick on release", "Control Center", 15f, 0f, 80f, "1/s")
     val ccStretchBack = iosSpring("M-CC-STRETCH", "Duo: tiles stretch back with a squash", response = 0.4f, dampingFraction = 0.58f) // user: 0.4 bounced and squashed too much
     val ccHomeStatusFade = tunable("M-CC.homeStatusFade", "Duo: home time/ring gone at reveal", "Control Center", 0.3f, 0.05f, 1f)
+    // M-CC-EDIT — "+" enters edit mode [MEASURED] Duo simulator 2026-11-26 (1.92–2.25 s): + / power and the status
+    // column fade, the grid moves ≈ 17 pt up, empty slot circles, "Add a Control" and the page dots fade in, ≈ 0.25 s
+    val ccEdit = iosSpring("M-CC-EDIT", "Control Center edit mode", response = 0.3f, dampingFraction = 1.0f)
+    val ccEditLift = tunable("M-CC-EDIT.lift", "Edit mode: grid moves up", "Control Center", 17f, 0f, 60f, "pt")
+    // M-CC-GALLERY — "Add a Control" panel slides up from below with a little bounce (user 2026-11-26; the simulator
+    // loads it for seconds, so no clean recording) [ESTIMATED]
+    val ccGallery = iosSpring("M-CC-GALLERY", "Add a Control panel", response = 0.45f, dampingFraction = 0.82f)
+    // M-CC-RESIZE — modules move/grow to their new spot when the layout reflows [ESTIMATED] like M-REFLOW
+    val ccReflow = iosSpring("M-CC-REFLOW", "Control Center modules reflow", response = 0.35f, dampingFraction = 0.85f)
     val ccCommit = tunable("M-CC.commit", "Opens from progress", "Control Center", 0.4f, 0.1f, 0.9f) // [ESTIMATED]
     val ccFlick = tunable("M-CC.flick", "Opens/closes from velocity", "Control Center", 300f, 50f, 1500f, "pt/s") // [ESTIMATED]
     // M-CC-EXPAND — long press: the module grows from its slot into the big panel while the rest fades and blurs
     // [MEASURED] recording 10-19 21.35 s (connectivity) / 36.0 s (brightness): ≈ 0.15 s to the target, small settle after
     val ccExpand = iosSpring("M-CC-EXPAND", "Control Center module expand", response = 0.34f, dampingFraction = 0.84f)
     val ccExpandBlur = tunable("M-CC-EXPAND.blur", "Rest blurred while expanded", "Control Center", 14f, 0f, 40f, "pt") // [MEASURED] visually
+    // M-CC-SLIDER-STRETCH — dragging a slider past full/empty stretches it that way (rubber band over its height) and it
+    // springs back on release (M-GLASS-PULL), compact and expanded alike [ESTIMATED] user description 2026-11-26
+    // user 2026-11-26: the first try overlapped the next tile; on the iPhone it never reaches it → at most ≈ 12 pt longer
+    // user 2026-11-26: sliders never grow when touched (the 1.1× press growth made them overlap the next tiles)
+    val ccSliderStretch = tunable("M-CC-SLIDER-STRETCH", "Slider stretches past the end (at most)", "Control Center", 8f, 0f, 40f, "pt")
     // M-CC-PRESS — modules grow a little under the finger (glass lift). [ESTIMATED]
-    val ccPressScale = tunable("M-CC-PRESS.scale", "Module grows while pressed", "Control Center", 1.06f, 1f, 1.2f, "×")
+    val ccPressScale = tunable("M-CC-PRESS.scale", "Module grows while pressed", "Control Center", 1.1f, 1f, 1.2f, "×")
     val ccPress = iosSpring("M-CC-PRESS", "Module press", response = 0.22f, dampingFraction = 0.7f)
     val ccLongPress = tunable("M-CC-PRESS.long", "Long press expands after", "Control Center", 380f, 150f, 900f, "ms") // [ESTIMATED]
 }

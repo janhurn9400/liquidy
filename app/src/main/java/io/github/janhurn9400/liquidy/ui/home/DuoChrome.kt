@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import io.github.janhurn9400.liquidy.glass.LiquidGlass
+import io.github.janhurn9400.liquidy.glass.glassPull
+import io.github.janhurn9400.liquidy.glass.glassPullContent
 import io.github.janhurn9400.liquidy.glass.glassCapsule
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -39,13 +41,14 @@ fun DuoSearchButton(model: HomeModel, geo: HomeGeometry, density: Float) {
     LiquidGlass(
         shape = glassCapsule(),
         modifier = Modifier.offset { IntOffset(r.left.roundToInt(), r.top.roundToInt()) }.size(Dp(r.width / density))
-            .graphicsLayer { alpha = (1f - model.badgeScale.value.coerceIn(0f, 1f)) * (1f - searchFade) },
+            .graphicsLayer { alpha = (1f - model.badgeScale.value.coerceIn(0f, 1f)) * (1f - searchFade) }
+            .glassPull { io.github.janhurn9400.liquidy.glass.GlassTouch.pullFor(GLASS_PILL) },
         whiteTint = 0.85f * model.duoLupePress.value,
         blackTint = 0f,
         rimAlpha = LUPE_RIM,
         onWallpaper = true,
     ) {
-        Canvas(Modifier.fillMaxSize()) {
+        Canvas(Modifier.fillMaxSize().glassPullContent { io.github.janhurn9400.liquidy.glass.GlassTouch.pullFor(GLASS_PILL) }) {
             val s = size.width
             drawCircle(Color.Black.copy(alpha = LUPE_OUTLINE), s / 2 - 0.5f * density, style = Stroke(1f * density))
             val sw = s * 0.031f

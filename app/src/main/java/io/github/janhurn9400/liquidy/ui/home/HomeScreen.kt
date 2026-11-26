@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.input.pointer.pointerInput
+import io.github.janhurn9400.liquidy.glass.GlassTouch
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -1129,6 +1130,8 @@ fun HomeScreen(
                         }
                         val t0 = System.nanoTime()
                         val hit = hitTest(down.position)
+                        // Liquid Glass search button/pill: holding and moving pulls the glass along (M-GLASS-PULL)
+                        if (hit is Hit.Pill) { GlassTouch.bind(scope); GlassTouch.press(GLASS_PILL, arenaToWindow(down.position)) }
                                         val wasAnimating = pager.position.isRunning
                         if (wasAnimating) scope.launch { pager.position.stop() }
                         val tracker = VelocityTracker().apply { addPosition(down.uptimeMillis, down.position) }
@@ -1288,6 +1291,15 @@ fun HomeScreen(
                                 continue
                             }
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (hit is Hit.Pill) {
+                                // the glass follows the finger instead of starting a page swipe; a release still on the glass taps it
+                                GlassTouch.drag(change.position - down.position)
+                                if (change.pressed) { change.consume(); continue }
+                                GlassTouch.release()
+                                val stillOn = geo.pillRect.inflate(GLASS_TAP_SLACK * density).contains(change.position)
+                                if (stillOn) { if (geo.duo) model.openSearchFromDuoLupe() else model.openSearch() }
+                                break
+                            }
                             if (!change.pressed) {
                                 when (mode) {
                                     Mode.Pending -> when {
@@ -2111,3 +2123,7 @@ internal fun gpuCacheable(img: ImageBitmap): ImageBitmap {
     val b = img.asAndroidBitmap()
     return if (!b.isMutable) img else b.copy(b.config ?: android.graphics.Bitmap.Config.ARGB_8888, false).asImageBitmap()
 }
+
+/** Glass pull key of the search pill / Duo search button, and how far off it a release still counts as a tap (pt). */
+internal const val GLASS_PILL = "pill"
+private const val GLASS_TAP_SLACK = 24f

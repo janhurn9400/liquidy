@@ -331,4 +331,20 @@
     <string name="cc_night_light">Night Light</string>
     <string name="cc_auto_brightness">Auto-Brightness</string>
     <string name="cc_output">Output</string>
+    <string name="cc_rotation_lock">Rotation Lock</string>
+    <string name="cc_silent">Silent Mode</string>
+    <string name="cc_torch">Flashlight</string>
+    <string name="cc_mirror">Screen Mirroring</string>
+    <string name="cc_camera">Camera</string>
+    <string name="cc_battery_saver">Battery Saver</string>
+    <string name="cc_timer">Timer</string>
+    <string name="cc_calculator">Calculator</string>
+    <string name="cc_alarm">Alarm</string>
+    <string name="cc_connectivity">Connectivity</string>
+    <string name="cc_media">Now Playing</string>
+    <string name="cc_volume">Volume</string>
+    <string name="cc_brightness">Brightness</string>
+    <string name="cc_add_control">Add a Control</string>
+    <string name="cc_search_controls">Search Controls</string>
+    <string name="cc_full">The Control Center is full — remove a control first</string>
 </resources>
