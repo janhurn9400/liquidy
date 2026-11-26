@@ -303,3 +303,13 @@ Please check on the iPhone Duo: the module contents (the simulator renders only 
   battery and clock on Android 17; transparent SystemUI icon colours (fabricated overlay) changed nothing. Works:
   `cmd statusbar send-disable-flag clock notification-icons system-icons` (StatusBarManager disable flags) — allowed for
   the shell user, so root or Shizuku; `send-disable-flag none` restores.
+- Pulling the Control Center from the floating symbols: a downward swipe that starts inside the status bar zone
+  (≤ ≈ 55 dp here, 58 dp is free) is handed by the window manager to Android's StatusBar window after a few frames
+  (dumpsys input: the touch moves to `StatusBar`), overlays included, even with statusbar-expansion disabled. On the
+  home screen it works because the launcher hides the status bar. Tried to keep following via an accessibility service
+  observing the touchscreen (setMotionEventSources + hidden setObservedMotionEventSources, Android 15+): only gestures
+  that START after switching it on are routed, so it would have to watch every touch permanently — rejected (input
+  latency, privacy). Current behaviour: pull from below the zone follows the finger; from inside it the panel opens on
+  its spring once Android takes over. Possible later: read the raw touchscreen via root/Shizuku (`getevent`) only
+  during such a gesture.
+
