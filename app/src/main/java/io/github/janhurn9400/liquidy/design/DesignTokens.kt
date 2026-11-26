@@ -526,8 +526,9 @@ object StatusOverlayLayout {
     // touch area over the (scaled) symbols that opens the Control Center — only this small spot blocks the app below
     const val TOUCH_W = 60f
     const val TOUCH_H = 72f
-    // Duo unfolded: native blur strips from the hinge (radius steps up per strip, T-CC.duoBlurFeather wide)
-    const val BLUR_STEPS = 4
+    // Duo unfolded: native blur strips from the hinge (radius steps up per strip, T-CC.duoBlurFeather wide); 8 instead
+    // of 4 (user 11-26: steps faintly visible) — the strips are narrow, the cost is mostly the one wide last strip
+    const val BLUR_STEPS = 8
     // a pull too short to show the panel: close its window again after this long (ms)
     const val CLOSE_CHECK_MS = 600L
     // Android took over a pull from the status bar zone: open on the spring after the queued finger snaps (≈ 2 frames)
