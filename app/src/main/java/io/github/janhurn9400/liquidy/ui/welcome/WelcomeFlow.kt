@@ -114,7 +114,7 @@ fun hasRoot(c: Context): Boolean =
     runCatching { c.packageManager.getPackageInfo("com.topjohnwu.magisk", 0); true }.getOrDefault(false) ||
         listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/debug_ramdisk/su").any { java.io.File(it).exists() }
 
-private enum class Step { Hello, DefaultHome, Permissions, GlassAlign, Appearance, Foldable, StatusBar, Switches, Root, Done }
+private enum class Step { Hello, DefaultHome, Permissions, GlassAlign, Appearance, Foldable, StatusBar, OverApps, Switches, Root, Done }
 
 /**
  * Welcome in the style of the iOS 26 setup (YouTube recording of an iPhone 17 analysed): "Hello", then light pages with
@@ -125,7 +125,9 @@ private enum class Step { Hello, DefaultHome, Permissions, GlassAlign, Appearanc
 fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sample: AppEntry?, wallpaper: ImageBitmap, onFinish: () -> Unit) {
     val context = LocalContext.current
     val root = remember { hasRoot(context) }
-    val steps = remember {
+    // what the user chose on the "Control Center Switches" step decides which extras follow (null = not chosen yet)
+    var method by remember { mutableStateOf<SwitchMethod?>(null) }
+    val steps by remember { androidx.compose.runtime.derivedStateOf {
         buildList {
             add(Step.Hello)
             if (!isDefaultHome()) add(Step.DefaultHome)
@@ -134,12 +136,16 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
             if (!io.github.janhurn9400.liquidy.glass.GlassAlign.cropModelKnown(context)) add(Step.GlassAlign)
             add(Step.Appearance)
             if (io.github.janhurn9400.liquidy.data.FoldableStyle.supportsDuo(context)) add(Step.Foldable) // Foldables + Tablets
+            // first: what the user has / wants (Magisk, Shizuku or neither) — the extras below depend on it
+            add(Step.Switches)
             add(Step.StatusBar)
-            add(Step.Switches) // how the Control Center may switch Wi-Fi, Bluetooth …: root, Shizuku or Android's panels
-            if (root) add(Step.Root) // with module: "already active", otherwise instructions
+            // Duo: symbols + Control Center over all apps — only with root or Shizuku (hides Android's icons, switches work)
+            if (method != SwitchMethod.Panels && method != null && io.github.janhurn9400.liquidy.data.FoldableStyle.supportsDuo(context)) add(Step.OverApps)
+            // own app animations: Magisk only
+            if (method == SwitchMethod.Magisk || (method == null && root)) add(Step.Root)
             add(Step.Done)
         }
-    }
+    } }
     var i by remember { mutableIntStateOf(0) }
     var forward by remember { mutableStateOf(true) }
     var fromHello by remember { mutableStateOf(false) }
@@ -243,7 +249,13 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
                             secondary = if (possible) stringResource(R.string.welcome_later) else null, onSecondary = { next() },
                         )
                     }
-                    Step.Switches -> SwitchesStep(showBack, ::back) { next() }
+                    Step.OverApps -> StepPage(
+                        glyph = Glyph.Appearance, showBack = showBack, onBack = ::back,
+                        title = stringResource(R.string.welcome_overapps_title),
+                        body = stringResource(R.string.welcome_overapps_body),
+                        primary = stringResource(R.string.welcome_continue), onPrimary = { next() },
+                    ) { OverAppsChooser() }
+                    Step.Switches -> SwitchesStep(showBack, ::back) { m -> method = m; next() }
                     Step.Root -> StepPage(
                         glyph = Glyph.Sparkle, showBack = showBack, onBack = ::back,
                         title = stringResource(R.string.welcome_root_title),
@@ -278,6 +290,7 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
 /** Fixed download link to the Animation Module: always points to the latest release (the file name stays the same). */
 private const val SHIZUKU_URL = "https://shizuku.rikka.app/download/"
 private const val SWITCHES_POLL_MS = 1000L
+private const val OVERAPPS_LABEL_W = 96f
 // setup pages with content on wide screens: text column share, gap, and from which aspect ratio
 private const val WIDE_RATIO = 1.2f
 private const val WIDE_TEXT_SHARE = 0.42f
@@ -364,6 +377,64 @@ private fun CardRow(label: String, icon: Color, iconGlyph: DrawScope.() -> Unit,
     }
 }
 
+/**
+ * Setup page "Control Center Everywhere" (Duo): the status symbols float over every app and open the Control Center
+ * there. Turning it on also uses the launcher's own status bar and needs the Liquidy accessibility service (opened for
+ * the user if it's off). While on, the position sliders show the symbols floating over this page.
+ */
+@Composable
+private fun OverAppsChooser() {
+    val context = LocalContext.current
+    val so = io.github.janhurn9400.liquidy.data.StatusOverlay
+    val lay = io.github.janhurn9400.liquidy.design.StatusOverlayLayout
+    var service by remember { mutableStateOf(io.github.janhurn9400.liquidy.data.PowerButtonService.enabled(context)) }
+    // the user may turn the service on in Android's settings meanwhile — follow it
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) { service = io.github.janhurn9400.liquidy.data.PowerButtonService.enabled(context); kotlinx.coroutines.delay(SWITCHES_POLL_MS) }
+    }
+    val on = so.enabled && service
+    androidx.compose.runtime.DisposableEffect(on) { so.setPreview(on); onDispose { so.setPreview(false) } }
+    Card {
+        CardRow(stringResource(R.string.welcome_overapps_toggle), Color(0xFF5856D6), {
+            val w = size.width; val sw = w * 0.07f
+            drawRoundRect(Color.White, Offset(w * 0.22f, w * 0.18f), Size(w * 0.56f, w * 0.64f), CornerRadius(w * 0.1f), style = Stroke(sw))
+            drawCircle(Color.White, w * 0.07f, Offset(w * 0.62f, w * 0.32f))
+        }) {
+            GlassToggle(on, { v ->
+                if (v) {
+                    io.github.janhurn9400.liquidy.data.OwnStatusBar.set(context, true)
+                    so.set(context, true)
+                    if (!service) runCatching {
+                        context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                } else so.set(context, false)
+            })
+        }
+        if (so.enabled && !service) {
+            RowDivider()
+            BasicText(stringResource(R.string.welcome_overapps_service), Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                    runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, color = ACCENT))
+        }
+        if (on) {
+            @Composable
+            fun SliderRow(label: String, value: Float, min: Float, max: Float, set: (Float) -> Unit) {
+                RowDivider()
+                Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    BasicText(label, Modifier.width(OVERAPPS_LABEL_W.dp), style = TextStyle(fontFamily = Inter, fontSize = 17.sp, letterSpacing = (-0.35).sp, color = LABEL))
+                    GlassSlider((value - min) / (max - min), { set(min + it * (max - min)) }, Modifier.weight(1f))
+                }
+            }
+            SliderRow(stringResource(R.string.settings_status_horizontal), so.offsetX, lay.OFFSET_X_MIN, lay.OFFSET_X_MAX) { so.setOffset(context, it, so.offsetY) }
+            SliderRow(stringResource(R.string.settings_status_vertical), so.offsetY, lay.OFFSET_Y_MIN, lay.OFFSET_Y_MAX) { so.setOffset(context, so.offsetX, it) }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    BasicText(stringResource(if (on) R.string.welcome_overapps_note_on else R.string.welcome_overapps_note), Modifier.padding(horizontal = 16.dp),
+        style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 17.sp, color = SECONDARY))
+}
+
 /** The three ways the Control Center may switch system settings, best first. */
 private enum class SwitchMethod { Magisk, Shizuku, Panels }
 
@@ -373,7 +444,7 @@ private enum class SwitchMethod { Magisk, Shizuku, Panels }
  * Nothing is assumed to be installed yet.
  */
 @Composable
-private fun SwitchesStep(showBack: Boolean, back: () -> Unit, next: () -> Unit) {
+private fun SwitchesStep(showBack: Boolean, back: () -> Unit, chosen: (SwitchMethod) -> Unit) {
     var guide by remember { mutableStateOf<SwitchMethod?>(null) }
     androidx.activity.compose.BackHandler(enabled = guide != null) { guide = null }
     // same push as between setup pages: the guide comes in from the right, back goes the other way
@@ -384,18 +455,26 @@ private fun SwitchesStep(showBack: Boolean, back: () -> Unit, next: () -> Unit) 
             glyph = Glyph.Lock, showBack = showBack, onBack = back,
             title = stringResource(R.string.welcome_switches_title),
             body = stringResource(R.string.welcome_switches_body),
-            primary = stringResource(R.string.welcome_later), onPrimary = next,
+            primary = stringResource(R.string.welcome_later), onPrimary = { chosen(SwitchMethod.Panels) },
         ) {
             Card {
+                // one open at a time: what this way unlocks (+ room for screenshots later), then "Set Up"
+                var expanded by remember { mutableStateOf<SwitchMethod?>(null) }
+                fun toggle(m: SwitchMethod) { expanded = if (expanded == m) null else m }
                 MethodRow(stringResource(R.string.welcome_method_magisk), stringResource(R.string.welcome_method_magisk_sub),
-                    badge = stringResource(R.string.welcome_method_recommended)) { guide = SwitchMethod.Magisk }
+                    badge = stringResource(R.string.welcome_method_recommended), open = expanded == SwitchMethod.Magisk,
+                    features = R.array.welcome_features_magisk, setUp = { guide = SwitchMethod.Magisk }) { toggle(SwitchMethod.Magisk) }
                 RowDivider()
-                MethodRow(stringResource(R.string.welcome_method_shizuku), stringResource(R.string.welcome_method_shizuku_sub)) { guide = SwitchMethod.Shizuku }
+                MethodRow(stringResource(R.string.welcome_method_shizuku), stringResource(R.string.welcome_method_shizuku_sub),
+                    open = expanded == SwitchMethod.Shizuku, features = R.array.welcome_features_shizuku,
+                    setUp = { guide = SwitchMethod.Shizuku }) { toggle(SwitchMethod.Shizuku) }
                 RowDivider()
-                MethodRow(stringResource(R.string.welcome_method_panels), stringResource(R.string.welcome_method_panels_sub)) { guide = SwitchMethod.Panels }
+                MethodRow(stringResource(R.string.welcome_method_panels), stringResource(R.string.welcome_method_panels_sub),
+                    open = expanded == SwitchMethod.Panels, features = R.array.welcome_features_panels,
+                    setUp = { guide = SwitchMethod.Panels }) { toggle(SwitchMethod.Panels) }
             }
         }
-        else -> MethodGuide(g, onBack = { guide = null }, next = next)
+        else -> MethodGuide(g, onBack = { guide = null }, next = { chosen(g) })
     }
     }
     }
@@ -404,28 +483,49 @@ private fun SwitchesStep(showBack: Boolean, back: () -> Unit, next: () -> Unit) 
 @Composable
 private fun RowDivider() = Box(Modifier.padding(start = 16.dp).fillMaxWidth().height(0.5.dp).background(Color(0x333C3C43)))
 
-/** One way: name (+ badge), what it means, chevron. */
+/**
+ * One way: name (+ badge), what it means, chevron; tapped it unfolds what it unlocks ([features]) — with room for
+ * screenshots later — and a "Set Up" button that opens its guide.
+ */
 @Composable
-private fun MethodRow(title: String, sub: String, badge: String? = null, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth()
-        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
-        .padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                BasicText(title, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, letterSpacing = (-0.35).sp, color = LABEL))
-                if (badge != null) {
-                    Spacer(Modifier.width(8.dp))
-                    BasicText(badge, Modifier.clip(RoundedCornerShape(6.dp)).background(ACCENT.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp),
-                        style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = ACCENT))
+private fun MethodRow(title: String, sub: String, badge: String? = null, open: Boolean = false, features: Int = 0,
+                      setUp: () -> Unit = {}, onClick: () -> Unit) {
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 90f else 0f, label = "chevron")
+    Column(Modifier.fillMaxWidth().animateContentSize()) {
+        Row(Modifier.fillMaxWidth()
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    BasicText(title, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, letterSpacing = (-0.35).sp, color = LABEL))
+                    if (badge != null) {
+                        Spacer(Modifier.width(8.dp))
+                        BasicText(badge, Modifier.clip(RoundedCornerShape(6.dp)).background(ACCENT.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = ACCENT))
+                    }
+                }
+                Spacer(Modifier.height(3.dp))
+                BasicText(sub, Modifier.padding(end = 12.dp), style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 17.sp, color = SECONDARY))
+            }
+            Canvas(Modifier.size(8.dp, 14.dp).graphicsLayer { rotationZ = turn }) {
+                val sw = 2.dp.toPx(); val c = Color(0x4D3C3C43)
+                drawLine(c, Offset(size.width * 0.1f, size.height * 0.05f), Offset(size.width * 0.9f, size.height * 0.5f), sw, StrokeCap.Round)
+                drawLine(c, Offset(size.width * 0.9f, size.height * 0.5f), Offset(size.width * 0.1f, size.height * 0.95f), sw, StrokeCap.Round)
+            }
+        }
+        if (open && features != 0) Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp)) {
+            androidx.compose.ui.res.stringArrayResource(features).forEach { f ->
+                Row(Modifier.padding(vertical = 3.dp)) {
+                    BasicText("✓", Modifier.width(20.dp), style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF34C759)))
+                    BasicText(f, style = TextStyle(fontFamily = Inter, fontSize = 15.sp, lineHeight = 19.sp, color = LABEL))
                 }
             }
-            Spacer(Modifier.height(3.dp))
-            BasicText(sub, Modifier.padding(end = 12.dp), style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 17.sp, color = SECONDARY))
-        }
-        Canvas(Modifier.size(8.dp, 14.dp)) {
-            val sw = 2.dp.toPx(); val c = Color(0x4D3C3C43)
-            drawLine(c, Offset(size.width * 0.1f, size.height * 0.05f), Offset(size.width * 0.9f, size.height * 0.5f), sw, StrokeCap.Round)
-            drawLine(c, Offset(size.width * 0.9f, size.height * 0.5f), Offset(size.width * 0.1f, size.height * 0.95f), sw, StrokeCap.Round)
+            // screenshots of these features go here later (res/drawable, one row that scrolls sideways)
+            Spacer(Modifier.height(10.dp))
+            BasicText(stringResource(R.string.welcome_method_setup), Modifier.clip(RoundedCornerShape(10.dp)).background(ACCENT)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = setUp)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+                style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White))
         }
     }
 }

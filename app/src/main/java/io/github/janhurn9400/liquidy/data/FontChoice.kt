@@ -24,6 +24,8 @@ object FontChoice {
     private const val PREFS = "font"
     private const val KEY = "choice"
     private const val INTER = "inter"
+    /** Optical size (pt) for added variable fonts: the "Text" cut used for small UI text. */
+    private const val TEXT_OPTICAL_SIZE = 17f
     /** Weights the UI uses (regular … bold). */
     private val WEIGHTS = listOf(400, 500, 600, 700)
 
@@ -128,7 +130,11 @@ object FontChoice {
         .sortedBy { it.lastModified() }
         .map { f ->
             Option("file:${f.name}", f.nameWithoutExtension.replace('_', ' ').replace('-', ' '),
-                FontFamily(WEIGHTS.map { w -> Font(f, FontWeight(w), variationSettings = FontVariation.Settings(FontVariation.weight(w))) }),
+                // optical size: variable fonts with an opsz axis (e.g. a system UI font family) default to their
+                // large "Display" cut, which looks small and tight at icon-label sizes — use the text cut, like the
+                // original does below 20 pt. Fonts without the axis ignore it.
+                FontFamily(WEIGHTS.map { w -> Font(f, FontWeight(w), variationSettings = FontVariation.Settings(
+                    FontVariation.weight(w), FontVariation.Setting("opsz", TEXT_OPTICAL_SIZE))) }),
                 removable = true)
         }
 

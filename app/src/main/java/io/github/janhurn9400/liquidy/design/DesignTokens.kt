@@ -377,6 +377,9 @@ object DesignTokens {
     /** Widgets: content brightness → plate…glyph; × this so light content (≈ 0.85) already reaches the glyph colour. */
     const val TINT_WIDGET_GAIN = 1.15f
     /** Customise › sun: wallpaper dimming in dark mode [ESTIMATED]. */
+    // folder background snapshot: the open folder's icon is cut out (padding and label height as shares of the icon)
+    const val FOLDER_SNAP_PAD = 0.2f
+    const val FOLDER_SNAP_LABEL = 0.5f
     const val WALLPAPER_DARK_DIM = 0.3f
     /** Customise › large icons: icon scale (labels hidden, the icon grows into their space) [ESTIMATED]. */
     const val LARGE_ICON_SCALE = 1.2f

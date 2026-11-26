@@ -307,11 +307,38 @@ fun FolderOverlay(
     // (1–2 frames) the live glass stands in.
     val liveSource = io.github.janhurn9400.liquidy.glass.LocalGlassBackdrop.current as? com.kyant.backdrop.backdrops.LayerBackdrop
     val panelDensity = androidx.compose.ui.platform.LocalDensity.current.density
-    val snapshot by androidx.compose.runtime.produceState<Pair<ImageBitmap, ImageBitmap>?>(null, open, liveSource) {
+    // Taken again when closing starts: the first one is from the frame the folder opened in, when the small folder icon was
+    // still visible — while the glass clears on closing it showed through as a sharp second icon. At closing start the
+    // icon is hidden, so the new one is clean (the old one stays until the new one is ready).
+    val snapshot by androidx.compose.runtime.produceState<Pair<ImageBitmap, ImageBitmap>?>(null, open, liveSource, open.closing) {
         val layer = liveSource?.graphicsLayer ?: return@produceState
         val img = runCatching { layer.toImageBitmap() }.getOrNull() ?: return@produceState
+        val iconRect = geo.rect(0f, open.iconTopLeft, open.iconScale)
+        val labelW = DesignTokens.labelWidth.value * panelDensity
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-            val sharp = img.asAndroidBitmap().copy(android.graphics.Bitmap.Config.ARGB_8888, false).asImageBitmap()
+            // cut the folder's own icon (+ label) out: it is still on screen in the frame the folder opens in, and the
+            // panel glass showed it through (refracted) all the time the folder was open
+            val bmp = img.asAndroidBitmap().copy(android.graphics.Bitmap.Config.ARGB_8888, true)
+            run {
+                val pad = iconRect.width * DesignTokens.FOLDER_SNAP_PAD
+                val w = maxOf(labelW, iconRect.width) + 2 * pad
+                val l = iconRect.center.x - w / 2; val t = iconRect.top - pad
+                val r = android.graphics.RectF(l, t, l + w, iconRect.bottom + iconRect.height * DesignTokens.FOLDER_SNAP_LABEL + pad)
+                val cv = android.graphics.Canvas(bmp)
+                // with Android's window blur the layer has no wallpaper (transparent) → clear; else paint the wallpaper back
+                val transparent = android.graphics.Color.alpha(bmp.getPixel(0, 0)) == 0
+                if (transparent) cv.drawRect(r, android.graphics.Paint().apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR) })
+                else {
+                    val wp = wallpaper.asAndroidBitmap().let { b ->
+                        // a GPU (hardware) bitmap can't be drawn on a software canvas
+                        if (b.config == android.graphics.Bitmap.Config.HARDWARE) b.copy(android.graphics.Bitmap.Config.ARGB_8888, false) else b
+                    }
+                    val src = android.graphics.Rect(r.left.toInt().coerceAtLeast(0), r.top.toInt().coerceAtLeast(0),
+                        r.right.toInt().coerceAtMost(wp.width), r.bottom.toInt().coerceAtMost(wp.height))
+                    cv.drawBitmap(wp, src, android.graphics.RectF(src), null)
+                }
+            }
+            val sharp = bmp.asImageBitmap()
             sharp to io.github.janhurn9400.liquidy.glass.WallpaperRenderer.softBlur(sharp, DesignTokens.folderPanelBlur.value * panelDensity)
         }
     }

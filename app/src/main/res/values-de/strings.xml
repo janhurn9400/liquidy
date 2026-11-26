@@ -382,7 +382,7 @@
     <string name="settings_power_button">Ein/Aus-Taste</string>
     <string name="settings_power_button_why">Öffnet das Ausschaltmenü aus dem Kontrollzentrum ohne Root oder Shizuku. Ein Bedienungshilfe-Dienst, der sonst nichts tut.</string>
     <string name="welcome_switches_title">Schalter im Kontrollzentrum</string>
-    <string name="welcome_switches_body">Mit Root oder Shizuku schalten WLAN, Bluetooth, Mobile Daten, Flugmodus, Dunkelmodus, Energiesparen und mehr direkt im Kontrollzentrum. Wähle einen Weg – jeder erklärt dir, was du brauchst und wie du ihn einrichtest. Ändern kannst du das später unter Einstellungen › Berechtigungen.</string>
+    <string name="welcome_switches_body">Was kann Liquidy auf diesem Handy nutzen? Mit Root (Magisk) oder Shizuku schalten WLAN, Bluetooth, Mobile Daten, Dunkelmodus und mehr direkt im Kontrollzentrum, und auf Foldables öffnet es sich über jeder App. Magisk schaltet zusätzlich Liquidys eigene App-Animationen frei. Wähle deinen Weg – jeder zeigt, was du brauchst.</string>
     <string name="welcome_method_recommended">Empfohlen</string>
     <string name="welcome_method_magisk">Root mit Magisk</string>
     <string name="welcome_method_magisk_sub">Alles schaltet sofort, nach einem Neustart ist nichts zu tun. Schaltet auch Liquidys eigene App-Animationen frei.</string>
@@ -417,4 +417,29 @@
     <string name="welcome_guide_shizuku_4_sub">Unten auf den Knopf tippen; Shizuku fragt einmal – auf Erlauben tippen.</string>
     <string name="welcome_guide_shizuku_on">Shizuku ist erlaubt – die Schalter funktionieren.</string>
     <string name="welcome_guide_panels_body">WLAN, Mobile Daten und NFC öffnen Androids Schnellpanel, die anderen Schalter ihre Einstellungsseite. Mit diesen optionalen Erlaubnissen schalten einige direkt:</string>
+    <string name="welcome_overapps_title">Kontrollzentrum überall</string>
+    <string name="welcome_overapps_body">Die Statussymbole oben rechts können über jeder App schweben, wie auf dem Home-Bildschirm – zieh sie nach unten, um das Kontrollzentrum überall zu öffnen. Am besten mit Root (Magisk): Dann werden Androids eigene Statussymbole ausgeblendet und jeder Schalter schaltet direkt.</string>
+    <string name="welcome_overapps_toggle">Über allen Apps</string>
+    <string name="welcome_overapps_service">„Liquidy Ein/Aus-Taste“ in den Bedienungshilfen einschalten</string>
+    <string name="welcome_overapps_note">Nutzt Liquidys Bedienungshilfe-Dienst – er zeichnet nur die Symbole und das Kontrollzentrum und liest keine Bildschirminhalte. Ändern kannst du das später unter Einstellungen › Darstellung.</string>
+    <string name="welcome_overapps_note_on">Die Symbole schweben jetzt über dieser Seite – verschieb sie so, dass sie in deinen Apps nichts verdecken. Mehr Optionen (pro App) unter Einstellungen › Darstellung › Symbole über Apps.</string>
+    <string-array name="welcome_features_magisk">
+        <item>Jeder Schalter im Kontrollzentrum schaltet sofort – WLAN, Bluetooth, Mobile Daten, Flugmodus, Dunkelmodus, Energiesparen …</item>
+        <item>Kontrollzentrum und Statussymbole über jeder App (Foldables), Androids eigene Symbole ausgeblendet</item>
+        <item>Liquidys eigene Animationen beim Öffnen und Schließen von Apps (Animation Module)</item>
+        <item>Android-Schnelleinstellungen und das Ausschaltmenü im Kontrollzentrum</item>
+        <item>Nach einem Neustart ist nichts zu tun</item>
+    </string-array>
+    <string-array name="welcome_features_shizuku">
+        <item>Jeder Schalter im Kontrollzentrum schaltet sofort – ganz ohne Root</item>
+        <item>Kontrollzentrum und Statussymbole über jeder App (Foldables), Androids eigene Symbole ausgeblendet</item>
+        <item>Android-Schnelleinstellungen und das Ausschaltmenü im Kontrollzentrum</item>
+        <item>Nach einem Neustart: einmal in Shizuku auf Starten tippen</item>
+    </string-array>
+    <string-array name="welcome_features_panels">
+        <item>Das volle Kontrollzentrum auf dem Home-Bildschirm</item>
+        <item>Helligkeit, Ausrichtungssperre, Nicht stören, Taschenlampe und Lautstärke schalten direkt</item>
+        <item>WLAN, Mobile Daten und der Rest öffnen Androids eigenes Panel – dort wählst du z. B. gleich ein WLAN</item>
+    </string-array>
+    <string name="welcome_method_setup">Einrichten</string>
 </resources>

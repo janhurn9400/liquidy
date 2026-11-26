@@ -382,7 +382,7 @@
     <string name="settings_power_button">Power Button</string>
     <string name="settings_power_button_why">Opens Android\'s power menu from the Control Center without root or Shizuku. An accessibility service that does nothing else.</string>
     <string name="welcome_switches_title">Control Center Switches</string>
-    <string name="welcome_switches_body">With root or Shizuku, Wi-Fi, Bluetooth, mobile data, airplane mode, dark mode, battery saver and more switch right in the Control Center. Choose a way — each one tells you what you need and how to set it up. You can change it later in Settings › Permissions.</string>
+    <string name="welcome_switches_body">What can Liquidy use on this phone? With root (Magisk) or Shizuku, Wi-Fi, Bluetooth, mobile data, dark mode and more switch right in the Control Center, and on foldables it opens over every app. Magisk also unlocks Liquidy\'s own app animations. Pick yours — each way shows what you need.</string>
     <string name="welcome_method_recommended">Recommended</string>
     <string name="welcome_method_magisk">Root with Magisk</string>
     <string name="welcome_method_magisk_sub">Everything switches instantly, nothing to redo after a restart. Also unlocks Liquidy\'s own app animations.</string>
@@ -417,4 +417,29 @@
     <string name="welcome_guide_shizuku_4_sub">Tap the button below; Shizuku asks once — tap Allow.</string>
     <string name="welcome_guide_shizuku_on">Shizuku is allowed — the switches work.</string>
     <string name="welcome_guide_panels_body">Wi-Fi, mobile data and NFC open Android\'s quick panel, the other switches open their settings page. These optional permissions let a few switches work directly:</string>
+    <string name="welcome_overapps_title">Control Center Everywhere</string>
+    <string name="welcome_overapps_body">The status symbols at the top right can float over every app, like on the Home Screen — pull them down to open the Control Center from anywhere. Best with root (Magisk): then Android\'s own status icons are hidden and every switch flips directly.</string>
+    <string name="welcome_overapps_toggle">Over All Apps</string>
+    <string name="welcome_overapps_service">Turn on \"Liquidy Power Button\" in Accessibility</string>
+    <string name="welcome_overapps_note">Uses Liquidy\'s accessibility service — it only draws the symbols and the Control Center and reads no screen content. You can change this later in Settings › Appearance.</string>
+    <string name="welcome_overapps_note_on">The symbols float over this page now — move them so they don\'t cover anything in your apps. More options (per app) in Settings › Appearance › Symbols over Apps.</string>
+    <string-array name="welcome_features_magisk">
+        <item>Every Control Center switch flips instantly — Wi-Fi, Bluetooth, mobile data, airplane mode, dark mode, battery saver …</item>
+        <item>Control Center and status symbols over every app (foldables), Android\'s own icons hidden</item>
+        <item>Liquidy\'s own app open and close animations (Animation Module)</item>
+        <item>Android Quick Settings tiles and the power menu in the Control Center</item>
+        <item>Nothing to redo after a restart</item>
+    </string-array>
+    <string-array name="welcome_features_shizuku">
+        <item>Every Control Center switch flips instantly — no root needed</item>
+        <item>Control Center and status symbols over every app (foldables), Android\'s own icons hidden</item>
+        <item>Android Quick Settings tiles and the power menu in the Control Center</item>
+        <item>After a restart: tap Start in Shizuku once</item>
+    </string-array>
+    <string-array name="welcome_features_panels">
+        <item>The full Control Center on the Home Screen</item>
+        <item>Brightness, rotation lock, Do Not Disturb, flashlight and volume switch directly</item>
+        <item>Wi-Fi, mobile data and the rest open Android\'s own panel — pick a network right away</item>
+    </string-array>
+    <string name="welcome_method_setup">Set Up</string>
 </resources>

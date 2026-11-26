@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.input.pointer.pointerInput
 import io.github.janhurn9400.liquidy.glass.GlassTouch
@@ -688,7 +689,10 @@ fun HomeScreen(
             windowManager?.addCrossWindowBlurEnabledListener(l)
             onDispose { windowManager?.removeCrossWindowBlurEnabledListener(l) }
         }
-        val systemBlur = crossWindowBlur && !drawWallpaper && !forceCopy
+        // Android emulator (Android 17 image, AVD recreated 2026-11-25): its window background blur draws BLACK instead of
+        // the blurred wallpaper — there we always use our own copy so folders / search look right while testing
+        val emulator = remember { android.os.Build.HARDWARE == "ranchu" || android.os.Build.HARDWARE == "goldfish" }
+        val systemBlur = crossWindowBlur && !drawWallpaper && !forceCopy && !emulator
         useSystemWallpaperBlur = systemBlur
         LaunchedEffect(window, systemBlur) {
             val win = window ?: return@LaunchedEffect
@@ -731,6 +735,16 @@ fun HomeScreen(
                     // with the system blur the wallpaper is blurred behind the window → snapshot only the icons
                     if (!useSystemWallpaperBlur) drawImage(wallpaper)
                     drawLayer(homeContentLayer)
+                    // without the folder's own icon (+ label): it is still visible in the frame the snapshot is taken from,
+                    // and on closing the fading snapshot showed it next to the panel morphing back into it (a double icon)
+                    val ic = geo.icon * openFolderNow.iconScale
+                    val pad = ic * DesignTokens.FOLDER_SNAP_PAD
+                    val lw = maxOf(DesignTokens.labelWidth.value * density, ic) + 2 * pad
+                    val l = openFolderNow.iconTopLeft.x + ic / 2 - lw / 2; val t = openFolderNow.iconTopLeft.y - pad
+                    clipRect(l, t, l + lw, openFolderNow.iconTopLeft.y + ic * (1f + DesignTokens.FOLDER_SNAP_LABEL) + pad) {
+                        if (useSystemWallpaperBlur) drawRect(Color.Transparent, blendMode = androidx.compose.ui.graphics.BlendMode.Clear)
+                        else drawImage(wallpaper)
+                    }
                 }
                 layer.toImageBitmap()
             } catch (e: Exception) { null } finally { graphicsContext.releaseGraphicsLayer(layer) }
