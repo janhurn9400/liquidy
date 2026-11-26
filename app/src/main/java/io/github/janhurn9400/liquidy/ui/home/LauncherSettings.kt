@@ -1,5 +1,8 @@
 package io.github.janhurn9400.liquidy.ui.home
 
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.foundation.layout.requiredSize
@@ -727,76 +730,27 @@ private fun FontRow(o: io.github.janhurn9400.liquidy.data.FontChoice.Option, noR
 }
 
 /**
- * An enlarged cut-out of the home screen as it really is, so the font is easy to judge: own wallpaper, a few apps with
- * their names (in the chosen font) and the dock — Duo unfolded: the right page's top rows and the dock column;
- * phone: the last rows and the dock plate. Same width as the list below it.
+ * The real home screen, drawn from its own recorded layers (pages, dock with its Liquid Glass, pill / magnifier) over the
+ * wallpaper Android shows — so it looks exactly like home, and the chosen font shows up at once. Slightly zoomed out to a
+ * cut-out that keeps names and the dock: Duo unfolded the right page + dock column, otherwise the lower part with the dock.
  */
 @Composable
-private fun HomePreview(model: HomeModel) {
-    val conf = androidx.compose.ui.platform.LocalConfiguration.current
-    val sw = conf.screenWidthDp.toFloat(); val sh = conf.screenHeightDp.toFloat()
-    val wide = sw > sh * 1.1f
-    val wallpaper = LocalWallpaper.current
-    val fallback = remember { if (wallpaper == null) io.github.janhurn9400.liquidy.glass.Wallpaper.generateColorful(800, 800) else null }
-    val image = wallpaper ?: fallback!!
-    val display = model.display
-    val apps = model.apps
-    // the cut-out of the real screen (pt) the preview shows
-    val vpW = minOf(sw, HP_VIEW_W)
-    val vpH = vpW / HP_VIEW_ASPECT
-    val vpX = sw - vpW
-    val vpY = if (wide) HP_VIEW_TOP_DUO else sh - vpH
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(HP_VIEW_ASPECT).clip(RoundedCornerShape(GROUP_CORNER.dp))) {
-        val s = maxWidth.value / vpW // real pt → preview dp (enlarged)
-        // the whole wallpaper at screen size, shifted so the cut-out shows
-        // unbounded + top-start: a requiredSize bigger than the box would otherwise be centred and the offset would miss
-        androidx.compose.foundation.Image(image, null, Modifier.wrapContentSize(Alignment.TopStart, unbounded = true)
-            .offset((-vpX * s).dp, (-vpY * s).dp).requiredSize((sw * s).dp, (sh * s).dp),
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-        @Composable
-        fun AppAt(key: String, cx: Float, top: Float, icon: Float, label: Boolean) {
-            val a = apps[key] ?: return
-            Column(Modifier.offset(((cx - HP_CELL / 2 - vpX) * s).dp, ((top - vpY) * s).dp).width((HP_CELL * s).dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                androidx.compose.foundation.Image(a.icon, null, Modifier.size((icon * s).dp)
-                    .clip(io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((icon * s * ICON_CORNER_SHARE).dp)))
-                if (label) BasicText(a.label, Modifier.padding(top = (HP_LABEL_GAP * s).dp), maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    style = TextStyle(fontFamily = Inter, fontSize = (HP_LABEL * s).sp, color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 1f), 3f)))
-            }
-        }
-        if (wide) {
-            // Duo unfolded: two pages side by side, dock column at the right edge
-            val area = sw - HP_DUO_DOCK_COL
-            for (p in 0 until 2) {
-                val keys = display.pages.getOrNull(p) ?: continue
-                val pageW = area / 2; val pitch = pageW / HP_COLS
-                keys.take(HP_COLS * HP_ROWS_DUO).forEachIndexed { i, k ->
-                    AppAt(k, p * pageW + pitch * (i % HP_COLS + 0.5f), HP_TOP_DUO + (i / HP_COLS) * HP_ROW_PITCH, HP_ICON, true)
-                }
-            }
-            val dock = display.dock.take(HP_DOCK_MAX_DUO)
-            if (dock.isNotEmpty()) {
-                val cx = sw - HP_DUO_DOCK_FROM_RIGHT
-                val h = dock.size * HP_DUO_DOCK_PITCH + HP_DUO_DOCK_PAD
-                val top = (sh - h) / 2
-                Box(Modifier.offset(((cx - HP_DUO_DOCK_W / 2 - vpX) * s).dp, ((top - vpY) * s).dp).size((HP_DUO_DOCK_W * s).dp, (h * s).dp)
-                    .clip(RoundedCornerShape((HP_DUO_DOCK_W / 2 * s).dp)).background(Color.White.copy(alpha = HP_DOCK_ALPHA)))
-                dock.forEachIndexed { i, k ->
-                    AppAt(k, cx, top + HP_DUO_DOCK_PAD / 2 + i * HP_DUO_DOCK_PITCH + (HP_DUO_DOCK_PITCH - HP_DOCK_ICON_DUO) / 2, HP_DOCK_ICON_DUO, false)
-                }
-            }
-        } else {
-            // phone: one page, dock plate at the bottom
-            val pitch = sw / HP_COLS
-            display.pages.firstOrNull()?.take(HP_COLS * HP_ROWS)?.forEachIndexed { i, k ->
-                AppAt(k, pitch * (i % HP_COLS + 0.5f), HP_TOP + (i / HP_COLS) * HP_ROW_PITCH, HP_ICON, true)
-            }
-            val top = sh - HP_DOCK_FROM_BOTTOM
-            Box(Modifier.offset(((HP_DOCK_SIDE - vpX) * s).dp, ((top - vpY) * s).dp).size(((sw - 2 * HP_DOCK_SIDE) * s).dp, (HP_DOCK_H * s).dp)
-                .clip(RoundedCornerShape((HP_DOCK_CORNER * s).dp)).background(Color.White.copy(alpha = HP_DOCK_ALPHA)))
-            display.dock.take(HP_COLS).forEachIndexed { i, k ->
-                AppAt(k, pitch * (i + 0.5f), top + (HP_DOCK_H - HP_ICON) / 2, HP_ICON, false)
+private fun HomePreview(@Suppress("UNUSED_PARAMETER") model: HomeModel) {
+    val snap = LocalHomeSnapshot.current ?: return
+    val wide = snap.w > snap.h * 1.1f
+    // cut-out of the screen as fractions (left, top, right, bottom)
+    val (fl, ft, fr, fb) = if (wide) listOf(HP_DUO_L, HP_DUO_T, 1f, HP_DUO_B) else listOf(HP_PHONE_L, HP_PHONE_T, 1f, HP_PHONE_B)
+    val vx = snap.w * fl; val vy = snap.h * ft
+    val vw = snap.w * (fr - fl); val vh = snap.h * (fb - ft)
+    val fontKey = io.github.janhurn9400.liquidy.data.FontChoice.key
+    Canvas(Modifier.fillMaxWidth().aspectRatio(vw / vh).clip(RoundedCornerShape(GROUP_CORNER.dp))) {
+        @Suppress("UNUSED_EXPRESSION") fontKey // redraw when the font changes (home re-records its layers in the same frame)
+        val k = size.width / vw
+        scale(k, k, pivot = Offset.Zero) {
+            translate(-vx, -vy) {
+                drawImage(snap.wallpaper, dstSize = androidx.compose.ui.unit.IntSize(snap.w.roundToInt(), snap.h.roundToInt()),
+                    filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
+                snap.layers.forEach { drawLayer(it) }
             }
         }
     }
@@ -1162,33 +1116,14 @@ private const val DUO_RIGHT_ROOM = 85f        // content ends 85 pt before the r
 private const val DUO_COLUMN_FROM_RIGHT = 47f
 private const val DUO_BUTTON_Y = 190f
 private const val TOP_PAD = 34f
-// Font page home preview: real home geometry in pt, scaled to the preview (approximations of HomeGeometry)
-private const val HP_COLS = 4
-private const val HP_ROWS = 6
-private const val HP_ROWS_DUO = 6
-private const val HP_CELL = 84f
-private const val HP_ICON = 60f
-private const val HP_LABEL = 12f
-private const val HP_LABEL_GAP = 5f
-private const val HP_ROW_PITCH = 100f
-private const val HP_TOP = 72f
-private const val HP_TOP_DUO = 40f
-private const val HP_DOCK_FROM_BOTTOM = 124f
-private const val HP_DOCK_SIDE = 17f
-private const val HP_DOCK_H = 103f
-private const val HP_DOCK_CORNER = 38f
-private const val HP_DOCK_ALPHA = 0.22f
-private const val HP_DUO_DOCK_COL = 94f
-private const val HP_DUO_DOCK_FROM_RIGHT = 47f
-private const val HP_DUO_DOCK_W = 66f
-private const val HP_DUO_DOCK_PITCH = 60f
-private const val HP_DUO_DOCK_PAD = 14f
-private const val HP_DOCK_ICON_DUO = 48f
-private const val HP_DOCK_MAX_DUO = 6
-// the enlarged cut-out: this wide (pt), this aspect; Duo: from this y (top rows + upper dock), phone: the bottom
-private const val HP_VIEW_W = 330f
-private const val HP_VIEW_ASPECT = 1.6f
-private const val HP_VIEW_TOP_DUO = 20f // first two rows with their names (the font is what to judge)
+// Font page home preview cut-out (fractions of the screen), zoomed in so the names are large: Duo unfolded the right
+// page's first rows (cut off on the left) + the top of the dock column; phone the last rows + part of the dock
+private const val HP_DUO_L = 0.55f
+private const val HP_DUO_T = 0.04f
+private const val HP_DUO_B = 0.58f
+private const val HP_PHONE_L = 0.2f
+private const val HP_PHONE_T = 0.62f
+private const val HP_PHONE_B = 0.93f
 private val FONT_MIME = arrayOf("font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-otf",
     "application/vnd.ms-opentype", "application/font-sfnt", "application/octet-stream")
 private const val SIDEBAR_TOP = 86f   // header card ≈ 100 pt [MEASURED]

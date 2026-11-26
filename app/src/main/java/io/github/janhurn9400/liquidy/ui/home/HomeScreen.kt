@@ -199,6 +199,7 @@ fun HomeScreen(
         model.screenSize = androidx.compose.ui.geometry.Size(w, h)
         io.github.janhurn9400.liquidy.glass.GlassAlign.dockRect = geo.dockRect
         val homeContentLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+        val homePillLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
         var folderBlurSnap by remember { androidx.compose.runtime.mutableStateOf<Pair<ImageBitmap, ImageBitmap>?>(null) }
         /** Android blurs its own wallpaper behind the window (see "Wallpaper blur" below). */
         var useSystemWallpaperBlur by remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -950,6 +951,8 @@ fun HomeScreen(
                     val r = (model.openFolder?.progress?.value ?: 0f) * DesignTokens.folderBgBlur.value * density
                     renderEffect = if (r > 0.5f) BlurEffect(r, r, TileMode.Decal) else null
                 }
+                // own layer too, so the font page can show the real home screen (pill / magnifier / dots)
+                .drawWithContent { homePillLayer.record { this@drawWithContent.drawContent() }; drawLayer(homePillLayer) }
         ) {
             // Duo: in the App Library magnifier + dots disappear (recording 10:40, from 15.6 s – the App Library search field is at the top)
             // folded: on the Today page dots + magnifier are gone [MEASURED 19:07, 5 s]
@@ -1627,7 +1630,10 @@ fun HomeScreen(
         }
 
         // ── Launcher settings ──────────────────────────────────────────────────────
-        if (model.settingsOpen) LauncherSettingsSheet(model, onClose = { model.settingsClosed() })
+        // the real home screen (content + pill layers) for previews in settings (font page)
+        if (model.settingsOpen) androidx.compose.runtime.CompositionLocalProvider(
+            LocalHomeSnapshot provides HomeSnapshot(listOf(homeContentLayer, homePillLayer), w, h, wallpaper),
+        ) { LauncherSettingsSheet(model, onClose = { model.settingsClosed() }) }
 
         // ── Customise sheet (icon style) ─────────────────────────────────────────────────
         if (model.customiseOpen) {
@@ -2127,3 +2133,8 @@ internal fun gpuCacheable(img: ImageBitmap): ImageBitmap {
 /** Glass pull key of the search pill / Duo search button, and how far off it a release still counts as a tap (pt). */
 internal const val GLASS_PILL = "pill"
 private const val GLASS_TAP_SLACK = 24f
+
+/** The home screen as it is drawn right now: its recorded layers (window size [w]×[h] px) over [wallpaper]. */
+class HomeSnapshot(val layers: List<androidx.compose.ui.graphics.layer.GraphicsLayer>, val w: Float, val h: Float, val wallpaper: ImageBitmap)
+
+val LocalHomeSnapshot = androidx.compose.runtime.staticCompositionLocalOf<HomeSnapshot?> { null }
