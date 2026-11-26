@@ -392,7 +392,43 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                             android.net.Uri.fromParts("package", context.packageName, null)))
                     }
                 }
-            }
+                            // Control Center switches: who may flip them (root / Shizuku) and the no-root helpers, each with why
+                val shz = io.github.janhurn9400.liquidy.data.ShizukuShell.state.value
+                val via = remember(tick, shz) { io.github.janhurn9400.liquidy.data.ShizukuShell.refresh(); io.github.janhurn9400.liquidy.data.Privileged.via }
+                val write = remember(tick) { android.provider.Settings.System.canWrite(context) }
+                val dndAccess = remember(tick) { context.getSystemService(android.app.NotificationManager::class.java)?.isNotificationPolicyAccessGranted == true }
+                val power = remember(tick) { io.github.janhurn9400.liquidy.data.PowerButtonService.enabled(context) }
+                Section(stringResource(R.string.settings_sec_switches)) {
+                    StatusTextRow(stringResource(R.string.settings_switches), stringResource(when {
+                        via == io.github.janhurn9400.liquidy.data.Privileged.Via.Root -> R.string.settings_switches_root
+                        shz == io.github.janhurn9400.liquidy.data.ShizukuShell.State.Ready -> R.string.settings_switches_shizuku
+                        shz == io.github.janhurn9400.liquidy.data.ShizukuShell.State.NoPermission -> R.string.settings_switches_shizuku_allow
+                        shz == io.github.janhurn9400.liquidy.data.ShizukuShell.State.NotRunning -> R.string.settings_switches_shizuku_start
+                        else -> R.string.settings_switches_get_shizuku
+                    }), stringResource(R.string.settings_switches_why)) {
+                        when (shz) {
+                            io.github.janhurn9400.liquidy.data.ShizukuShell.State.NoPermission -> io.github.janhurn9400.liquidy.data.ShizukuShell.requestPermission()
+                            io.github.janhurn9400.liquidy.data.ShizukuShell.State.NotRunning -> context.packageManager.getLaunchIntentForPackage(io.github.janhurn9400.liquidy.data.ShizukuShell.PACKAGE)
+                                ?.let { open(context, it) }
+                            io.github.janhurn9400.liquidy.data.ShizukuShell.State.NotInstalled -> open(context, android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(SHIZUKU_URL)))
+                            io.github.janhurn9400.liquidy.data.ShizukuShell.State.Ready -> Unit
+                        }
+                    }
+                    Divider()
+                    PermissionRow(stringResource(R.string.settings_write_settings), write, stringResource(R.string.settings_write_settings_why)) {
+                        open(context, android.content.Intent(android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                            android.net.Uri.fromParts("package", context.packageName, null)))
+                    }
+                    Divider()
+                    PermissionRow(stringResource(R.string.settings_dnd_access), dndAccess, stringResource(R.string.settings_dnd_access_why)) {
+                        open(context, android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                    }
+                    Divider()
+                    PermissionRow(stringResource(R.string.settings_power_button), power, stringResource(R.string.settings_power_button_why)) {
+                        open(context, android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    }
+                }
+}
             Category.Advanced -> {
                 val module = remember(tick) { context.checkSelfPermission("android.permission.CONTROL_REMOTE_APP_TRANSITION_ANIMATIONS") == android.content.pm.PackageManager.PERMISSION_GRANTED }
                 // Animation Module: own subpage (explanation, status, instructions) — here only a row with status
@@ -1076,6 +1112,24 @@ private fun GlassStyleGlyph(filled: Boolean) = Canvas(Modifier.size(26.dp, 22.dp
 }
 
 /** Permission: name + status, below it in grey what it's needed for. */
+/** Like [PermissionRow], with a status text instead of allowed / not allowed. */
+@Composable
+private fun StatusTextRow(label: String, value: String, why: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = ROW_H.dp)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
+            .padding(start = 20.dp, end = 18.dp, top = 11.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            BasicText(label, style = LABEL)
+            BasicText(why, Modifier.padding(top = 3.dp, end = 12.dp), style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 17.sp, color = GREY))
+        }
+        BasicText(value, style = LABEL.copy(color = GREY)); Spacer(Modifier.width(8.dp))
+        Chevron()
+    }
+}
+
 @Composable
 private fun PermissionRow(label: String, granted: Boolean, why: String, onClick: () -> Unit) {
     Row(
@@ -1117,6 +1171,7 @@ private const val DUO_RIGHT_ROOM = 85f        // content ends 85 pt before the r
 private const val DUO_COLUMN_FROM_RIGHT = 47f
 private const val DUO_BUTTON_Y = 190f
 private const val TOP_PAD = 34f
+private const val SHIZUKU_URL = "https://shizuku.rikka.app/download/"
 // Font page home preview cut-out (fractions of the screen), zoomed in so the names are large: Duo unfolded the right
 // page's first rows (cut off on the left) + the top of the dock column; phone the last rows + part of the dock
 private const val HP_DUO_L = 0.55f

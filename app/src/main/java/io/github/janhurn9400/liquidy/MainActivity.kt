@@ -84,6 +84,7 @@ class MainActivity : ComponentActivity() {
         io.github.janhurn9400.liquidy.data.OwnStatusBar.load(this)
         io.github.janhurn9400.liquidy.glass.GlassClarity.load(this)
         io.github.janhurn9400.liquidy.data.FontChoice.load(this)
+        io.github.janhurn9400.liquidy.data.ShizukuShell.init(this)
         io.github.janhurn9400.liquidy.data.Quirks.load(this)
         io.github.janhurn9400.liquidy.data.UniversalSearch.WebSuggestions.load(this)
         androidWidgets = io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetHost(this) // before onStart (startListening)

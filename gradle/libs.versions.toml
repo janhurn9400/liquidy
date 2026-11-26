@@ -8,6 +8,9 @@ coreKtx = "1.13.1"
 backdrop = "2.0.1"
 kyantShapes = "1.2.1" # = transitive Version von backdrop 2.0.1
 
+shizuku = "13.1.5"
+hiddenApiBypass = "6.1"
+
 [libraries]
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
@@ -20,6 +23,12 @@ compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
 backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "backdrop" }
 kyant-shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "kyantShapes" }
+
+# Shizuku (Apache-2.0): ADB-level shell without root for the Control Center switches
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
+# reads framework constants (binder codes) without the Animation Module's hidden-API allowlist (Apache-2.0)
+hiddenapibypass = { group = "org.lsposed.hiddenapibypass", name = "hiddenapibypass", version.ref = "hiddenApiBypass" }
 
 [plugins]
 # KGP override for the AGP 9 built-in Kotlin (AGP release notes: buildscript classpath)

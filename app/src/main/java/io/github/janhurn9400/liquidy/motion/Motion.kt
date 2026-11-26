@@ -21,6 +21,18 @@ object Motion {
     /** M-RUBBER for a finger travel [x] over a dimension [d] (same unit): (x·d·c)/(d + c·x). */
     fun rubberBand(x: Float, d: Float): Float { val c = rubberBandC.value; return (x * d * c) / (d + c * x) }
 
+    // M-PUSH — navigation push like the original's Settings app [MEASURED] user's iPhone recording 2026-11-26
+    // (Settings › General, 1.83–2.22 s): the new page slides in from the right, very fast at first with a long soft
+    // tail (≈ 55 % after 50 ms, 90 % after 150 ms, at rest after ≈ 330 ms — an exponential ease-out; user: felt too fast,
+    // the recording likely drops early frames → 500 ms, ease 4.5); the old page does
+    // NOT fade, it moves ≈ ⅓ to the left and dims slightly; the new page casts a shadow onto it. Back = the reverse.
+    val pushMs = tunable("M-PUSH.ms", "Push duration", "Motion", 500f, 100f, 800f, "ms")
+    val pushEase = tunable("M-PUSH.ease", "Push ease-out steepness", "Motion", 4.5f, 1f, 12f)
+    val pushParallax = tunable("M-PUSH.parallax", "Covered page moves", "Motion", 0.3f, 0f, 1f, "×")
+    val pushDim = tunable("M-PUSH.dim", "Covered page dims", "Motion", 0.1f, 0f, 0.5f)
+    val pushShadow = tunable("M-PUSH.shadow", "Edge shadow of the top page", "Motion", 0.12f, 0f, 0.5f)
+    val pushShadowW = tunable("M-PUSH.shadowW", "Edge shadow width", "Motion", 14f, 0f, 60f, "dp")
+
     // M-GLASS-PULL — Liquid Glass under the finger (user, iOS 27): a soft white shimmer where the finger is; moving the
     // finger stretches the glass along the pull while it stays almost in place; springs back with a small wobble.
     // [ESTIMATED] from the user's description (first try moved it far too much), to be checked against a recording

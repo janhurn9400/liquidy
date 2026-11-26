@@ -47,4 +47,7 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.backdrop)
     implementation(libs.kyant.shapes)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
+    implementation(libs.hiddenapibypass)
 }

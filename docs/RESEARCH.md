@@ -269,3 +269,8 @@ Please check on the iPhone: press scale of a module (frame by frame while tappin
 
 Please check on the iPhone Duo: the module contents (the simulator renders only placeholders), long-press expansion.
 
+### Navigation push (Settings-style) — user's iPhone recording 2026-11-26
+
+| ID | Value | Status |
+|---|---|---|
+| M-PUSH | Settings › General: the new page slides in from the right, exponential ease-out (≈ 55 % after 50 ms, 80 % after 100 ms, 90 % after 150 ms, at rest ≈ 330 ms); the old page does not fade — it moves ≈ ⅓ left and dims slightly; the new page casts a soft edge shadow. Back = reverse. Used by the setup pages and the switch guides. The user found the measured 330 ms too fast (the screen recording likely drops early frames) → 500 ms, ease 4.5 | [MEASURED] 1.83–2.22 s, then adjusted by the user (dim and shadow strength [ESTIMATED]) |

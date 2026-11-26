@@ -355,7 +355,9 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
     LaunchedEffect(Unit) { SystemControls.refresh(context) }
     LaunchedEffect(model.open) {
         if (!model.open) return@LaunchedEffect
-        RootShell.probe { ok -> if (ok) SystemControls.grantWithRoot(context) }
+        // rights for the switches: root (Magisk asks once), else Shizuku if it's running and allowed
+        io.github.janhurn9400.liquidy.data.ShizukuShell.refresh()
+        RootShell.probe { SystemControls.grantPrivileged(context) }
         while (true) { SystemControls.refresh(context); delay(REFRESH_MS) }
     }
     val p = { model.progress.value }
@@ -476,12 +478,13 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
 /** + and power at the top, status row — they follow the finger with the background. */
 @Composable
 private fun Chrome(g: CcGrid, model: ControlCenterModel) {
+    val context = LocalContext.current
     val bs = DesignTokens.ccButton.value
     val by = g.buttonY - bs / 2
     val fill = Color.White.copy(alpha = DesignTokens.ccFill.value)
     Glyph(Modifier.at(PtRect(g.left - CcLayout.BUTTON_OUT, by, bs, bs)).ccGlassPress(CircleShape, fill, onTap = { model.enterEdit() }), Icons.plus, Color.White, 0.55f)
     // power: Android's power menu (global actions)
-    Glyph(Modifier.at(PtRect(g.left + g.width - bs + CcLayout.BUTTON_OUT, by, bs, bs)).ccGlassPress(CircleShape, fill, onTap = { io.github.janhurn9400.liquidy.data.PowerMenu.show() }), Icons.power, Color.White, 0.6f)
+    Glyph(Modifier.at(PtRect(g.left + g.width - bs + CcLayout.BUTTON_OUT, by, bs, bs)).ccGlassPress(CircleShape, fill, onTap = { io.github.janhurn9400.liquidy.data.PowerMenu.show(context) }), Icons.power, Color.White, 0.6f)
     if (!g.duo) StatusRow(Modifier.at(PtRect(g.left + 4f, DesignTokens.ccStatusY.value - 10f, g.width - 8f, 20f)))
 }
 

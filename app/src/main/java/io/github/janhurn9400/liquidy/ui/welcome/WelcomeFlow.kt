@@ -36,6 +36,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
@@ -111,7 +114,7 @@ fun hasRoot(c: Context): Boolean =
     runCatching { c.packageManager.getPackageInfo("com.topjohnwu.magisk", 0); true }.getOrDefault(false) ||
         listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/debug_ramdisk/su").any { java.io.File(it).exists() }
 
-private enum class Step { Hello, DefaultHome, Permissions, GlassAlign, Appearance, Foldable, StatusBar, Root, Done }
+private enum class Step { Hello, DefaultHome, Permissions, GlassAlign, Appearance, Foldable, StatusBar, Switches, Root, Done }
 
 /**
  * Welcome in the style of the iOS 26 setup (YouTube recording of an iPhone 17 analysed): "Hello", then light pages with
@@ -132,6 +135,7 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
             add(Step.Appearance)
             if (io.github.janhurn9400.liquidy.data.FoldableStyle.supportsDuo(context)) add(Step.Foldable) // Foldables + Tablets
             add(Step.StatusBar)
+            add(Step.Switches) // how the Control Center may switch Wi-Fi, Bluetooth …: root, Shizuku or Android's panels
             if (root) add(Step.Root) // with module: "already active", otherwise instructions
             add(Step.Done)
         }
@@ -158,12 +162,7 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
                 transitionSpec = {
                     if (initialState == 0) // from Hello like the home screen after the notification centre: zooms in from 2.6×, fades in over 0.1 s
                         (scaleIn(spring(1f, ZOOM_STIFFNESS), initialScale = ZOOM_FROM) + fadeIn(tween(ZOOM_FADE_MS))) togetherWith fadeOut(tween(ZOOM_FADE_MS))
-                    else if (forward)
-                        slideInHorizontally(PUSH_SPRING) { it } togetherWith
-                            (slideOutHorizontally(PUSH_SPRING) { -it / 3 } + fadeOut(tween(PUSH_MS)))
-                    else
-                        (slideInHorizontally(PUSH_SPRING) { -it / 3 } + fadeIn(tween(PUSH_MS))) togetherWith
-                            slideOutHorizontally(PUSH_SPRING) { it }
+                    else pushTransform(forward)
                 },
                 label = "welcome",
             ) { idx ->
@@ -172,7 +171,7 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
                 val unsharp by transition.animateFloat(transitionSpec = { tween(ZOOM_SHARPEN_MS) }, label = "sharpen") {
                     if (it == androidx.compose.animation.EnterExitState.Visible) 0f else 1f
                 }
-                Box(Modifier.fillMaxSize().graphicsLayer {
+                Box(Modifier.fillMaxSize().then(if (idx == 0) Modifier else pushDecor(forward)).graphicsLayer {
                     val b = if (idx == 1 && fromHello) unsharp * ZOOM_BLUR_DP * density else 0f
                     renderEffect = if (b > 0.5f) androidx.compose.ui.graphics.BlurEffect(b, b) else null
                 }) {
@@ -244,6 +243,7 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
                             secondary = if (possible) stringResource(R.string.welcome_later) else null, onSecondary = { next() },
                         )
                     }
+                    Step.Switches -> SwitchesStep(showBack, ::back) { next() }
                     Step.Root -> StepPage(
                         glyph = Glyph.Sparkle, showBack = showBack, onBack = ::back,
                         title = stringResource(R.string.welcome_root_title),
@@ -276,6 +276,14 @@ fun WelcomeFlow(isDefaultHome: () -> Boolean, hasRemoteAnimation: Boolean, sampl
  * (it is). The link in step 1 and the "Download Module" button use it.
  */
 /** Fixed download link to the Animation Module: always points to the latest release (the file name stays the same). */
+private const val SHIZUKU_URL = "https://shizuku.rikka.app/download/"
+private const val SWITCHES_POLL_MS = 1000L
+// setup pages with content on wide screens: text column share, gap, and from which aspect ratio
+private const val WIDE_RATIO = 1.2f
+private const val WIDE_TEXT_SHARE = 0.42f
+private const val WIDE_GAP = 40f
+private const val MAGISK_GUIDE_URL = "https://topjohnwu.github.io/Magisk/install.html"
+
 internal const val MODULE_URL = "https://github.com/janhurn9400/liquidy/releases/latest/download/liquidy-magisk.zip"
 
 private enum class Glyph { Home, Lock, Appearance, Fold, Sparkle, Check }
@@ -294,19 +302,36 @@ private fun StepPage(
     secondary: String? = null, onSecondary: () -> Unit = {}, extra: Pair<String, () -> Unit>? = null,
     content: (@Composable () -> Unit)? = null,
 ) {
-    Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+        // wide screens (Duo unfolded, tablets): text left, content right — everything fits without scrolling
+        val wide = content != null && maxWidth > maxHeight * WIDE_RATIO
         Column(Modifier.fillMaxSize().padding(horizontal = SIDE.dp)) {
-            Spacer(Modifier.height(TOP.dp))
-            StepGlyph(glyph, Modifier.align(Alignment.CenterHorizontally))
-            Spacer(Modifier.height(26.dp))
             val align = if (centered) TextAlign.Center else TextAlign.Start
-            BasicText(title, Modifier.fillMaxWidth(), style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 32.sp,
-                lineHeight = 38.sp, letterSpacing = (-0.9).sp, color = LABEL, textAlign = align))
-            Spacer(Modifier.height(10.dp))
-            BasicText(body, Modifier.fillMaxWidth(), style = TextStyle(fontFamily = Inter, fontSize = 17.sp, lineHeight = 22.sp,
-                letterSpacing = (-0.35).sp, color = SECONDARY, textAlign = align))
-            if (content != null) { Spacer(Modifier.height(28.dp)); content() }
-            Spacer(Modifier.weight(1f))
+            @Composable
+            fun Header(m: Modifier) = Column(m) {
+                Spacer(Modifier.height(TOP.dp))
+                StepGlyph(glyph, Modifier.align(Alignment.CenterHorizontally))
+                Spacer(Modifier.height(26.dp))
+                BasicText(title, Modifier.fillMaxWidth(), style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 32.sp,
+                    lineHeight = 38.sp, letterSpacing = (-0.9).sp, color = LABEL, textAlign = align))
+                Spacer(Modifier.height(10.dp))
+                BasicText(body, Modifier.fillMaxWidth(), style = TextStyle(fontFamily = Inter, fontSize = 17.sp, lineHeight = 22.sp,
+                    letterSpacing = (-0.35).sp, color = SECONDARY, textAlign = align))
+            }
+            if (wide) Row(Modifier.weight(1f)) {
+                Header(Modifier.weight(WIDE_TEXT_SHARE))
+                Spacer(Modifier.width(WIDE_GAP.dp))
+                // content vertically centred next to the text; scrolls only if it really doesn't fit
+                Column(Modifier.weight(1f - WIDE_TEXT_SHARE).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                    verticalArrangement = Arrangement.Center) { Spacer(Modifier.height(TOP.dp)); content!!() }
+            } else {
+                // text + content scroll when they don't fit; the buttons stay at the bottom
+                Column(Modifier.weight(1f).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                    Header(Modifier.fillMaxWidth())
+                    if (content != null) { Spacer(Modifier.height(28.dp)); content() }
+                    Spacer(Modifier.height(16.dp))
+                }
+            }
             extra?.let { (label, action) -> TextButton(label, action, Modifier.align(Alignment.CenterHorizontally)); Spacer(Modifier.height(10.dp)) }
             GlassButton(primary, onPrimary)
             Spacer(Modifier.height(12.dp))
@@ -337,6 +362,206 @@ private fun CardRow(label: String, icon: Color, iconGlyph: DrawScope.() -> Unit,
         BasicText(label, Modifier.weight(1f), style = TextStyle(fontFamily = Inter, fontSize = 17.sp, letterSpacing = (-0.35).sp, color = LABEL))
         trailing()
     }
+}
+
+/** The three ways the Control Center may switch system settings, best first. */
+private enum class SwitchMethod { Magisk, Shizuku, Panels }
+
+/**
+ * Setup page "Control Center Switches": the three ways in order (Magisk recommended, Shizuku, without root), each
+ * explained; tapping one opens its guide — what you need, how to install it and how to allow Liquidy in it.
+ * Nothing is assumed to be installed yet.
+ */
+@Composable
+private fun SwitchesStep(showBack: Boolean, back: () -> Unit, next: () -> Unit) {
+    var guide by remember { mutableStateOf<SwitchMethod?>(null) }
+    androidx.activity.compose.BackHandler(enabled = guide != null) { guide = null }
+    // same push as between setup pages: the guide comes in from the right, back goes the other way
+    AnimatedContent(guide, transitionSpec = { pushTransform(targetState != null) }, label = "switchesGuide") { shown ->
+    Box(Modifier.fillMaxSize().then(pushDecor(guide != null))) {
+    when (val g = shown) {
+        null -> StepPage(
+            glyph = Glyph.Lock, showBack = showBack, onBack = back,
+            title = stringResource(R.string.welcome_switches_title),
+            body = stringResource(R.string.welcome_switches_body),
+            primary = stringResource(R.string.welcome_later), onPrimary = next,
+        ) {
+            Card {
+                MethodRow(stringResource(R.string.welcome_method_magisk), stringResource(R.string.welcome_method_magisk_sub),
+                    badge = stringResource(R.string.welcome_method_recommended)) { guide = SwitchMethod.Magisk }
+                RowDivider()
+                MethodRow(stringResource(R.string.welcome_method_shizuku), stringResource(R.string.welcome_method_shizuku_sub)) { guide = SwitchMethod.Shizuku }
+                RowDivider()
+                MethodRow(stringResource(R.string.welcome_method_panels), stringResource(R.string.welcome_method_panels_sub)) { guide = SwitchMethod.Panels }
+            }
+        }
+        else -> MethodGuide(g, onBack = { guide = null }, next = next)
+    }
+    }
+    }
+}
+
+@Composable
+private fun RowDivider() = Box(Modifier.padding(start = 16.dp).fillMaxWidth().height(0.5.dp).background(Color(0x333C3C43)))
+
+/** One way: name (+ badge), what it means, chevron. */
+@Composable
+private fun MethodRow(title: String, sub: String, badge: String? = null, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth()
+        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
+        .padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BasicText(title, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, letterSpacing = (-0.35).sp, color = LABEL))
+                if (badge != null) {
+                    Spacer(Modifier.width(8.dp))
+                    BasicText(badge, Modifier.clip(RoundedCornerShape(6.dp)).background(ACCENT.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = ACCENT))
+                }
+            }
+            Spacer(Modifier.height(3.dp))
+            BasicText(sub, Modifier.padding(end = 12.dp), style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 17.sp, color = SECONDARY))
+        }
+        Canvas(Modifier.size(8.dp, 14.dp)) {
+            val sw = 2.dp.toPx(); val c = Color(0x4D3C3C43)
+            drawLine(c, Offset(size.width * 0.1f, size.height * 0.05f), Offset(size.width * 0.9f, size.height * 0.5f), sw, StrokeCap.Round)
+            drawLine(c, Offset(size.width * 0.9f, size.height * 0.5f), Offset(size.width * 0.1f, size.height * 0.95f), sw, StrokeCap.Round)
+        }
+    }
+}
+
+/**
+ * Guide for one way: numbered steps (what to install, where, how to allow Liquidy), links that open the right place,
+ * the last step's button allows Liquidy right here and shows whether it worked.
+ */
+@Composable
+private fun MethodGuide(m: SwitchMethod, onBack: () -> Unit, next: () -> Unit) {
+    val context = LocalContext.current
+    fun open(i: Intent) = runCatching { context.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    fun web(url: String) = open(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    val root = io.github.janhurn9400.liquidy.data.RootShell.available.value
+    val shz = io.github.janhurn9400.liquidy.data.ShizukuShell.state.value
+    // Shizuku may be installed, started or allowed meanwhile — follow it while the guide is open
+    if (m == SwitchMethod.Shizuku) androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) { io.github.janhurn9400.liquidy.data.ShizukuShell.refresh(); kotlinx.coroutines.delay(SWITCHES_POLL_MS) }
+    }
+    when (m) {
+        SwitchMethod.Magisk -> StepPage(
+            glyph = Glyph.Sparkle, showBack = true, onBack = onBack,
+            title = stringResource(R.string.welcome_method_magisk),
+            body = stringResource(R.string.welcome_guide_magisk_body),
+            primary = stringResource(if (root == true) R.string.welcome_continue else R.string.welcome_guide_allow_root),
+            onPrimary = {
+                if (root == true) next()
+                else io.github.janhurn9400.liquidy.data.RootShell.probe { ok -> if (ok) io.github.janhurn9400.liquidy.data.SystemControls.grantPrivileged(context) }
+            },
+            secondary = stringResource(R.string.welcome_guide_other), onSecondary = onBack,
+        ) {
+            Card {
+                GuideStep(1, stringResource(R.string.welcome_guide_magisk_1), stringResource(R.string.welcome_guide_magisk_1_sub),
+                    stringResource(R.string.welcome_guide_magisk_1_link)) { web(MAGISK_GUIDE_URL) }
+                RowDivider()
+                GuideStep(2, stringResource(R.string.welcome_guide_magisk_2), stringResource(R.string.welcome_guide_magisk_2_sub))
+                RowDivider()
+                GuideStep(3, stringResource(R.string.welcome_guide_magisk_3), stringResource(R.string.welcome_guide_magisk_3_sub),
+                    stringResource(R.string.welcome_root_download)) { web(MODULE_URL) }
+            }
+            GuideStatus(when (root) {
+                true -> stringResource(R.string.welcome_guide_root_on) to true
+                false -> stringResource(R.string.welcome_guide_root_off) to false
+                null -> null
+            })
+        }
+        SwitchMethod.Shizuku -> StepPage(
+            glyph = Glyph.Sparkle, showBack = true, onBack = onBack,
+            title = stringResource(R.string.welcome_method_shizuku),
+            body = stringResource(R.string.welcome_guide_shizuku_body),
+            primary = stringResource(if (shz == io.github.janhurn9400.liquidy.data.ShizukuShell.State.Ready) R.string.welcome_continue else R.string.settings_switches_shizuku_allow),
+            onPrimary = {
+                when (shz) {
+                    io.github.janhurn9400.liquidy.data.ShizukuShell.State.Ready -> next()
+                    io.github.janhurn9400.liquidy.data.ShizukuShell.State.NoPermission -> io.github.janhurn9400.liquidy.data.ShizukuShell.requestPermission()
+                    io.github.janhurn9400.liquidy.data.ShizukuShell.State.NotRunning -> context.packageManager.getLaunchIntentForPackage(io.github.janhurn9400.liquidy.data.ShizukuShell.PACKAGE)?.let { open(it) }
+                    io.github.janhurn9400.liquidy.data.ShizukuShell.State.NotInstalled -> web(SHIZUKU_URL)
+                }
+            },
+            secondary = stringResource(R.string.welcome_guide_other), onSecondary = onBack,
+        ) {
+            Card {
+                GuideStep(1, stringResource(R.string.welcome_guide_shizuku_1), stringResource(R.string.welcome_guide_shizuku_1_sub),
+                    stringResource(R.string.settings_switches_get_shizuku), done = shz != io.github.janhurn9400.liquidy.data.ShizukuShell.State.NotInstalled) { web(SHIZUKU_URL) }
+                RowDivider()
+                GuideStep(2, stringResource(R.string.welcome_guide_shizuku_2), stringResource(R.string.welcome_guide_shizuku_2_sub),
+                    stringResource(R.string.welcome_guide_shizuku_2_link),
+                    // Shizuku running means wireless debugging was on
+                    done = shz == io.github.janhurn9400.liquidy.data.ShizukuShell.State.NoPermission || shz == io.github.janhurn9400.liquidy.data.ShizukuShell.State.Ready) {
+                    open(Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+                }
+                RowDivider()
+                GuideStep(3, stringResource(R.string.welcome_guide_shizuku_3), stringResource(R.string.welcome_guide_shizuku_3_sub),
+                    stringResource(R.string.welcome_guide_shizuku_3_link), done = shz == io.github.janhurn9400.liquidy.data.ShizukuShell.State.NoPermission || shz == io.github.janhurn9400.liquidy.data.ShizukuShell.State.Ready) {
+                    context.packageManager.getLaunchIntentForPackage(io.github.janhurn9400.liquidy.data.ShizukuShell.PACKAGE)?.let { open(it) }
+                }
+                RowDivider()
+                GuideStep(4, stringResource(R.string.welcome_guide_shizuku_4), stringResource(R.string.welcome_guide_shizuku_4_sub), done = shz == io.github.janhurn9400.liquidy.data.ShizukuShell.State.Ready)
+            }
+            GuideStatus(if (shz == io.github.janhurn9400.liquidy.data.ShizukuShell.State.Ready) stringResource(R.string.welcome_guide_shizuku_on) to true else null)
+        }
+        SwitchMethod.Panels -> StepPage(
+            glyph = Glyph.Sparkle, showBack = true, onBack = onBack,
+            title = stringResource(R.string.welcome_method_panels),
+            body = stringResource(R.string.welcome_guide_panels_body),
+            primary = stringResource(R.string.welcome_continue), onPrimary = next,
+            secondary = stringResource(R.string.welcome_guide_other), onSecondary = onBack,
+        ) {
+            Card {
+                GuideStep(1, stringResource(R.string.settings_write_settings), stringResource(R.string.settings_write_settings_why),
+                    stringResource(R.string.welcome_guide_allow)) {
+                    open(Intent(android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.fromParts("package", context.packageName, null)))
+                }
+                RowDivider()
+                GuideStep(2, stringResource(R.string.settings_dnd_access), stringResource(R.string.settings_dnd_access_why),
+                    stringResource(R.string.welcome_guide_allow)) { open(Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
+                RowDivider()
+                GuideStep(3, stringResource(R.string.settings_power_button), stringResource(R.string.settings_power_button_why),
+                    stringResource(R.string.welcome_guide_turn_on)) { open(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            }
+        }
+    }
+}
+
+/** A numbered step: title, explanation, optional link that opens the right place; a checkmark once it's done. */
+@Composable
+private fun GuideStep(n: Int, title: String, sub: String, link: String? = null, done: Boolean = false, onLink: () -> Unit = {}) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Box(Modifier.size(24.dp).clip(CircleShape).background(if (done) Color(0xFF34C759) else ACCENT), contentAlignment = Alignment.Center) {
+            if (done) Canvas(Modifier.size(11.dp, 9.dp)) {
+                val sw = 2.dp.toPx()
+                drawLine(Color.White, Offset(0f, size.height * 0.55f), Offset(size.width * 0.38f, size.height), sw, StrokeCap.Round)
+                drawLine(Color.White, Offset(size.width * 0.38f, size.height), Offset(size.width, 0f), sw, StrokeCap.Round)
+            } else BasicText("$n", style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            BasicText(title, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = LABEL))
+            Spacer(Modifier.height(2.dp))
+            BasicText(sub, style = TextStyle(fontFamily = Inter, fontSize = 13.sp, lineHeight = 17.sp, color = SECONDARY))
+            if (link != null) {
+                Spacer(Modifier.height(4.dp))
+                BasicText(link, Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onLink),
+                    style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = ACCENT))
+            }
+        }
+    }
+}
+
+/** Result line under a guide (green = working, red = refused). */
+@Composable
+private fun GuideStatus(s: Pair<String, Boolean>?) {
+    if (s == null) return
+    Spacer(Modifier.height(10.dp))
+    BasicText(s.first, Modifier.padding(horizontal = 16.dp),
+        style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = if (s.second) Color(0xFF34C759) else Color(0xFFFF3B30)))
 }
 
 /**
@@ -692,7 +917,53 @@ private fun StepGlyph(g: Glyph, modifier: Modifier = Modifier) {
 private val HUES = (0..6).map { Color(android.graphics.Color.HSVToColor(floatArrayOf(it * 60f, 0.6f, 0.95f))) }
 private val CELL = Color(0xFFF2F2F7)
 private val PUSH = CubicBezierEasing(0.2f, 0.85f, 0.25f, 1f)
-private val PUSH_SPRING = spring<androidx.compose.ui.unit.IntOffset>(dampingRatio = 1f, stiffness = 158f) // (2π/0,5 s)²
+/** M-PUSH ease-out: very fast at first, long soft tail (exponential, normalised to end at 1). */
+private val PushEasing = androidx.compose.animation.core.Easing { x ->
+    val k = io.github.janhurn9400.liquidy.motion.Motion.pushEase.value
+    ((1f - kotlin.math.exp(-k * x)) / (1f - kotlin.math.exp(-k))).toFloat()
+}
+private fun <T> pushTween() = tween<T>(io.github.janhurn9400.liquidy.motion.Motion.pushMs.value.toInt(), easing = PushEasing)
+
+/**
+ * M-PUSH like the original's Settings: forward = the new page slides over from the right, the old one moves ⅓ left
+ * (no fade); back = the reverse, the page on top leaves to the right.
+ */
+private fun pushTransform(forward: Boolean): androidx.compose.animation.ContentTransform {
+    val par = io.github.janhurn9400.liquidy.motion.Motion.pushParallax.value
+    return (if (forward) slideInHorizontally(pushTween()) { it } togetherWith slideOutHorizontally(pushTween()) { -(it * par).toInt() }
+    else slideInHorizontally(pushTween()) { -(it * par).toInt() } togetherWith slideOutHorizontally(pushTween()) { it })
+        .apply { targetContentZIndex = if (forward) 1f else -1f } // the moving-over page is always on top
+}
+
+/**
+ * Per page during a push: own opaque background (the page on top covers the one below), the covered page dims, the
+ * page on top casts a soft shadow to its left.
+ */
+@Composable
+private fun androidx.compose.animation.AnimatedVisibilityScope.pushDecor(forward: Boolean): Modifier {
+    // 1 = this page is the covered one / the one on top, eased with the push
+    val covered by transition.animateFloat(transitionSpec = { pushTween() }, label = "covered") {
+        when (it) { androidx.compose.animation.EnterExitState.Visible -> 0f; androidx.compose.animation.EnterExitState.PreEnter -> if (forward) 0f else 1f; androidx.compose.animation.EnterExitState.PostExit -> if (forward) 1f else 0f }
+    }
+    val onTop by transition.animateFloat(transitionSpec = { pushTween() }, label = "onTop") {
+        when (it) { androidx.compose.animation.EnterExitState.Visible -> 0f; androidx.compose.animation.EnterExitState.PreEnter -> if (forward) 1f else 0f; androidx.compose.animation.EnterExitState.PostExit -> if (forward) 0f else 1f }
+    }
+    return Modifier
+        .drawBehind {
+            if (onTop > 0.001f) {
+                val w = io.github.janhurn9400.liquidy.motion.Motion.pushShadowW.value * density
+                drawRect(Brush.horizontalGradient(listOf(Color.Transparent,
+                    Color.Black.copy(alpha = io.github.janhurn9400.liquidy.motion.Motion.pushShadow.value * onTop)), startX = -w, endX = 0f),
+                    topLeft = Offset(-w, 0f), size = Size(w, size.height))
+            }
+            drawPageBackground()
+        }
+        .drawWithContent {
+            drawContent()
+            if (covered > 0.001f) drawRect(Color.Black.copy(alpha = io.github.janhurn9400.liquidy.motion.Motion.pushDim.value * covered))
+        }
+}
+
 private const val SIDE = 28
 private const val TOP = 64
 private const val BOTTOM = 12
@@ -702,7 +973,6 @@ private const val PANEL_R = 32
 private const val PANEL_BLUR = 14
 private const val PREVIEW = 61f
 private val SHEET_HUES = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)
-private const val PUSH_MS = 460
 // Hello → first page, measured against the notification centre (screen recording 10-08 02:34, 60 fps, frame 334–371)
 private const val ZOOM_FROM = 2.6f
 private val ZOOM_STIFFNESS = (2 * kotlin.math.PI.toFloat() / 0.3f).let { it * it }

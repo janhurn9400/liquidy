@@ -11,6 +11,8 @@
 
     <!-- App list via LauncherApps; package visibility for all launcher activities -->
     <queries>
+        <!-- Shizuku (ADB-level rights without root for the Control Center switches) -->
+        <package android:name="moe.shizuku.privileged.api" />
         <!-- Mail apps for the bug report by email -->
         <intent>
             <action android:name="android.intent.action.SENDTO" />
@@ -94,6 +96,25 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Shizuku hands its binder to the app through this provider (shizuku.rikka.app, API 13) -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+        <!-- Optional: opens Android's power menu from the Control Center without root/Shizuku (no screen content read) -->
+        <service
+            android:name=".data.PowerButtonService"
+            android:exported="false"
+            android:label="@string/power_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/power_button_service" />
+        </service>
         <!-- Notification counter for the red badges (the user grants access in the settings) -->
         <service
             android:name=".data.NotificationBadges"

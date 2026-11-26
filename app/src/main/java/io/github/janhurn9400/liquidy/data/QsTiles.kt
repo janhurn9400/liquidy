@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 
 /**
  * Android Quick Settings tiles of installed apps (TileService), offered as Control Center controls. Listing them is
- * public; clicking one goes through SystemUI (`cmd statusbar click-tile`, root) since binding a TileService needs a
+ * public; clicking one goes through SystemUI (`cmd statusbar click-tile`, root or Shizuku) since binding a TileService needs a
  * system permission. Their on/off state is not readable from outside, so they show as plain buttons.
  */
 object QsTiles {
@@ -46,10 +46,8 @@ object QsTiles {
         }.sortedWith(compareBy({ it.appLabel.lowercase() }, { it.label.lowercase() }))
     }
 
-    /** Taps the tile like in the Android panel (root); false when root is unavailable. */
+    /** Taps the tile like in the Android panel (root or Shizuku); false without either. */
     fun click(tile: Tile): Boolean {
-        if (RootShell.available.value == false) return false
-        RootShell.run("cmd statusbar click-tile ${tile.component.flattenToString()}")
-        return true
+        return Privileged.run("cmd statusbar click-tile ${tile.component.flattenToString()}")
     }
 }
