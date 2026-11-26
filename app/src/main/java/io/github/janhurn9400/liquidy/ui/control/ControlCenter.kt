@@ -237,7 +237,7 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     var resizing by mutableStateOf<LiveResize?>(null)
 
     /** Pages: what doesn't fit flows onto the next page; [page] 0… scrolls vertically (M-CC-PAGE). */
-    /** In pages; stops only below CcLayout.PAGE_SETTLE (the default 0.01 page ≈ 5 pt snapped visibly at the end). */
+    /** In pages; its springs must pass CcLayout.PAGE_SETTLE (a spring's default 0.01 page ≈ 5 pt snapped visibly at the end). */
     val page = Animatable(0f, CcLayout.PAGE_SETTLE)
     var pageCount by mutableStateOf(1)
     /** Grid rows per page (set by the compact page) — to find the page an item lands on. */
@@ -246,7 +246,7 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     var rowFollow: List<Animatable<Float, androidx.compose.animation.core.AnimationVector1D>> = emptyList()
 
     fun pageTo(i: Int, velocity: Float = 0f) {
-        scope.launch { page.animateTo(i.coerceIn(0, pageCount - 1).toFloat(), Motion.ccPage.spec(), velocity) }
+        scope.launch { page.animateTo(i.coerceIn(0, pageCount - 1).toFloat(), Motion.ccPage.spec(CcLayout.PAGE_SETTLE), velocity) }
     }
     val galleryAmount = Animatable(0f)
 
@@ -578,7 +578,8 @@ private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, dens
             // released: start one free spring per row towards the target page (once), so each row overshoots on its own
             if (target != null && target == released) return@collect
             // page settled where the rows are already heading → let their own springs finish
-            if (target == null && released != null && p == released) return@collect
+            if (target == null && released != null && abs(p - released!!) < CcLayout.PAGE_SETTLE * 4) return@collect
+            if (target == null && released != null) released = null
             released = target
             rowFollow.forEachIndexed { i, f ->
                 val inPage = i % g.rows
@@ -593,7 +594,7 @@ private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, dens
                 val damp = d0 + (d1 - d0) * k
                 launch {
                     f.animateTo(target ?: p, androidx.compose.animation.core.spring(damp,
-                        io.github.janhurn9400.liquidy.motion.IosSpring.stiffnessFor(resp)))
+                        io.github.janhurn9400.liquidy.motion.IosSpring.stiffnessFor(resp), CcLayout.PAGE_SETTLE))
                 }
             }
         }
