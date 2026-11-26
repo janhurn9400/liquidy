@@ -10,6 +10,7 @@ import android.os.Looper
 import android.view.Display
 import android.view.Gravity
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
@@ -48,6 +49,7 @@ import kotlinx.coroutines.launch
 object StatusOverlay {
     private const val PREFS = "status_overlay"
     private const val UNKNOWN_APP = "?"
+    private const val SYSTEM_UI = "com.android.systemui"
     private const val OPEN_ON_CANCEL = Float.MAX_VALUE // marker: Android took the pull over → open on the spring
 
     /** User setting (Settings › Appearance › Status Bar, Duo only). Off by default: recommended with root, where the
@@ -194,13 +196,24 @@ object StatusOverlay {
         main.postDelayed({ if (home) host?.let { update(it) } }, L.HANDOVER_MS)
     }
 
-    /** From TYPE_WINDOW_STATE_CHANGED: the package now in front. */
-    fun onForeground(pkg: String?) {
+    /** Android's notification shade (or another System UI pane) is open: the symbols step aside. */
+    private var shadeOpen = false
+
+    /** From TYPE_WINDOW_STATE_CHANGED: the package now in front ([changes] = AccessibilityEvent.contentChangeTypes). */
+    fun onForeground(pkg: String?, changes: Int = 0) {
         val s = host ?: return
-        if (pkg.isNullOrEmpty() || pkg == foreground) return
+        if (pkg.isNullOrEmpty()) return
+        // System UI: the shade reports "pane appeared" when it opens and "pane disappeared" when it closes (measured in
+        // the emulator); after closing, the app below reports itself again
+        if (pkg == SYSTEM_UI) {
+            val open = changes and AccessibilityEvent.CONTENT_CHANGE_TYPE_PANE_DISAPPEARED == 0
+            if (open != shadeOpen) { shadeOpen = open; update(s) }
+            return
+        }
+        if (shadeOpen && pkg != defaultIme(s)) { shadeOpen = false; update(s) }
+        if (pkg == foreground) return
         // the keyboard reports its own window, our own windows are decided by homeVisible: keep the app below
-        // System UI (shade, volume dialog) neither: closing them sends no event for the app below, so the symbols would stay gone
-        if (pkg == defaultIme(s) || pkg == s.packageName || pkg == "com.android.systemui") return
+        if (pkg == defaultIme(s) || pkg == s.packageName) return
         foreground = pkg
         update(s)
     }
@@ -213,7 +226,7 @@ object StatusOverlay {
         // the settings preview only counts while Liquidy itself is in front (the page stays composed in the background)
         val preview = previewing && home
         androidIcons(active() && (home || shownHere))
-        val show = active() && (preview || (!home && pkg != null && pkg != "android" && shownHere))
+        val show = active() && !shadeOpen && (preview || (!home && pkg != null && pkg != "android" && shownHere))
         if (show) { show(s); main.removeCallbacks(sampler); main.postDelayed(sampler, L.SAMPLE_DELAY_MS) } else hide()
     }
 

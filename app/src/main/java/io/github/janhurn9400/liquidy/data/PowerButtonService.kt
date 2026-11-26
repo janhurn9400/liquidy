@@ -15,7 +15,9 @@ class PowerButtonService : AccessibilityService() {
     override fun onUnbind(intent: android.content.Intent?): Boolean { StatusOverlay.detach(); instance = null; return super.onUnbind(intent) }
     override fun onDestroy() { StatusOverlay.detach(); instance = null; super.onDestroy() }
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) StatusOverlay.onForeground(event.packageName?.toString())
+        // only the package and the kind of change are used — never the event's text
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)
+            StatusOverlay.onForeground(event.packageName?.toString(), event.contentChangeTypes)
     }
     override fun onInterrupt() {}
 
