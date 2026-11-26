@@ -521,6 +521,9 @@ object StatusOverlayLayout {
     // 30 pt → 17 dp, the dots' bottom 96 pt → 71 dp, a little below the 52 dp status bar)
     const val SCALE = 0.82f
     const val SHIFT_Y = -8f
+    // touch area over the (scaled) symbols that opens the Control Center — only this small spot blocks the app below
+    const val TOUCH_W = 60f
+    const val TOUCH_H = 72f
     // luminance (0…1) of the app content behind the symbols above which they turn black
     const val LIGHT_BACKDROP = 0.6f
     // first sample after an app change, once its window has drawn (ms) [ESTIMATED]

@@ -17,6 +17,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.ComposeView
@@ -31,6 +33,9 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import io.github.janhurn9400.liquidy.design.StatusOverlayLayout as L
 import io.github.janhurn9400.liquidy.ui.home.DuoStatusSymbols
 import kotlin.math.roundToInt
+import io.github.janhurn9400.liquidy.ui.control.ControlCenter
+import io.github.janhurn9400.liquidy.ui.control.ControlCenterModel
+import kotlinx.coroutines.flow.first
 
 /**
  * Duo style: the status symbols (clock + ring) float over other apps at the same spot as on the home screen, so the
@@ -154,13 +159,117 @@ object StatusOverlay {
             title = "Liquidy status symbols"
         }
         runCatching { wm.addView(v, lp); view = v }.onFailure { android.util.Log.w("StatusOverlay", "addView", it); owner?.stop(); owner = null }
+        showTouch(s)
     }
 
     private fun hide() {
         main.removeCallbacks(sampler)
+        val wm = host?.getSystemService(WindowManager::class.java)
+        touch?.let { t -> runCatching { wm?.removeView(t) } }; touch = null
         val v = view ?: return
-        runCatching { host?.getSystemService(WindowManager::class.java)?.removeView(v) }
+        runCatching { wm?.removeView(v) }
         owner?.stop(); owner = null; view = null
+    }
+
+    // ── Control Center over apps (prototype) ─────────────────────────────────────────────────────────────
+    // A tap on the symbols takes ONE screenshot (started at touch-down, so it is usually there before the panel shows)
+    // and opens the Control Center in a full-screen overlay; the screenshot is its backdrop (blurred like on the home
+    // screen) and is released as soon as the Control Center has closed. Live refraction of the app is impossible for
+    // an app (see docs/RESEARCH.md "Status symbols over apps").
+    private var touch: android.view.View? = null
+    private var ccView: ComposeView? = null
+    private var ccOwner: OverlayOwner? = null
+    private var ccModel: ControlCenterModel? = null
+    private var shot by mutableStateOf<ImageBitmap?>(null)
+    private var shotBitmap: Bitmap? = null
+    private var downAt = 0L
+
+    private fun showTouch(s: AccessibilityService) {
+        if (touch != null) return
+        val wm = s.getSystemService(WindowManager::class.java)
+        val d = s.resources.displayMetrics.density
+        val t = android.view.View(s)
+        t.setOnTouchListener { _, ev ->
+            when (ev.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> capture(s)
+                android.view.MotionEvent.ACTION_UP -> openCc(s)
+            }
+            true
+        }
+        val lp = WindowManager.LayoutParams(
+            (L.TOUCH_W * d).roundToInt(), (L.TOUCH_H * d).roundToInt(),
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.END
+            x = ((L.COLUMN_FROM_RIGHT - L.TOUCH_W / 2) * d).roundToInt()
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            title = "Liquidy status symbols touch"
+        }
+        runCatching { wm.addView(t, lp); touch = t }
+    }
+
+    private fun capture(s: AccessibilityService) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        downAt = android.os.SystemClock.uptimeMillis()
+        s.takeScreenshot(Display.DEFAULT_DISPLAY, s.mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
+            override fun onSuccess(r: AccessibilityService.ScreenshotResult) {
+                val b = Bitmap.wrapHardwareBuffer(r.hardwareBuffer, r.colorSpace); r.hardwareBuffer.close()
+                b ?: return
+                shotBitmap?.recycle(); shotBitmap = b; shot = b.asImageBitmap()
+                android.util.Log.d("CcOverlay", "screenshot after ${android.os.SystemClock.uptimeMillis() - downAt} ms, " +
+                    "panel progress ${ccModel?.progress?.value ?: 0f}")
+            }
+            override fun onFailure(errorCode: Int) { android.util.Log.d("CcOverlay", "screenshot failed $errorCode") }
+        })
+    }
+
+    private fun openCc(s: AccessibilityService) {
+        if (ccView != null) return
+        val wm = s.getSystemService(WindowManager::class.java)
+        val bounds = wm.currentWindowMetrics.bounds
+        val d = s.resources.displayMetrics.density
+        val w = bounds.width().toFloat(); val h = bounds.height().toFloat()
+        val o = OverlayOwner().also { ccOwner = it; it.start() }
+        val v = ComposeView(s).apply {
+            setViewTreeLifecycleOwner(o); setViewTreeSavedStateRegistryOwner(o)
+            setContent {
+                // the model's springs need the composition's frame clock
+                val scope = androidx.compose.runtime.rememberCoroutineScope()
+                val m = androidx.compose.runtime.remember { ControlCenterModel(scope).also { it.duo = true; ccModel = it } }
+                val b = shot
+                ControlCenter(m, d, w, h, duo = true, unfolded = w > h, statusColumnX = w - L.COLUMN_FROM_RIGHT * d,
+                    drawBackdrop = b?.let { img -> { drawImage(img) } }, statusBase = color)
+                androidx.compose.runtime.LaunchedEffect(m) {
+                    m.show()
+                    androidx.compose.runtime.snapshotFlow { m.visible }.first { !it }
+                    main.post { closeCc() }
+                }
+            }
+        }
+        val lp = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            title = "Liquidy Control Center"
+        }
+        runCatching { wm.addView(v, lp); ccView = v }.onFailure { o.stop(); ccOwner = null; return }
+        // the Control Center draws its own status column: hide the floating one meanwhile
+        view?.visibility = android.view.View.INVISIBLE
+    }
+
+    private fun closeCc() {
+        val v = ccView ?: return
+        runCatching { host?.getSystemService(WindowManager::class.java)?.removeView(v) }
+        ccOwner?.stop(); ccOwner = null; ccView = null; ccModel = null
+        shot = null; shotBitmap?.recycle(); shotBitmap = null // the screenshot lives only while the panel is open
+        view?.visibility = android.view.View.VISIBLE
     }
 
     /** Brightness of the app behind the symbols → black or white symbols (like iOS over light / dark apps). */
