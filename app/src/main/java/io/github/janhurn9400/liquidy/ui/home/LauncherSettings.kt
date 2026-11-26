@@ -152,7 +152,8 @@ fun LauncherSettingsSheet(model: HomeModel, onClose: () -> Unit) {
             CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
                 if (duo && OwnStatusBar.enabled) {
                     val info by io.github.janhurn9400.liquidy.data.rememberStatusInfo()
-                    DuoStatusSymbols(info, (screenW - DUO_COLUMN_FROM_RIGHT) * density, density, Color.Black)
+                    // the Control Center takes over this status column while it is visible (one set of symbols, black → white)
+                    if (!model.control.visible) DuoStatusSymbols(info, (screenW - DUO_COLUMN_FROM_RIGHT) * density, density, Color.Black)
                 }
                 val back = !wide && selected != null
                 val btnModifier = if (duo) Modifier.offset { IntOffset(((screenW - DUO_COLUMN_FROM_RIGHT - 22f) * density).roundToInt(), ((DUO_BUTTON_Y - 22f) * density).roundToInt()) }

@@ -1761,6 +1761,7 @@ fun HomeScreen(
         // ── Control Center (above everything) ──────────────────────────────────────
         io.github.janhurn9400.liquidy.ui.control.ControlCenter(model.control, density, w, h,
             duo = geo.duo, unfolded = geo.unfolded, statusColumnX = w - DUO_STATUS_FROM_RIGHT * density,
+            statusBase = if (model.settingsOpen) Color.Black else Color.White,
             drawBackdrop = { drawImage(wallpaper); drawLayer(homeContentLayer); if (model.settingsOpen) drawLayer(settingsLayer) })
         if (model.control.open) androidx.activity.compose.BackHandler { model.control.back() }
     }

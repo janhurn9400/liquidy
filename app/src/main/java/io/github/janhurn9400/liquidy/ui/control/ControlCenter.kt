@@ -344,7 +344,9 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
                   /** iPhone Duo style (foldable), [unfolded] = two pages; [statusColumnX] = centre of the right column (px). */
                   duo: Boolean = false, unfolded: Boolean = false, statusColumnX: Float = 0f,
                   /** Duo unfolded: draws wallpaper + home content — only the right page gets blurred behind the panel. */
-                  drawBackdrop: (DrawScope.() -> Unit)? = null) {
+                  drawBackdrop: (DrawScope.() -> Unit)? = null,
+                  /** Colour of the status column where the pull starts (black over the light settings); turns white as it opens. */
+                  statusBase: Color = Color.White) {
     model.duo = duo
     if (!model.visible) return
     val context = LocalContext.current
@@ -459,7 +461,9 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
             alpha = (1f - e().coerceIn(0f, 1f)) * (1f - model.edit.value.coerceIn(0f, 1f))
             translationY = (model.over.value + model.follow.value) * density
         }) {
-            io.github.janhurn9400.liquidy.ui.home.DuoStatusSymbols(info, statusColumnX, density, Color.White,
+            // the same symbols that stood there before (black over light settings) turn white as the panel comes down
+            val statusColor = androidx.compose.ui.graphics.lerp(statusBase, Color.White, model.progress.value.coerceIn(0f, 1f))
+            io.github.janhurn9400.liquidy.ui.home.DuoStatusSymbols(info, statusColumnX, density, statusColor,
                 cc = { model.unfold.value }, ccOpening = { model.unfold.targetValue == 1f }, carrier = SystemControls.carrier.value.ifEmpty { "—" })
         }
     }
