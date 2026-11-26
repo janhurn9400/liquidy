@@ -294,7 +294,8 @@ Please check on the iPhone Duo: the module contents (the simulator renders only 
   - `config_mainBuiltInDisplayCutoutRectApproximation` (string) can be fabricated at runtime by root; the side override
     (array) cannot. SystemUI keeps drawing a filled emulated cutout until it restarts.
 - Chosen: the symbols float over the app as an accessibility overlay (data/StatusOverlay, no root), black or white from
-  the brightness behind them (AccessibilityService.takeScreenshot, sampled every 3 s).
+  the brightness behind them (AccessibilityService.takeScreenshot, once per app switch — no periodic captures; the image is reduced to one
+  luminance value and released). Screenshot latency measured in the emulator: 11–182 ms, mostly 10–35 ms.
 - On the iPhone Duo the symbols keep their home-screen size and spot inside apps (its apps are laid out around the
   column). Android apps are not, so over apps ours are a deliberate, unavoidable deviation: smaller and higher
   (T: StatusOverlayLayout.SCALE / SHIFT_Y) to stay out of the apps' toolbars. The home screen keeps the measured position.

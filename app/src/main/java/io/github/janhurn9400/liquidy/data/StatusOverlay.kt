@@ -37,8 +37,9 @@ import kotlin.math.roundToInt
  * look continues outside the launcher. Drawn by the optional accessibility service ([PowerButtonService]) as an
  * accessibility overlay: the app below stays full screen and is not moved (Android can only inset whole screen edges —
  * see docs/RESEARCH.md "Status symbols over apps"). The service learns which app is in front (package name only, to hide
- * the symbols over the launcher, the keyboard and System UI) and takes a screenshot only to measure how bright the app is
- * behind the symbols (black on light apps, white on dark ones); nothing is stored or sent.
+ * the symbols over the launcher, the keyboard and System UI) and takes one screenshot per app switch, only to measure how
+ * bright the app is behind the symbols (black on light apps, white on dark ones). The image stays in memory, is reduced to
+ * one number and released at once; nothing is stored or sent. No periodic captures.
  */
 object StatusOverlay {
     private const val PREFS = "status_overlay"
@@ -61,9 +62,8 @@ object StatusOverlay {
     private var foreground: String? = null
     private var color by mutableStateOf(Color.White)
     private val main = Handler(Looper.getMainLooper())
-    private val sampler = object : Runnable {
-        override fun run() { sample(); main.postDelayed(this, L.SAMPLE_MS) }
-    }
+    // one screenshot per app switch, only for the symbol colour — no periodic captures (privacy, battery)
+    private val sampler = Runnable { sample() }
 
     fun attach(s: AccessibilityService) {
         host = s

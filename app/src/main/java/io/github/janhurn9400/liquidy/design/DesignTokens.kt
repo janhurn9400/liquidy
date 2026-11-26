@@ -523,8 +523,6 @@ object StatusOverlayLayout {
     const val SHIFT_Y = -8f
     // luminance (0…1) of the app content behind the symbols above which they turn black
     const val LIGHT_BACKDROP = 0.6f
-    // re-check the brightness behind the symbols this often while an app is in front (ms) [ESTIMATED]
-    const val SAMPLE_MS = 3000L
     // first sample after an app change, once its window has drawn (ms) [ESTIMATED]
     const val SAMPLE_DELAY_MS = 450L
 }
