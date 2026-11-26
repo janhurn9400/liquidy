@@ -474,6 +474,17 @@ object CcLayout {
     // centred ≈ 8 pt inside the module's top-left, a glass arc hugging the bottom-right corner as resize handle,
     // "⊕ Add a Control" centred 44 pt above the bottom
     const val EDIT_ROWS = 6
+    // control modules: the glyph stays centred in the top-left cell at the 1×1 size (share of the cell) in every
+    // shape, with no circle of its own; on/off is the whole tile [MEASURED user's iPhone recording]
+    const val MODULE_GLYPH_SHARE = 0.42f
+    // resizing: the others only reflow once the new size is nearer by this many cells (no jumping back and forth)
+    const val RESIZE_HYSTERESIS = 0.3f
+    // page dots right of the grid [ESTIMATED] (the original shows small glyphs there)
+    const val PAGE_DOT = 7f
+    const val PAGE_DOT_PITCH = 16f
+    const val PAGE_DOTS_OUT = 14f
+    const val PAGE_DOT_TOUCH = 28f
+    const val PAGE_DOT_OFF = 0.35f
     const val EDIT_SLOT_ALPHA = 0.12f
     const val EDIT_BADGE = 24f
     const val EDIT_BADGE_OUT = 4f

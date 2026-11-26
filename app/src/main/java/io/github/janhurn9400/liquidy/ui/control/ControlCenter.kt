@@ -22,12 +22,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.layout.mandatorySystemGestures
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -68,6 +71,8 @@ import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -202,7 +207,7 @@ class ControlCenterModel(private val scope: CoroutineScope) {
         scope.launch {
             // closing is much quicker than opening (M-CC close)
             progress.animateTo(0f, Motion.ccClose.spec(), initialVelocity = velocity / Motion.ccPull.value)
-            if (!open) { expanded = null; expand.snapTo(0f) } // closed while a module was big → next time compact again
+            if (!open) { expanded = null; expand.snapTo(0f); page.snapTo(0f) } // closed → next time compact, first page
         }
         scope.launch { over.animateTo(0f, Motion.cc.spec()) }
         releaseFollow(velocity)
@@ -225,6 +230,18 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     val edit = Animatable(0f)
     var gallery by mutableStateOf(false)
         private set
+
+    /** Live resize while a module's handle is dragged: its size in pt, following the finger (M-CC-RESIZE). */
+    class LiveResize(val id: String, val w: Float, val h: Float)
+    var resizing by mutableStateOf<LiveResize?>(null)
+
+    /** Pages: what doesn't fit flows onto the next page; [page] 0… scrolls vertically (M-CC-PAGE). */
+    val page = Animatable(0f)
+    var pageCount by mutableStateOf(1)
+
+    fun pageTo(i: Int, velocity: Float = 0f) {
+        scope.launch { page.animateTo(i.coerceIn(0, pageCount - 1).toFloat(), Motion.ccPage.spec(), velocity) }
+    }
     val galleryAmount = Animatable(0f)
 
     fun enterEdit() {
@@ -303,6 +320,9 @@ private class CcGrid(screenWpt: Float, val duo: Boolean, unfolded: Boolean) {
     val left = when { !duo -> (screenWpt - width) / 2; unfolded -> screenWpt - CcLayout.DUO_OPEN_GRID_FROM_RIGHT; else -> CcLayout.DUO_FOLDED_GRID_LEFT }
     val top = when { !duo -> DesignTokens.ccTop.value; unfolded -> CcLayout.DUO_OPEN_TOP; else -> CcLayout.DUO_FOLDED_TOP }
     val centerX get() = left + width / 2
+    /** Rows per page and the height of one page (pt). */
+    val rows get() = CcLayout.EDIT_ROWS
+    val pageH get() = rows * (cell + gy)
     val buttonY get() = if (duo) CcLayout.DUO_BUTTON_Y else DesignTokens.ccButtonY.value
     val expTop get() = if (duo) CcLayout.DUO_EXP_TOP else CcLayout.EXP_TOP
     val expGap get() = if (duo) CcLayout.DUO_EXP_GAP else CcLayout.EXP_GAP
@@ -388,6 +408,8 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
             }) { Canvas(Modifier.fillMaxSize()) { drawBackdrop() } }
         }
     }
+    val gridNow by rememberUpdatedState(grid)
+    val pageScope = rememberCoroutineScope()
     Box(
         Modifier
             .fillMaxSize()
@@ -400,6 +422,46 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
                     var moved = false
                     val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                     tracker.addPosition(down.uptimeMillis, down.position)
+                    // more than one page: a vertical swipe inside the grid turns pages (rubber band at the ends)
+                    val g = gridNow
+                    val inGrid = model.pageCount > 1 && model.expanded == null &&
+                        down.position.x / density in g.left..(g.left + g.width) && down.position.y / density in g.top..(g.top + g.pageH)
+                    if (inGrid) {
+                        val start = model.page.value
+                        var paging = false
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                            tracker.addPosition(c.uptimeMillis, c.position)
+                            val dy = c.position.y - down.position.y
+                            if (!paging && abs(dy) > viewConfiguration.touchSlop) paging = true
+                            if (paging) {
+                                c.consume()
+                                val raw = start - dy / (g.pageH * density)
+                                val last = (model.pageCount - 1).toFloat()
+                                val v = when {
+                                    raw < 0f -> -Motion.rubberBand(-raw * g.pageH, g.pageH) / g.pageH
+                                    raw > last -> last + Motion.rubberBand((raw - last) * g.pageH, g.pageH) / g.pageH
+                                    else -> raw
+                                }
+                                pageScope.launch { model.page.snapTo(v) }
+                            }
+                            if (!c.pressed) break
+                        }
+                        if (paging) {
+                            val vy = tracker.calculateVelocity().y / density // pt/s, positive = down = previous page
+                            val pv = -vy / g.pageH
+                            val target = when {
+                                pv > Motion.ccPageFlick.value -> kotlin.math.floor(model.page.value).toInt() + 1
+                                pv < -Motion.ccPageFlick.value -> kotlin.math.ceil(model.page.value).toInt() - 1
+                                else -> model.page.value.roundToInt()
+                            }
+                            model.pageTo(target, pv)
+                            return@awaitEachGesture
+                        }
+                        when { model.editing -> model.exitEdit(); else -> model.hide() }
+                        return@awaitEachGesture
+                    }
                     while (true) {
                         val ev = awaitPointerEvent()
                         val c = ev.changes.firstOrNull { it.id == down.id } ?: break
@@ -439,7 +501,7 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
                 val st = (1f + model.stretch.value).coerceAtLeast(0.5f)
                 scaleX = sc / kotlin.math.sqrt(st); scaleY = sc * st
                 translationY = (-(1f - r) * (if (duo) Motion.ccEnterYDuo.value else Motion.ccEnterY.value) + model.over.value + fol -
-                    model.edit.value * Motion.ccEditLift.value) * density
+                    model.edit.value * Motion.ccEditLift.value - model.page.value * grid.pageH) * density
                 val b = (1f - r).coerceIn(0f, 1f) * Motion.ccEnterBlur.value * density
                 renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
             }
@@ -456,6 +518,7 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
         }
         model.expanded?.let { m -> Expanded(context, model, m, grid, density) }
     }
+    if (model.pageCount > 1) PageDots(model, grid, density) { model.reveal.value * (1f - e().coerceIn(0f, 1f)) }
     // Duo: the status column below the camera turns into the Control Center's (battery ring, Wi-Fi, carrier) and back
     if (duo) {
         val info by io.github.janhurn9400.liquidy.data.rememberStatusInfo()
@@ -492,17 +555,27 @@ private fun Chrome(g: CcGrid, model: ControlCenterModel) {
 private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, density: Float) {
     val store = model.store(context)
     val items = store.items.toList()
-    val pos = io.github.janhurn9400.liquidy.data.CcLayoutStore.pack(items)
+    val pos = io.github.janhurn9400.liquidy.data.CcLayoutStore.pack(items, g.rows)
+    val pages = io.github.janhurn9400.liquidy.data.CcLayoutStore.pages(items, g.rows)
+    androidx.compose.runtime.SideEffect { model.pageCount = pages }
     for (it in items) {
         val (col, row) = pos[it.id] ?: continue
         val target = g.slot(col, row, it.w, it.h)
         g.placed[it.id] = target
+        val onPage = (row / g.rows).toFloat()
         key(it.id) {
-            // reflow: modules glide to their new spot / size (M-CC-REFLOW)
+            // reflow: modules glide to their new spot / size (M-CC-REFLOW); while its handle is dragged the size
+            // follows the finger instead and springs to the chosen size on release (M-CC-RESIZE)
             val anim = remember { RectAnim(target) }
-            LaunchedEffect(target) { anim.to(target) }
-            Box(Modifier.at(density) { anim.value() }) {
-                Module(context, model, it.id, it.w, it.h)
+            val live = model.resizing?.takeIf { r -> r.id == it.id }
+            LaunchedEffect(target, live == null) { anim.to(target, size = live == null) }
+            if (live != null) LaunchedEffect(live) { anim.w.snapTo(live.w); anim.h.snapTo(live.h) }
+            Box(Modifier.at(density) { anim.value() }.graphicsLayer {
+                // modules of other pages fade with the distance to the shown page
+                alpha = (1f - abs(onPage - model.page.value)).coerceIn(0f, 1f)
+            }) {
+                // glass and glyph stay one element while resizing; only the text changes with a blur (ControlModule)
+                Module(context, model, it.id, it.w, it.h, g)
                 EditOverlay(model, store, it, g, density)
             }
         }
@@ -513,15 +586,15 @@ private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, dens
 private class RectAnim(r: PtRect) {
     val x = Animatable(r.x); val y = Animatable(r.y); val w = Animatable(r.w); val h = Animatable(r.h)
     fun value() = PtRect(x.value, y.value, w.value, h.value)
-    suspend fun to(r: PtRect) = kotlinx.coroutines.coroutineScope {
+    suspend fun to(r: PtRect, size: Boolean = true) = kotlinx.coroutines.coroutineScope {
         launch { x.animateTo(r.x, Motion.ccReflow.spec()) }; launch { y.animateTo(r.y, Motion.ccReflow.spec()) }
-        launch { w.animateTo(r.w, Motion.ccReflow.spec()) }; launch { h.animateTo(r.h, Motion.ccReflow.spec()) }
+        if (size) { launch { w.animateTo(r.w, Motion.ccReflow.spec()) }; launch { h.animateTo(r.h, Motion.ccReflow.spec()) } }
     }
 }
 
 /** One module's content, filling its box. */
 @Composable
-private fun Module(context: Context, model: ControlCenterModel, id: String, w: Int, h: Int) {
+private fun Module(context: Context, model: ControlCenterModel, id: String, w: Int, h: Int, g: CcGrid) {
     val c = SystemControls
     val view = LocalView.current
     fun big(m: CcExpand) { view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); model.expandModule(m) }
@@ -535,13 +608,13 @@ private fun Module(context: Context, model: ControlCenterModel, id: String, w: I
         "brightness" -> Slider(full.then(vis(CcExpand.Brightness)), c.brightness.floatValue, Icons.sun, YELLOW,
             onLong = { big(CcExpand.Brightness) }) { v -> c.setBrightness(context, v) }
         "focus" -> if (w == 2 && h == 1) FocusModule(full, c.dnd.value) { c.toggleDnd(context) }
-            else ControlModule(full, w, h, CcIcon.Vector(Icons.moon), stringResource(R.string.cc_focus), c.dnd.value, PURPLE) { c.toggleDnd(context) }
+            else ControlModule(full, g, CcIcon.Vector(Icons.moon), stringResource(R.string.cc_focus), c.dnd.value, PURPLE) { c.toggleDnd(context) }
         else -> {
             val b = builtIn(id)
-            if (b != null) ControlModule(full, w, h, CcIcon.Vector(b.icon()), stringResource(b.label), b.on(), b.active) { b.tap(context) }
+            if (b != null) ControlModule(full, g, CcIcon.Vector(b.icon()), stringResource(b.label), b.on(), b.active) { b.tap(context) }
             else {
                 val t = remember(id) { io.github.janhurn9400.liquidy.data.QsTiles.find(context, id) }
-                if (t != null) ControlModule(full, w, h, CcIcon.Bitmap(t.icon), t.label, false, Color.Black) {
+                if (t != null) ControlModule(full, g, CcIcon.Bitmap(t.icon), t.label, false, Color.Black) {
                     if (!io.github.janhurn9400.liquidy.data.QsTiles.click(t))
                         android.widget.Toast.makeText(context, R.string.cc_no_root, android.widget.Toast.LENGTH_SHORT).show()
                 }
@@ -597,29 +670,69 @@ private fun CcGlyph(m: Modifier, icon: CcIcon, color: Color, share: Float) = whe
     }
 }
 
+private enum class CcKind(val cols: Int, val rows: Int) { Round(1, 1), Wide(2, 1), Tall(1, 2), Large(2, 2) }
+
 /**
- * A control in any of its sizes: 1×1 = glass circle with the glyph; 2×1 = capsule with a glyph circle and the name;
- * 2×2 = rounded square, glyph circle top left, name and state bottom left.
+ * A control in any of its sizes: round = glass circle with the glyph; wide = capsule, glyph + name; tall =
+ * capsule, glyph on top, name below; large = rounded square, glyph top left, name and state bottom left.
+ * Everything follows the module's actual (live) size, like the original while its handle is dragged (M-CC-RESIZE,
+ * user's iPhone recording 4.65–5.05 s): the glyph never moves or scales — it stays centred in the top-left cell, where
+ * the round 1×1 has it, and the tile grows around it; the layout is the nearest size's, the corners morph continuously
+ * from circle/capsule to the rounded square, and the text is blurred the further the module is from a valid size —
+ * sharp on a size, most blurred halfway, where the text layout swaps unseen.
  */
 @Composable
-private fun ControlModule(m: Modifier, w: Int, h: Int, icon: CcIcon, label: String, on: Boolean, active: Color, tap: () -> Unit) {
+private fun ControlModule(m: Modifier, g: CcGrid, icon: CcIcon, label: String, on: Boolean, active: Color, tap: () -> Unit) {
     val fill = if (on) Color.White else Color.White.copy(alpha = DesignTokens.ccFill.value)
-    val glyph = if (on) active else Color.White
-    when {
-        w == 1 && h == 1 -> CcGlyph(m.ccGlassPress(CircleShape, fill, onTap = tap), icon, glyph, 0.42f)
-        h == 1 -> Box(m.ccGlassPress(CircleShape, Color.White.copy(alpha = DesignTokens.ccFill.value), onTap = tap)) {
-            Row(Modifier.fillMaxSize().padding(start = 14.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                CcGlyph(Modifier.size(38.dp).clip(CircleShape).background(fill), icon, glyph, 0.55f)
-                Spacer(Modifier.size(10.dp))
-                BasicText(label, maxLines = 2, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White))
-            }
-        }
-        else -> Box(m.ccGlassPress(RoundedCornerShape(DesignTokens.ccCorner.dp), Color.White.copy(alpha = DesignTokens.ccFill.value), onTap = tap)) {
-            CcGlyph(Modifier.padding(14.dp).size(44.dp).clip(CircleShape).background(fill), icon, glyph, 0.55f)
-            Column(Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 14.dp, end = 10.dp)) {
-                BasicText(label, maxLines = 2, style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Color.White))
-                BasicText(stringResource(if (on) R.string.cc_on else R.string.cc_off),
-                    style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = Color.White.copy(alpha = 0.6f)))
+    val glyphColor = if (on) active else Color.White
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    var boxW by remember { mutableStateOf(g.cell) }
+    var boxH by remember { mutableStateOf(g.cell) }
+    fun span(n: Int, gap: Float) = n * g.cell + (n - 1) * gap
+    // nearest valid size and how far off it the live size is (0 = on it, 1 = halfway to the next)
+    val pitch = g.cell + g.gx
+    // past the smallest / largest size (the small glass-like overshoot) counts as on that size: text stays sharp
+    val cw = boxW.coerceIn(g.cell, span(2, g.gx)); val chh = boxH.coerceIn(g.cell, span(2, g.gy))
+    val kind = CcKind.entries.minBy { abs(span(it.cols, g.gx) - cw) + abs(span(it.rows, g.gy) - chh) }
+    val off = ((abs(span(kind.cols, g.gx) - cw) + abs(span(kind.rows, g.gy) - chh)) / (pitch / 2)).coerceIn(0f, 1f)
+    // corners: radius = half the short side (circle / capsule) blending into the large tile's corner
+    val large = ((minOf(boxW, boxH) - g.cell) / (span(2, g.gx) - g.cell)).coerceIn(0f, 1f)
+    val radius = minOf(boxW, boxH) / 2 * (1f - large) + DesignTokens.ccCorner.value * large
+    // on/off is the whole tile, at every size (no separate circle around the glyph — like the original)
+    Box(m.layout { meas, c ->
+        boxW = c.maxWidth / density; boxH = c.maxHeight / density
+        val p = meas.measure(c); layout(p.width, p.height) { p.place(0, 0) }
+    }.ccGlassPress(RoundedCornerShape(radius.dp), fill, onTap = tap)) {
+        // the glyph: same size and place as on the 1×1 tile, whatever the size
+        // requiredSize: never squeezed with the tile when it's pushed below 1×1
+        CcGlyph(Modifier.requiredSize(g.cell.dp), icon, glyphColor, CcLayout.MODULE_GLYPH_SHARE)
+        // the text: blurred (and a little faded) by the distance to the nearest size
+        Box(Modifier.fillMaxSize().graphicsLayer {
+            val b = off * Motion.ccResizeBlur.value * density
+            renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
+            alpha = 1f - off * Motion.ccResizeFadeOut.value
+        }) {
+            // dark text on the white "on" tile
+            val name = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, color = if (on) Color.Black else Color.White)
+            // the text is set for the nearest size's width, not the live one — it never re-wraps while the tile grows
+            // (it may run past the edge for a moment, blurred and clipped, like the original)
+            val wideW = span(2, g.gx) - g.cell - 2f - 12f
+            val tallW = g.cell - 12f
+            val largeW = span(2, g.gx) - 16f - 10f
+            when (kind) {
+                CcKind.Round -> Unit
+                CcKind.Wide -> BasicText(label, Modifier.align(Alignment.CenterStart).padding(start = (g.cell + 2f).dp)
+                    .wrapContentWidth(Alignment.Start, unbounded = true).width(wideW.dp),
+                    maxLines = 2, style = name.copy(fontSize = 14.sp, lineHeight = 16.sp))
+                CcKind.Tall -> BasicText(label, Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)
+                    .wrapContentWidth(Alignment.CenterHorizontally, unbounded = true).width(tallW.dp), maxLines = 2,
+                    style = name.copy(fontSize = 12.sp, lineHeight = 14.sp, textAlign = TextAlign.Center))
+                CcKind.Large -> Column(Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 14.dp)
+                    .wrapContentWidth(Alignment.Start, unbounded = true).width(largeW.dp)) {
+                    BasicText(label, maxLines = 2, style = name.copy(fontSize = 15.sp))
+                    BasicText(stringResource(if (on) R.string.cc_on else R.string.cc_off),
+                        style = TextStyle(fontFamily = Inter, fontSize = 13.sp, color = (if (on) Color.Black else Color.White).copy(alpha = 0.6f)))
+                }
             }
         }
     }
@@ -634,15 +747,16 @@ private fun EditSlots(context: Context, model: ControlCenterModel, g: CcGrid) {
     if (e <= 0.001f) return
     // only free cells (the glass modules would show the circles through)
     val items = model.store(context).items.toList()
-    val pos = io.github.janhurn9400.liquidy.data.CcLayoutStore.pack(items)
+    val pos = io.github.janhurn9400.liquidy.data.CcLayoutStore.pack(items, g.rows)
     val taken = HashSet<Int>()
     for (it in items) pos[it.id]?.let { (c0, r0) -> for (dx in 0 until it.w) for (dy in 0 until it.h) taken.add((r0 + dy) * 16 + c0 + dx) }
     Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = e }) {
         val rad = g.cell / 2 * density
-        for (r in 0 until CcLayout.EDIT_ROWS) for (c in 0 until io.github.janhurn9400.liquidy.data.CcLayoutStore.COLS) {
+        for (r in 0 until g.rows * model.pageCount) for (c in 0 until io.github.janhurn9400.liquidy.data.CcLayoutStore.COLS) {
             if (r * 16 + c in taken) continue
             val q = g.slot(c, r)
-            drawCircle(Color.White.copy(alpha = CcLayout.EDIT_SLOT_ALPHA), rad, Offset((q.x + q.w / 2) * density, (q.y + q.h / 2) * density))
+            val a = (1f - abs((r / g.rows) - model.page.value)).coerceIn(0f, 1f)
+            if (a > 0.01f) drawCircle(Color.White.copy(alpha = CcLayout.EDIT_SLOT_ALPHA * a), rad, Offset((q.x + q.w / 2) * density, (q.y + q.h / 2) * density))
         }
     }
 }
@@ -673,21 +787,43 @@ private fun EditOverlay(model: ControlCenterModel, store: io.github.janhurn9400.
                     style = Stroke(CcLayout.EDIT_HANDLE_STROKE * density, cap = StrokeCap.Round))
             }
             val hs = CcLayout.EDIT_HANDLE_TOUCH
+            // the box moves with the growing module, so finger positions are taken in window coordinates
+            var origin by remember { mutableStateOf(Offset.Zero) }
             Box(Modifier.align(Alignment.BottomEnd).size(hs.dp)
+                .onGloballyPositioned { origin = it.positionInWindow() }
                 .pointerInput(item.id) {
                     awaitEachGesture {
                         val down = awaitFirstDown(); down.consume()
+                        val startWin = down.position + origin
                         val base = current
+                        fun span(n: Int, gap: Float) = n * g.cell + (n - 1) * gap
+                        val baseW = span(base.w, g.gx); val baseH = span(base.h, g.gy)
+                        val maxW = span(sizes.maxOf { it.first }, g.gx); val maxH = span(sizes.maxOf { it.second }, g.gy)
+                        // past the smallest / largest size it only gives a little, like Liquid Glass pulled by the
+                        // finger: a few pt, saturating (M-CC-RESIZE.over)
+                        fun over(x: Float) = Motion.ccResizeOver.value * x / (x + Motion.ccResizeOverRange.value)
+                        fun band(v: Float, lo: Float, hi: Float) = when {
+                            v > hi -> hi + over(v - hi)
+                            v < lo -> lo - over(lo - v)
+                            else -> v
+                        }
                         while (true) {
                             val ev = awaitPointerEvent(); val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
                             ch.consume()
-                            val d = ch.position - down.position
-                            val tw = base.w + (d.x / ((g.cell + g.gx) * density)).roundToInt()
-                            val th = base.h + (d.y / ((g.cell + g.gy) * density)).roundToInt()
-                            val best = sizes.minBy { (sw, sh) -> abs(sw - tw) + abs(sh - th) }
-                            store.resize(base.id, best.first, best.second, CcLayout.EDIT_ROWS)
+                            val d = (ch.position + origin) - startWin
+                            val w = band(baseW + d.x / density, g.cell, maxW)
+                            val h = band(baseH + d.y / density, g.cell, maxH)
+                            model.resizing = ControlCenterModel.LiveResize(base.id, w, h)
+                            // the others make room for the size the module would snap to — only once that size is clearly
+                            // nearer than the current one (hysteresis), so they don't jump back and forth with the finger
+                            fun dist(sz: Pair<Int, Int>) = abs(span(sz.first, g.gx) - w) + abs(span(sz.second, g.gy) - h)
+                            val best = sizes.minBy { dist(it) }
+                            val now = current.w to current.h
+                            if (best != now && dist(best) + CcLayout.RESIZE_HYSTERESIS * g.cell < dist(now))
+                                store.resize(base.id, best.first, best.second)
                             if (!ch.pressed) break
                         }
+                        model.resizing = null // springs to the chosen size (M-CC-REFLOW)
                     }
                 })
         }
@@ -701,6 +837,26 @@ private fun EditOverlay(model: ControlCenterModel, store: io.github.janhurn9400.
                 drawLine(Color.White, Offset(size.width / 2 - l / 2, size.height / 2), Offset(size.width / 2 + l / 2, size.height / 2),
                     2.2f * density, StrokeCap.Round)
             }
+        }
+    }
+}
+
+/** Page dots right of the grid (current one white); tap one to go there. */
+@Composable
+private fun PageDots(model: ControlCenterModel, g: CcGrid, density: Float, alpha: () -> Float) {
+    val n = model.pageCount
+    val d = CcLayout.PAGE_DOT; val pitch = CcLayout.PAGE_DOT_PITCH
+    val h = (n - 1) * pitch + d
+    val x = g.left + g.width + CcLayout.PAGE_DOTS_OUT
+    val y = g.top + g.pageH / 2 - h / 2
+    Box(Modifier.at(PtRect(x - CcLayout.PAGE_DOT_TOUCH / 2 + d / 2, y, CcLayout.PAGE_DOT_TOUCH, h)).graphicsLayer { this.alpha = alpha().coerceIn(0f, 1f) }) {
+        for (i in 0 until n) {
+            Box(Modifier.align(Alignment.TopCenter).offset(y = (i * pitch).dp).size(d.dp).clip(CircleShape)
+                .drawBehind {
+                    val on = (1f - abs(i - model.page.value)).coerceIn(0f, 1f)
+                    drawCircle(Color.White.copy(alpha = CcLayout.PAGE_DOT_OFF + (1f - CcLayout.PAGE_DOT_OFF) * on))
+                }
+                .pointerInput(i) { detectTapGestures { model.pageTo(i) } })
         }
     }
 }
@@ -761,8 +917,7 @@ private fun Gallery(context: Context, model: ControlCenterModel, wPt: Float, scr
                     .mapNotNull { id -> builtInGlyph(id)?.let { (l, ic) -> Triple(id, context.getString(l), CcIcon.Vector(ic) as CcIcon) } }
                     .filter { q.isEmpty() || it.second.lowercase().contains(q) }
                 val add = { id: String ->
-                    if (id !in present && !store.add(id, CcLayout.EDIT_ROWS))
-                        android.widget.Toast.makeText(context, R.string.cc_full, android.widget.Toast.LENGTH_SHORT).show()
+                    if (id !in present) store.add(id)
                     model.closeGallery()
                 }
                 if (builtIns.isNotEmpty()) GallerySection(null, null, builtIns, present, add)

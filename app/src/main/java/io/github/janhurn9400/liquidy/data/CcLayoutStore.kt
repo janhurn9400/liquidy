@@ -22,23 +22,18 @@ class CcLayoutStore(context: Context) {
 
     fun remove(id: String) { items.removeAll { it.id == id }; save() }
 
-    /** Adds [id] at the end; false when it would not fit on the page (more pages: not built yet). */
-    fun add(id: String, rows: Int): Boolean {
-        if (items.any { it.id == id }) return true
+    /** Adds [id] at the end (what doesn't fit flows onto the next page, like the original). */
+    fun add(id: String) {
+        if (items.any { it.id == id }) return
         val s = sizesFor(id).first()
-        val next = items + Item(id, s.first, s.second)
-        if (rowsUsed(next) > rows) return false
-        items.add(next.last()); save()
-        return true
+        items.add(Item(id, s.first, s.second)); save()
     }
 
-    /** Resizes [id] unless the new size would push modules off the page. */
-    fun resize(id: String, w: Int, h: Int, rows: Int) {
+    /** Resizes [id]; the others reflow, onto further pages if needed. */
+    fun resize(id: String, w: Int, h: Int) {
         val i = items.indexOfFirst { it.id == id }
         if (i < 0 || (items[i].w == w && items[i].h == h)) return
-        val next = items.toMutableList().also { it[i] = it[i].copy(w = w, h = h) }
-        if (rowsUsed(next) > rows) return
-        items[i] = next[i]; save()
+        items[i] = items[i].copy(w = w, h = h); save()
     }
 
     companion object {
@@ -60,18 +55,24 @@ class CcLayoutStore(context: Context) {
         fun sizesFor(id: String): List<Pair<Int, Int>> = when (id) {
             "connectivity", "media" -> listOf(2 to 2)
             "volume", "brightness" -> listOf(1 to 2)
-            "focus" -> listOf(2 to 1, 1 to 1, 2 to 2)
-            else -> listOf(1 to 1, 2 to 1, 2 to 2)
+            "focus" -> listOf(2 to 1, 1 to 1, 1 to 2, 2 to 2)
+            else -> listOf(1 to 1, 2 to 1, 1 to 2, 2 to 2) // round, wide, tall, large [MEASURED] user's iPhone recording
         }
 
         /** Rows the packed layout needs. */
-        fun rowsUsed(items: List<Item>): Int {
-            val p = pack(items)
+        fun rowsUsed(items: List<Item>, rowsPerPage: Int): Int {
+            val p = pack(items, rowsPerPage)
             return items.maxOfOrNull { (p[it.id]?.second ?: 0) + it.h } ?: 0
         }
 
-        /** Grid position (col, row) of every item: list order, first free spot that fits (row-major). */
-        fun pack(items: List<Item>): Map<String, Pair<Int, Int>> {
+        /** Pages the layout fills. */
+        fun pages(items: List<Item>, rowsPerPage: Int): Int = maxOf(1, (rowsUsed(items, rowsPerPage) + rowsPerPage - 1) / rowsPerPage)
+
+        /**
+         * Grid position (col, row) of every item: list order, first free spot that fits (row-major). Rows run on across
+         * pages of [rowsPerPage]; an item never straddles a page boundary.
+         */
+        fun pack(items: List<Item>, rowsPerPage: Int): Map<String, Pair<Int, Int>> {
             val taken = HashSet<Long>()
             fun key(c: Int, r: Int) = r.toLong() * 64 + c
             val out = LinkedHashMap<String, Pair<Int, Int>>()
@@ -79,6 +80,7 @@ class CcLayoutStore(context: Context) {
                 val w = it.w.coerceIn(1, COLS)
                 var r = 0
                 search@ while (r < 200) {
+                    if (r % rowsPerPage + it.h > rowsPerPage) { r++; continue } // would cross into the next page
                     for (c in 0..COLS - w) {
                         val fits = (0 until w).all { dx -> (0 until it.h).all { dy -> key(c + dx, r + dy) !in taken } }
                         if (fits) {

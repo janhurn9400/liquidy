@@ -304,6 +304,20 @@ object Motion {
     // M-CC-GALLERY — "Add a Control" panel slides up from below with a little bounce (user 2026-11-26; the simulator
     // loads it for seconds, so no clean recording) [ESTIMATED]
     val ccGallery = iosSpring("M-CC-GALLERY", "Add a Control panel", response = 0.45f, dampingFraction = 0.82f)
+    // M-CC-RESIZE [MEASURED] user's iPhone recording 2026-11-26 (4.4–7.0 s): dragging the handle, the module follows the
+    // finger continuously (rubber-banded past the smallest/largest size), the others reflow as soon as the nearest size
+    // changes, the content crossfades between layouts (round / wide / tall / large), on release it springs to the size
+    // (frame by frame 4.65–5.05 s: the glyph stays one sharp element; the text is blurred the further the live size is
+    // from a valid size — sharp on a size, strongest halfway — and its layout swaps at the blurriest point)
+    // past the smallest/largest size the tile only gives a little, like Liquid Glass under the finger (user 2026-11-26:
+    // "not as extremely far"): at most this many pt, half of it after this much finger travel [ESTIMATED]
+    val ccResizeOver = tunable("M-CC-RESIZE.over", "Resize past the sizes at most", "Control Center", 10f, 0f, 60f, "pt")
+    val ccResizeOverRange = tunable("M-CC-RESIZE.overRange", "Resize past the sizes: half at", "Control Center", 40f, 5f, 200f, "pt")
+    val ccResizeBlur = tunable("M-CC-RESIZE.blur", "Module text blur halfway between sizes", "Control Center", 8f, 0f, 30f, "pt")
+    val ccResizeFadeOut = tunable("M-CC-RESIZE.fadeOut", "Module text fades halfway", "Control Center", 0.6f, 0f, 1f)
+    // M-CC-PAGE — Control Center pages: what doesn't fit flows onto the next page, vertical swipe in the grid [ESTIMATED]
+    val ccPage = iosSpring("M-CC-PAGE", "Control Center page change", response = 0.4f, dampingFraction = 0.9f)
+    val ccPageFlick = tunable("M-CC-PAGE.flick", "Page flick (pages/s)", "Control Center", 0.6f, 0.1f, 5f)
     // M-CC-RESIZE — modules move/grow to their new spot when the layout reflows [ESTIMATED] like M-REFLOW
     val ccReflow = iosSpring("M-CC-REFLOW", "Control Center modules reflow", response = 0.35f, dampingFraction = 0.85f)
     val ccCommit = tunable("M-CC.commit", "Opens from progress", "Control Center", 0.4f, 0.1f, 0.9f) // [ESTIMATED]

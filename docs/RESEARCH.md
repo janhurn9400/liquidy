@@ -274,3 +274,10 @@ Please check on the iPhone Duo: the module contents (the simulator renders only 
 | ID | Value | Status |
 |---|---|---|
 | M-PUSH | Settings › General: the new page slides in from the right, exponential ease-out (≈ 55 % after 50 ms, 80 % after 100 ms, 90 % after 150 ms, at rest ≈ 330 ms); the old page does not fade — it moves ≈ ⅓ left and dims slightly; the new page casts a soft edge shadow. Back = reverse. Used by the setup pages and the switch guides. The user found the measured 330 ms too fast (the screen recording likely drops early frames) → 500 ms, ease 4.5 | [MEASURED] 1.83–2.22 s, then adjusted by the user (dim and shadow strength [ESTIMATED]) |
+
+### Control Center resize and pages — user's iPhone recording 2026-11-26 (17-41-57)
+
+| ID | Value | Status |
+|---|---|---|
+| M-CC-RESIZE | dragging a module's handle: the tile follows the finger continuously (sizes round 1×1, wide 2×1, tall 1×2, large 2×2); the glyph never moves or scales (centred in the top-left cell, no circle of its own); the corners morph from circle/capsule to the rounded square; the text is set for the nearest size and blurred by the distance to it (sharp on a size, strongest halfway); past 1×1 / 2×2 only a small glass-like overshoot (≤ 10 pt); on release it springs to the size | [MEASURED] 4.4–7.0 s; overshoot and blur strength [ESTIMATED] |
+| M-CC-PAGE | what doesn't fit flows onto further pages (6 rows each); vertical swipe inside the grid turns pages, page dots right of the grid | [ESTIMATED] (not in the recording) |
