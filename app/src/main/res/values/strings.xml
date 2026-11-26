@@ -347,4 +347,10 @@
     <string name="cc_add_control">Add a Control</string>
     <string name="cc_search_controls">Search Controls</string>
     <string name="cc_full">The Control Center is full — remove a control first</string>
+    <string name="settings_font">Font</string>
+    <string name="settings_font_device">On This Device</string>
+    <string name="settings_font_own">Your Fonts</string>
+    <string name="settings_font_add">Add Font File…</string>
+    <string name="settings_font_footer">Added fonts (.ttf or .otf) stay on this device. Only use fonts you have the right to use.</string>
+    <string name="settings_font_bad_file">This file couldn\'t be loaded as a font</string>
 </resources>

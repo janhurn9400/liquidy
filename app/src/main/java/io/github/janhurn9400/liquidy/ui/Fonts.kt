@@ -1,20 +1,11 @@
 package io.github.janhurn9400.liquidy.ui
 
-import androidx.compose.ui.text.ExperimentalTextApi
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontVariation
-import androidx.compose.ui.text.font.FontWeight
-import io.github.janhurn9400.liquidy.R
+import io.github.janhurn9400.liquidy.data.FontChoice
 
-/** Inter (SIL OFL, docs/Inter-OFL.txt) as a free substitute for SF Pro. Variable font, axis wght. */
-@OptIn(ExperimentalTextApi::class)
-val Inter = FontFamily(
-    listOf(400, 500, 600, 700).map { w ->
-        Font(
-            R.font.inter_variable,
-            weight = FontWeight(w),
-            variationSettings = FontVariation.Settings(FontVariation.weight(w)),
-        )
-    }
-)
+/**
+ * The launcher's font. Named after the default (Inter, SIL OFL, docs/Inter-OFL.txt — a free substitute for the
+ * original's system font), but it is whatever the user picked in Settings › Appearance › Font ([FontChoice]); read it
+ * where text is built (not into a constant) so a change applies at once.
+ */
+val Inter: FontFamily get() = FontChoice.family

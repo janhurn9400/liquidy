@@ -347,4 +347,10 @@
     <string name="cc_add_control">Steuerelement hinzufügen</string>
     <string name="cc_search_controls">Steuerelemente suchen</string>
     <string name="cc_full">Das Kontrollzentrum ist voll – entferne zuerst ein Steuerelement</string>
+    <string name="settings_font">Schrift</string>
+    <string name="settings_font_device">Auf diesem Gerät</string>
+    <string name="settings_font_own">Eigene Schriften</string>
+    <string name="settings_font_add">Schriftdatei hinzufügen…</string>
+    <string name="settings_font_footer">Hinzugefügte Schriften (.ttf oder .otf) bleiben auf diesem Gerät. Verwende nur Schriften, die du nutzen darfst.</string>
+    <string name="settings_font_bad_file">Diese Datei ließ sich nicht als Schrift laden</string>
 </resources>

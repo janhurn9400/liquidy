@@ -249,6 +249,7 @@ private fun Detail(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolea
             when (sub) {
                 SubPage.IconPacks -> IconPackPage(categoryTitle(c)) { subPage = SubPage.None }
                 SubPage.Glass -> GlassPage(categoryTitle(c)) { subPage = SubPage.None }
+                SubPage.Font -> FontPage(categoryTitle(c), model) { subPage = SubPage.None }
                 SubPage.Module -> ModulePage(categoryTitle(c), tick) { subPage = SubPage.None }
                 SubPage.Report -> ReportPage(categoryTitle(c), onClose = { subPage = SubPage.None; model.closeSettings() }) { subPage = SubPage.None }
                 SubPage.None -> DetailBody(c, model, tick, inlineTitle) { subPage = it }
@@ -302,6 +303,11 @@ private fun DetailBody(c: Category, model: HomeModel, tick: Int, inlineTitle: Bo
                     val chosen = io.github.janhurn9400.liquidy.data.IconPacks.selected
                     val label = remember(chosen) { chosen?.let { io.github.janhurn9400.liquidy.data.IconPacks.available(context).firstOrNull { p -> p.packageName == it }?.label } }
                     LinkRow(stringResource(R.string.settings_sec_iconpack), label ?: stringResource(R.string.settings_iconpack_system)) { openSub(SubPage.IconPacks) }
+                    Divider()
+                    // Font: own page with a live preview and a card per font (Inter, device fonts, added files)
+                    val fontKey = io.github.janhurn9400.liquidy.data.FontChoice.key
+                    val fontName = remember(fontKey) { io.github.janhurn9400.liquidy.data.FontChoice.nameOf(context, fontKey) }
+                    LinkRow(stringResource(R.string.settings_font), fontName) { openSub(SubPage.Font) }
                 }
                 // like iOS: Settings › Appearance › Liquid Glass (own page with preview + clear ↔ tinted slider)
                 Section(null) {
@@ -618,7 +624,7 @@ private fun IconPackPage(backLabel: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun PreviewIcon(pack: String?, cn: android.content.ComponentName, label: String) {
+private fun PreviewIcon(pack: String?, cn: android.content.ComponentName, label: String, labelColor: Color = Color.Black) {
     val context = LocalContext.current
     val density = LocalDensity.current.density
     val px = (PREVIEW_ICON * density).toInt()
@@ -640,7 +646,156 @@ private fun PreviewIcon(pack: String?, cn: android.content.ComponentName, label:
         }
         Spacer(Modifier.height(5.dp))
         BasicText(label, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            style = TextStyle(fontFamily = Inter, fontSize = 12.sp, color = Color.Black))
+            style = TextStyle(fontFamily = Inter, fontSize = 12.sp, color = labelColor))
+    }
+}
+
+/**
+ * Subpage "Font": a small copy of the real home screen (wallpaper, the first page's apps with their names, the dock)
+ * set in the chosen font, then an inset grouped list like iOS settings — each font's name in itself, checkmark on the
+ * chosen one. "Add Font File…" copies a .ttf/.otf into the app; added fonts can be removed again.
+ */
+@Composable
+private fun FontPage(backLabel: String, model: HomeModel, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val noRipple = remember { MutableInteractionSource() }
+    val fc = io.github.janhurn9400.liquidy.data.FontChoice
+    var version by remember { androidx.compose.runtime.mutableIntStateOf(0) } // bumps after adding/removing a file
+    // device fonts: scanned off the main thread (each family is opened once to check for Latin glyphs)
+    val system by androidx.compose.runtime.produceState(emptyList<io.github.janhurn9400.liquidy.data.FontChoice.Option>()) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { fc.system(context) }
+    }
+    val own = remember(version) { fc.own(context) }
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            if (fc.add(context, uri)) version++
+            else android.widget.Toast.makeText(context, R.string.settings_font_bad_file, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+        Spacer(Modifier.height(TOP_PAD.dp))
+        Row(Modifier.clickable(noRipple, null, onClick = onBack).padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Canvas(Modifier.size(10.dp, 17.dp)) {
+                val sw = 2.4.dp.toPx(); val c = Color(0xFF007AFF)
+                drawLine(c, Offset(size.width * 0.9f, size.height * 0.05f), Offset(size.width * 0.1f, size.height * 0.5f), sw, StrokeCap.Round)
+                drawLine(c, Offset(size.width * 0.1f, size.height * 0.5f), Offset(size.width * 0.9f, size.height * 0.95f), sw, StrokeCap.Round)
+            }
+            Spacer(Modifier.width(6.dp))
+            BasicText(backLabel, style = LABEL.copy(color = Color(0xFF007AFF)))
+        }
+        BasicText(stringResource(R.string.settings_font), Modifier.padding(bottom = 18.dp),
+            style = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 28.sp, color = Color.Black))
+        HomePreview(model)
+        Spacer(Modifier.height(SECTION_GAP.dp))
+        Section(null) { FontRow(fc.default(), noRipple, last = true) { version++ } }
+        if (system.isNotEmpty()) Section(stringResource(R.string.settings_font_device)) {
+            system.forEachIndexed { i, o -> FontRow(o, noRipple, last = i == system.lastIndex) { version++ } }
+        }
+        Section(stringResource(R.string.settings_font_own), footer = stringResource(R.string.settings_font_footer)) {
+            own.forEach { o -> FontRow(o, noRipple, last = false) { version++ } }
+            Row(Modifier.fillMaxWidth().height(ROW_H.dp).clickable(noRipple, null) { picker.launch(FONT_MIME) }.padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                BasicText(stringResource(R.string.settings_font_add), style = LABEL.copy(color = Color(0xFF007AFF)))
+            }
+        }
+    }
+}
+
+/** One font in the list: its name set in itself, checkmark when chosen, red minus for added files. */
+@Composable
+private fun FontRow(o: io.github.janhurn9400.liquidy.data.FontChoice.Option, noRipple: MutableInteractionSource, last: Boolean, changed: () -> Unit) {
+    val context = LocalContext.current
+    val fc = io.github.janhurn9400.liquidy.data.FontChoice
+    Row(Modifier.fillMaxWidth().height(ROW_H.dp).clickable(noRipple, null) { fc.select(context, o) }.padding(start = 20.dp, end = 18.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        if (o.removable) {
+            Box(Modifier.padding(end = 12.dp).size(22.dp).clip(CircleShape).background(Color(0xFFFF3B30))
+                .clickable(noRipple, null) { fc.remove(context, o); changed() }, contentAlignment = Alignment.Center) {
+                Box(Modifier.size(10.dp, 2.dp).clip(RoundedCornerShape(1.dp)).background(Color.White))
+            }
+        }
+        BasicText(o.name, Modifier.weight(1f), maxLines = 1, style = TextStyle(fontFamily = o.family, fontSize = 17.sp, color = Color.Black))
+        if (fc.key == o.key) Canvas(Modifier.size(15.dp, 13.dp)) {
+            val sw = 2.2.dp.toPx(); val c = Color(0xFF007AFF)
+            drawLine(c, Offset(size.width * 0.05f, size.height * 0.55f), Offset(size.width * 0.38f, size.height * 0.92f), sw, StrokeCap.Round)
+            drawLine(c, Offset(size.width * 0.38f, size.height * 0.92f), Offset(size.width * 0.95f, size.height * 0.08f), sw, StrokeCap.Round)
+        }
+    }
+    if (!last) Divider()
+}
+
+/**
+ * An enlarged cut-out of the home screen as it really is, so the font is easy to judge: own wallpaper, a few apps with
+ * their names (in the chosen font) and the dock — Duo unfolded: the right page's top rows and the dock column;
+ * phone: the last rows and the dock plate. Same width as the list below it.
+ */
+@Composable
+private fun HomePreview(model: HomeModel) {
+    val conf = androidx.compose.ui.platform.LocalConfiguration.current
+    val sw = conf.screenWidthDp.toFloat(); val sh = conf.screenHeightDp.toFloat()
+    val wide = sw > sh * 1.1f
+    val wallpaper = LocalWallpaper.current
+    val fallback = remember { if (wallpaper == null) io.github.janhurn9400.liquidy.glass.Wallpaper.generateColorful(800, 800) else null }
+    val image = wallpaper ?: fallback!!
+    val display = model.display
+    val apps = model.apps
+    // the cut-out of the real screen (pt) the preview shows
+    val vpW = minOf(sw, HP_VIEW_W)
+    val vpH = vpW / HP_VIEW_ASPECT
+    val vpX = sw - vpW
+    val vpY = if (wide) HP_VIEW_TOP_DUO else sh - vpH
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(HP_VIEW_ASPECT).clip(RoundedCornerShape(GROUP_CORNER.dp))) {
+        val s = maxWidth.value / vpW // real pt → preview dp (enlarged)
+        // the whole wallpaper at screen size, shifted so the cut-out shows
+        androidx.compose.foundation.Image(image, null, Modifier.offset((-vpX * s).dp, (-vpY * s).dp).requiredSize((sw * s).dp, (sh * s).dp),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        @Composable
+        fun AppAt(key: String, cx: Float, top: Float, icon: Float, label: Boolean) {
+            val a = apps[key] ?: return
+            Column(Modifier.offset(((cx - HP_CELL / 2 - vpX) * s).dp, ((top - vpY) * s).dp).width((HP_CELL * s).dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                androidx.compose.foundation.Image(a.icon, null, Modifier.size((icon * s).dp)
+                    .clip(io.github.janhurn9400.liquidy.design.ContinuousRoundedShape((icon * s * ICON_CORNER_SHARE).dp)))
+                if (label) BasicText(a.label, Modifier.padding(top = (HP_LABEL_GAP * s).dp), maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    style = TextStyle(fontFamily = Inter, fontSize = (HP_LABEL * s).sp, color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 1f), 3f)))
+            }
+        }
+        if (wide) {
+            // Duo unfolded: two pages side by side, dock column at the right edge
+            val area = sw - HP_DUO_DOCK_COL
+            for (p in 0 until 2) {
+                val keys = display.pages.getOrNull(p) ?: continue
+                val pageW = area / 2; val pitch = pageW / HP_COLS
+                keys.take(HP_COLS * HP_ROWS_DUO).forEachIndexed { i, k ->
+                    AppAt(k, p * pageW + pitch * (i % HP_COLS + 0.5f), HP_TOP_DUO + (i / HP_COLS) * HP_ROW_PITCH, HP_ICON, true)
+                }
+            }
+            val dock = display.dock.take(HP_DOCK_MAX_DUO)
+            if (dock.isNotEmpty()) {
+                val cx = sw - HP_DUO_DOCK_FROM_RIGHT
+                val h = dock.size * HP_DUO_DOCK_PITCH + HP_DUO_DOCK_PAD
+                val top = (sh - h) / 2
+                Box(Modifier.offset(((cx - HP_DUO_DOCK_W / 2 - vpX) * s).dp, ((top - vpY) * s).dp).size((HP_DUO_DOCK_W * s).dp, (h * s).dp)
+                    .clip(RoundedCornerShape((HP_DUO_DOCK_W / 2 * s).dp)).background(Color.White.copy(alpha = HP_DOCK_ALPHA)))
+                dock.forEachIndexed { i, k ->
+                    AppAt(k, cx, top + HP_DUO_DOCK_PAD / 2 + i * HP_DUO_DOCK_PITCH + (HP_DUO_DOCK_PITCH - HP_DOCK_ICON_DUO) / 2, HP_DOCK_ICON_DUO, false)
+                }
+            }
+        } else {
+            // phone: one page, dock plate at the bottom
+            val pitch = sw / HP_COLS
+            display.pages.firstOrNull()?.take(HP_COLS * HP_ROWS)?.forEachIndexed { i, k ->
+                AppAt(k, pitch * (i % HP_COLS + 0.5f), HP_TOP + (i / HP_COLS) * HP_ROW_PITCH, HP_ICON, true)
+            }
+            val top = sh - HP_DOCK_FROM_BOTTOM
+            Box(Modifier.offset(((HP_DOCK_SIDE - vpX) * s).dp, ((top - vpY) * s).dp).size(((sw - 2 * HP_DOCK_SIDE) * s).dp, (HP_DOCK_H * s).dp)
+                .clip(RoundedCornerShape((HP_DOCK_CORNER * s).dp)).background(Color.White.copy(alpha = HP_DOCK_ALPHA)))
+            display.dock.take(HP_COLS).forEachIndexed { i, k ->
+                AppAt(k, pitch * (i + 0.5f), top + (HP_DOCK_H - HP_ICON) / 2, HP_ICON, false)
+            }
+        }
     }
 }
 
@@ -676,7 +831,7 @@ private fun LinkRow(label: String, value: String? = null, onClick: () -> Unit) {
     }
 }
 
-private enum class SubPage { None, IconPacks, Glass, Module, Report }
+private enum class SubPage { None, IconPacks, Glass, Font, Module, Report }
 
 /**
  * Subpage "Liquid Glass" like iOS (Settings › Appearance › Liquid Glass, user screenshot 10-14): preview card
@@ -1004,6 +1159,35 @@ private const val DUO_RIGHT_ROOM = 85f        // content ends 85 pt before the r
 private const val DUO_COLUMN_FROM_RIGHT = 47f
 private const val DUO_BUTTON_Y = 190f
 private const val TOP_PAD = 34f
+// Font page home preview: real home geometry in pt, scaled to the preview (approximations of HomeGeometry)
+private const val HP_COLS = 4
+private const val HP_ROWS = 6
+private const val HP_ROWS_DUO = 6
+private const val HP_CELL = 84f
+private const val HP_ICON = 60f
+private const val HP_LABEL = 12f
+private const val HP_LABEL_GAP = 5f
+private const val HP_ROW_PITCH = 100f
+private const val HP_TOP = 72f
+private const val HP_TOP_DUO = 40f
+private const val HP_DOCK_FROM_BOTTOM = 124f
+private const val HP_DOCK_SIDE = 17f
+private const val HP_DOCK_H = 103f
+private const val HP_DOCK_CORNER = 38f
+private const val HP_DOCK_ALPHA = 0.22f
+private const val HP_DUO_DOCK_COL = 94f
+private const val HP_DUO_DOCK_FROM_RIGHT = 47f
+private const val HP_DUO_DOCK_W = 66f
+private const val HP_DUO_DOCK_PITCH = 60f
+private const val HP_DUO_DOCK_PAD = 14f
+private const val HP_DOCK_ICON_DUO = 48f
+private const val HP_DOCK_MAX_DUO = 6
+// the enlarged cut-out: this wide (pt), this aspect; Duo: from this y (top rows + upper dock), phone: the bottom
+private const val HP_VIEW_W = 330f
+private const val HP_VIEW_ASPECT = 1.6f
+private const val HP_VIEW_TOP_DUO = 150f
+private val FONT_MIME = arrayOf("font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-otf",
+    "application/vnd.ms-opentype", "application/font-sfnt", "application/octet-stream")
 private const val SIDEBAR_TOP = 86f   // header card ≈ 100 pt [MEASURED]
 private const val HERO_TOP = 46f
 // Liquid Glass preview [MEASURED] user screenshot 10-14 (920 px = 402 pt): card ≈ 370 × 370 pt, corners ≈ 26 pt, image ≈ 55 %,
@@ -1038,4 +1222,4 @@ private val CHEVRON = Color(0xFFC4C4C7)
 private const val PREVIEW_ICON = 54f
 /** T-ICON-R / icon size (16.33 / 60). */
 private const val ICON_CORNER_SHARE = 16.33f / 60f
-private val LABEL = TextStyle(fontFamily = Inter, fontSize = 17.sp, color = Color.Black)
+private val LABEL get() = TextStyle(fontFamily = Inter, fontSize = 17.sp, color = Color.Black)

@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
         io.github.janhurn9400.liquidy.data.FoldableStyle.load(this)
         io.github.janhurn9400.liquidy.data.OwnStatusBar.load(this)
         io.github.janhurn9400.liquidy.glass.GlassClarity.load(this)
+        io.github.janhurn9400.liquidy.data.FontChoice.load(this)
         io.github.janhurn9400.liquidy.data.Quirks.load(this)
         io.github.janhurn9400.liquidy.data.UniversalSearch.WebSuggestions.load(this)
         androidWidgets = io.github.janhurn9400.liquidy.ui.widgets.AndroidWidgetHost(this) // before onStart (startListening)
@@ -563,6 +564,10 @@ class MainActivity : ComponentActivity() {
                     androidWidgets?.add(this, info, p[1].toInt() to p[2].toInt()) { spec -> if (spec != null) model?.addWidget(spec, 0) }
                 }
             } else model?.addWidget(io.github.janhurn9400.liquidy.data.WidgetSpec(p[0], p[1].toInt(), p[2].toInt()), 0)
+        }
+        // Test (debug build only): --ez testsettings true → open Launcher Settings
+        if (intent?.getBooleanExtra("testsettings", false) == true && (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            intent.removeExtra("testsettings"); model?.openSettings()
         }
         if (intent?.getBooleanExtra("testdemo", false) == true && (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             intent.removeExtra("testdemo"); model?.debugDemoLayout()
