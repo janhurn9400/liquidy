@@ -40,6 +40,7 @@ import kotlin.math.roundToInt
  */
 object StatusOverlay {
     private const val PREFS = "status_overlay"
+    private const val UNKNOWN_APP = "?"
 
     /** User setting (Settings › Appearance › Status Bar, Duo only). */
     var enabled by mutableStateOf(true)
@@ -49,7 +50,7 @@ object StatusOverlay {
     fun set(c: Context, on: Boolean) {
         enabled = on
         c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("on", on).apply()
-        host?.let { update(it) }
+        host?.let { update(it); androidIcons(active()) }
     }
 
     private var host: AccessibilityService? = null
@@ -64,11 +65,34 @@ object StatusOverlay {
 
     fun attach(s: AccessibilityService) {
         host = s
-        load(s); FoldableStyle.load(s); OwnStatusBar.load(s)
+        load(s); FoldableStyle.load(s); OwnStatusBar.load(s); ShizukuShell.init(s)
+        // started (boot, update) while something is open: no window event comes until the next switch — assume an app
+        // is in front unless our home activity says otherwise (homeVisible)
+        if (foreground == null) foreground = UNKNOWN_APP
+        update(s)
     }
 
     fun detach() {
         hide(); host = null
+        androidIcons(false)
+    }
+
+    private fun active() = enabled && FoldableStyle.duoStyle && OwnStatusBar.enabled
+
+    private var iconsHidden: Boolean? = null
+
+    /**
+     * Android's own status icons (clock, notifications, Wi-Fi, battery) would sit right next to ours: hide them all with
+     * StatusBarManager disable flags via `cmd statusbar` — allowed for the shell user, so root or Shizuku (tested in the
+     * emulator; an icon_blacklist or tint overlay left the battery / did nothing). Without either they stay.
+     */
+    private fun androidIcons(hide: Boolean) {
+        if (iconsHidden == hide) return
+        // remembered only once it worked: right after boot the Shizuku binder / root probe may not be there yet
+        Thread {
+            val ok = Privileged.run("cmd statusbar send-disable-flag " + if (hide) "clock notification-icons system-icons" else "none")
+            if (ok) main.post { iconsHidden = hide }
+        }.start()
     }
 
     private var home = false
@@ -85,15 +109,16 @@ object StatusOverlay {
         val s = host ?: return
         if (pkg.isNullOrEmpty() || pkg == foreground) return
         // the keyboard reports its own window, our own windows are decided by homeVisible: keep the app below
-        if (pkg == defaultIme(s) || pkg == s.packageName) return
+        // System UI (shade, volume dialog) neither: closing them sends no event for the app below, so the symbols would stay gone
+        if (pkg == defaultIme(s) || pkg == s.packageName || pkg == "com.android.systemui") return
         foreground = pkg
         update(s)
     }
 
     private fun update(s: AccessibilityService) {
+        androidIcons(active())
         val pkg = foreground
-        val show = enabled && FoldableStyle.duoStyle && OwnStatusBar.enabled && !home && pkg != null &&
-            pkg != "com.android.systemui" && pkg != "android"
+        val show = active() && !home && pkg != null && pkg != "android"
         if (show) { show(s); main.removeCallbacks(sampler); main.postDelayed(sampler, L.SAMPLE_DELAY_MS) } else hide()
     }
 
