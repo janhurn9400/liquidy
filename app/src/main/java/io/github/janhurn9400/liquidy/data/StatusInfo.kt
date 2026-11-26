@@ -51,13 +51,17 @@ data class StatusInfo(
 @Composable
 fun rememberStatusInfo(): State<StatusInfo> {
     val context = LocalContext.current
-    return produceState(StatusInfo(time = timeNow(context))) {
+    // start from the last values read anywhere: a freshly opened window (Control Center over apps, settings) would else
+    // show a placeholder (no Wi-Fi, full battery) for a few frames — a visible flicker
+    return produceState(lastStatus?.copy(time = timeNow(context)) ?: StatusInfo(time = timeNow(context))) {
         while (true) {
-            value = withContext(Dispatchers.IO) { read(context) }
+            value = withContext(Dispatchers.IO) { read(context) }.also { lastStatus = it }
             delay(STATUS_POLL_MS)
         }
     }
 }
+
+@Volatile private var lastStatus: StatusInfo? = null
 
 private fun timeNow(c: Context): String =
     android.text.format.DateFormat.getTimeFormat(c).format(java.util.Date()).replace(" AM", "").replace(" PM", "")

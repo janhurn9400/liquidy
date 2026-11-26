@@ -343,19 +343,29 @@ object StatusOverlay {
             title = "Liquidy Control Center"
         }
         runCatching { wm.addView(v, lp); ccView = v }.onFailure { o.stop(); ccOwner = null; dropBlur(); return }
-        // the Control Center draws its own status column: hide the floating one meanwhile
-        view?.visibility = android.view.View.INVISIBLE
+        // the Control Center draws its own status column: hide the floating one meanwhile — but only once the panel's
+        // first frame is on screen, else there are frames with no symbols at all (flicker)
+        v.viewTreeObserver.registerFrameCommitCallback { main.post { if (ccView != null) view?.visibility = android.view.View.INVISIBLE } }
     }
 
     private fun dropBlur() { blurWindows.forEach { runCatching { it.dismiss() } }; blurWindows = emptyList() }
 
     private fun closeCc() {
         val v = ccView ?: return
-        runCatching { host?.getSystemService(WindowManager::class.java)?.removeView(v) }
-        ccOwner?.stop(); ccOwner = null; ccView = null; ccModel = null; pendingRelease = null
-        dropBlur()
-        blockExpand(false)
-        view?.visibility = android.view.View.VISIBLE
+        val owner = ccOwner; val blur = blurWindows
+        ccView = null; ccModel = null; ccOwner = null; blurWindows = emptyList(); pendingRelease = null
+        // show the floating symbols first and remove the panel only once they are drawn again (no frame without symbols)
+        val remove = Runnable {
+            runCatching { host?.getSystemService(WindowManager::class.java)?.removeView(v) }
+            owner?.stop()
+            blur.forEach { runCatching { it.dismiss() } }
+            if (ccView == null) blockExpand(false)
+        }
+        val f = view
+        if (f == null || f.visibility == android.view.View.VISIBLE) { remove.run(); return }
+        f.visibility = android.view.View.VISIBLE
+        f.viewTreeObserver.registerFrameCommitCallback { main.post(remove) }
+        f.invalidate()
     }
 
     /** Brightness of the app behind the symbols → black or white symbols (like iOS over light / dark apps). */
