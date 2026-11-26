@@ -63,58 +63,42 @@ fun DuoStatusSymbols(info: StatusInfo, columnCenterX: Float, density: Float, col
     }
     Canvas(Modifier.fillMaxSize()) {
         val cy = clockY + RING_BELOW * density
-        val k = cc?.invoke()?.coerceIn(0f, 1f) ?: 0f
-        val opening = ccOpening()
-        val home = if (cc == null) 1f else homeAlpha(k, opening)
-        // Control Center group: opening = slides in from the right after the home symbols faded; closing = flows up
-        // into the ring (which stays where it is — it is the same ring on both screens)
-        val ccAlpha: Float; val dx: Float; val pull: Float
-        if (cc == null) { ccAlpha = 0f; dx = 0f; pull = 1f }
-        else if (opening) {
-            // home symbols gone first, a short empty gap, then the column slides in from the right (simulator 9.44 s)
-            val f = io.github.janhurn9400.liquidy.motion.Motion.ccStatusStart.value
-            val s = ((k - f) / (1f - f)).coerceIn(0f, 1f)
-            ccAlpha = s; dx = (1f - s) * (1f - s) * io.github.janhurn9400.liquidy.motion.Motion.ccStatusSlide.value * density; pull = 1f
-        } else { ccAlpha = k; dx = 0f; pull = k }
+        // Control Center (M-CC Duo): one ring on both screens. The home dots fade, the battery glyph fades in inside the
+        // ring, the Wi-Fi glyph slides out of the ring down to its slot, and percent / bars / carrier unfold downward
+        // out of the ring; closing runs the same way back (everything converges into the ring)
+        val u = cc?.invoke()?.coerceAtLeast(0f) ?: 0f // positions: the unfold spring overshoots
+        val s = u.coerceAtMost(1f)                   // fades
+        val home = if (cc == null) 1f else homeAlpha(s, ccOpening())
+        val x = columnCenterX
         val r = RING_R * density; val sw = RING_STROKE * density
-        fun ring(x: Float, a: Float) {
-            if (a <= 0.001f) return
-            val tl = Offset(x - r, cy - r); val sz = Size(2 * r, 2 * r)
-            drawArc(color.copy(alpha = 0.3f * a), RING_START, RING_SWEEP, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Round))
-            drawArc((if (info.charging) CHARGE_GREEN else color).copy(alpha = a), RING_START, RING_SWEEP * info.battery, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Round))
-        }
-        // home: ring + Wi-Fi inside + 4 cellular dots below
-        val closingRing = cc != null && !opening
-        ring(columnCenterX, if (closingRing) 1f else home)
-        val homeGlyph = if (closingRing) 1f - k else home
-        val c = Offset(columnCenterX, cy)
-        if (homeGlyph > 0.001f) {
-            val hc = color.copy(alpha = homeGlyph)
-            if (info.airplane) airplane(c, r * 0.5f, hc)
-            else wifi(Offset(c.x, c.y + r * 0.22f), r * 0.62f, if (info.wifi < 0) 0 else info.wifi + 1, hc, dimNone = info.wifi < 0)
+        val tl = Offset(x - r, cy - r); val sz = Size(2 * r, 2 * r)
+        drawArc(color.copy(alpha = 0.3f), RING_START, RING_SWEEP, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Round))
+        drawArc(if (info.charging) CHARGE_GREEN else color, RING_START, RING_SWEEP * info.battery, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Round))
+        fun at(off: Float) = cy + off * density * u
+        // Wi-Fi (or airplane): inside the ring at home, below it in the Control Center
+        val wc = color
+        if (info.airplane) airplane(Offset(x, at(DUO_CC_WIFI)), r * 0.5f, wc)
+        else wifi(Offset(x, at(DUO_CC_WIFI) + r * 0.22f), r * 0.62f, if (info.wifi < 0) 0 else info.wifi + 1, wc, dimNone = info.wifi < 0)
+        if (home > 0.001f) {
             val dy = cy + DOTS_BELOW * density; val pitch = DOT_PITCH * density
-            for (i in 0 until 4) drawCircle(color.copy(alpha = homeGlyph * if (i < info.cell) 1f else 0.3f), DOT_D / 2 * density,
-                Offset(columnCenterX + (i - 1.5f) * pitch, dy))
+            for (i in 0 until 4) drawCircle(color.copy(alpha = home * if (i < info.cell) 1f else 0.3f), DOT_D / 2 * density,
+                Offset(x + (i - 1.5f) * pitch, dy))
         }
-        if (ccAlpha <= 0.001f) return@Canvas
-        val x = columnCenterX + dx
-        if (!closingRing) ring(x, ccAlpha)
-        fun at(off: Float) = cy + off * density * pull // closing: everything converges into the ring centre
+        if (s <= 0.001f) return@Canvas
         // battery glyph inside the ring
         val bw = r * 0.95f; val bh = r * 0.5f
-        drawRoundRect(color.copy(alpha = ccAlpha), Offset(x - bw / 2, cy - bh / 2), Size(bw * 0.88f, bh), CornerRadius(bh / 2))
-        drawRoundRect(color.copy(alpha = ccAlpha * 0.6f), Offset(x + bw * 0.42f, cy - bh * 0.2f), Size(bw * 0.08f, bh * 0.4f), CornerRadius(bw * 0.04f))
+        drawRoundRect(color.copy(alpha = s), Offset(x - bw / 2, cy - bh / 2), Size(bw * 0.88f, bh), CornerRadius(bh / 2))
+        drawRoundRect(color.copy(alpha = s * 0.6f), Offset(x + bw * 0.42f, cy - bh * 0.2f), Size(bw * 0.08f, bh * 0.4f), CornerRadius(bw * 0.04f))
         fun text(t: String, style: TextStyle, y: Float, a: Float) {
             if (t.isEmpty() || a <= 0.001f) return
             val l = measurer.measure(t, style)
             drawText(l, color = color.copy(alpha = a), topLeft = Offset(x - l.size.width / 2f, y - l.size.height / 2f))
         }
-        text("${(info.battery * 100).roundToInt()}%", small, at(DUO_CC_PERCENT), ccAlpha)
-        wifi(Offset(x, at(DUO_CC_WIFI) + r * 0.22f), r * 0.62f, if (info.wifi < 0) 0 else info.wifi + 1, color.copy(alpha = ccAlpha), dimNone = info.wifi < 0)
+        text("${(info.battery * 100).roundToInt()}%", small, at(DUO_CC_PERCENT), s)
         val by = at(DUO_CC_BARS); val bwid = 3f * density; val bpitch = 5f * density; val bhgt = 7f * density
-        for (i in 0 until 4) drawRoundRect(color.copy(alpha = ccAlpha * if (i < info.cell) 1f else 0.35f),
+        for (i in 0 until 4) drawRoundRect(color.copy(alpha = s * if (i < info.cell) 1f else 0.35f),
             Offset(x + (i - 1.5f) * bpitch - bwid / 2, by - bhgt / 2), Size(bwid, bhgt), CornerRadius(bwid / 2))
-        text(carrier, label, at(DUO_CC_CARRIER), ccAlpha)
+        text(carrier, label, at(DUO_CC_CARRIER), s)
     }
 }
 

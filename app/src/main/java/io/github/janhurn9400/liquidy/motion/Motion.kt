@@ -247,14 +247,29 @@ object Motion {
     // M-CC close — much faster than opening: modules gone in ≈ 80 ms on the phone (recording 10-19, 1.37 s), ≈ 2 frames on
     // the Duo simulator (24.37 s) [MEASURED]
     val ccClose = iosSpring("M-CC-CLOSE", "Control Center close", response = 0.2f, dampingFraction = 1.0f)
-    // M-CC Duo [MEASURED] iPhone Duo simulator iOS 27.1, slow pull 9.44 s: the modules appear right away (first frame of
-    // the pull, faint) and slide ≈ 45 pt down; the status column slides ≈ 33 pt in from the right, ≈ 0.15 s after the
-    // home time/ring faded out (≈ 85 ms); closing: Wi-Fi + carrier flow up into the ring (≈ 130 ms), the time fades in
+    // M-CC Duo [MEASURED] iPhone Duo simulator iOS 27.1 (folded, recordings 2026-11-25): the modules appear right away
+    // (first frame of the pull, faint). The status column does not slide in: its ring is the same object as on the home
+    // screen. While the finger is down, ring and modules hang below their place, rubber-banded (slow pull 190 pt → ring
+    // 72 pt, modules ≈ 0.8 of that) and spring back on release with a small overshoot (≈ 4 %, lowest after 0.25 s);
+    // x stays put. Only past ≈ 40 pt of pull (home time and dots vanish in the same frame) do percent, Wi-Fi, bars and
+    // carrier unfold downward out of the ring on their own spring (start ≈ 25 % unfolded, overshoot ≈ 4 % at ≈ 0.37 s),
+    // the Wi-Fi glyph slides out of the ring to its slot and the battery glyph fades in inside the ring; closing is the
+    // same backwards. The tiles stretch with the pull (taller, slightly narrower); on release they stretch further while
+    // flying back (≈ +7 % at ≈ 0.1 s), overshoot upward and squash briefly as if hitting a wall, then settle (≈ 0.4 s).
+    // Pulling the open Control Center down stretches them the same way.
     val ccRevealAtDuo = tunable("M-CC.revealAtDuo", "Duo: modules appear from progress", "Control Center", 0.03f, 0f, 0.9f)
-    val ccEnterYDuo = tunable("M-CC.enterYDuo", "Duo: modules slide in from", "Control Center", 45f, 0f, 90f, "pt")
-    val ccStatusSlide = tunable("M-CC.statusSlide", "Duo: status column slides in from", "Control Center", 33f, 0f, 80f, "pt")
+    val ccEnterYDuo = tunable("M-CC.enterYDuo", "Duo: modules slide in from", "Control Center", 0f, 0f, 90f, "pt")
+    val ccFollowDuo = tunable("M-CC.followDuo", "Duo: ring follows the finger (rubber band)", "Control Center", 0.5f, 0f, 1f, "×")
+    val ccFollowRangeDuo = tunable("M-CC.followRangeDuo", "Duo: rubber band range", "Control Center", 300f, 50f, 1000f, "pt")
+    val ccFollowModulesDuo = tunable("M-CC.followModulesDuo", "Duo: modules follow (share of the ring)", "Control Center", 0.8f, 0f, 1.5f, "×")
+    val ccFollowBack = iosSpring("M-CC-FOLLOW", "Duo: ring/modules spring back on release", response = 0.35f, dampingFraction = 0.72f)
+    val ccUnfoldAtDuo = tunable("M-CC.unfoldAtDuo", "Duo: status column unfolds after", "Control Center", 40f, 0f, 150f, "pt")
+    val ccUnfoldFromDuo = tunable("M-CC.unfoldFromDuo", "Duo: status column starts unfolded", "Control Center", 0.25f, 0f, 0.9f)
+    val ccUnfold = iosSpring("M-CC-UNFOLD", "Duo: status column unfold", response = 0.5f, dampingFraction = 0.72f)
+    val ccStretchDuo = tunable("M-CC.stretchDuo", "Duo: tiles stretch per pt of follow", "Control Center", 0.0008f, 0f, 0.005f, "1/pt")
+    val ccStretchKick = tunable("M-CC.stretchKick", "Duo: extra stretch kick on release", "Control Center", 15f, 0f, 80f, "1/s")
+    val ccStretchBack = iosSpring("M-CC-STRETCH", "Duo: tiles stretch back with a squash", response = 0.4f, dampingFraction = 0.58f) // user: 0.4 bounced and squashed too much
     val ccHomeStatusFade = tunable("M-CC.homeStatusFade", "Duo: home time/ring gone at reveal", "Control Center", 0.3f, 0.05f, 1f)
-    val ccStatusStart = tunable("M-CC.statusStart", "Duo: status column starts sliding at reveal", "Control Center", 0.55f, 0f, 0.95f) // [MEASURED] gap ≈ 90 ms
     val ccCommit = tunable("M-CC.commit", "Opens from progress", "Control Center", 0.4f, 0.1f, 0.9f) // [ESTIMATED]
     val ccFlick = tunable("M-CC.flick", "Opens/closes from velocity", "Control Center", 300f, 50f, 1500f, "pt/s") // [ESTIMATED]
     // M-CC-EXPAND — long press: the module grows from its slot into the big panel while the rest fades and blurs

@@ -38,9 +38,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
@@ -104,6 +108,36 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     val expand = Animatable(0f)
     /** Modules 0…1 (M-CC-REVEAL): not tied to the finger — they appear on their own once the pull passes a threshold. */
     val reveal = Animatable(0f)
+    /** Duo: how far ring + modules hang below their place while the finger pulls (pt, M-CC.followDuo); 0 when let go. */
+    val follow = Animatable(0f)
+    /** Duo: status column 0…1 unfolding out of the ring (M-CC-UNFOLD), only past a short pull; overshoots. */
+    val unfold = Animatable(0f)
+    /** Duo: tile stretch (0 = own shape, > 0 taller and thinner, < 0 squashed) — M-CC.stretchDuo / M-CC-STRETCH. */
+    val stretch = Animatable(0f)
+
+    private fun stretchTo(pt: Float) { if (duo) scope.launch { stretch.snapTo(pt * Motion.ccStretchDuo.value) } }
+
+    /** Let go: the tiles stretch further while flying back, overshoot into a short squash and settle. */
+    private fun releaseStretch() {
+        if (stretch.value == 0f && stretch.targetValue == 0f) return
+        val v = stretch.value * Motion.ccStretchKick.value
+        scope.launch { stretch.animateTo(0f, Motion.ccStretchBack.spec(), initialVelocity = v) }
+    }
+
+    private fun unfoldTo(on: Boolean) {
+        val t = if (on) 1f else 0f
+        if (unfold.targetValue == t) return
+        scope.launch {
+            if (on && unfold.value < Motion.ccUnfoldFromDuo.value) unfold.snapTo(Motion.ccUnfoldFromDuo.value)
+            unfold.animateTo(t, if (on) Motion.ccUnfold.spec() else Motion.ccClose.spec())
+        }
+    }
+
+    /** Ring offset (pt) for a pull of [pt]: rubber-banded (M-CC.followDuo / followRangeDuo). */
+    private fun followFor(pt: Float): Float {
+        val c = Motion.ccFollowDuo.value; val d = Motion.ccFollowRangeDuo.value
+        return pt * d * c / (d + c * pt)
+    }
 
     /** iPhone Duo style: the modules appear right away instead of past half the pull (M-CC Duo). */
     var duo = false
@@ -120,7 +154,20 @@ class ControlCenterModel(private val scope: CoroutineScope) {
         val extra = if (pt > full) Motion.rubberBand(pt - full, screenPt) else 0f
         scope.launch { progress.snapTo(p) }
         scope.launch { over.snapTo(extra) }
+        if (duo) {
+            val f = followFor(pt)
+            scope.launch { follow.snapTo(f) }
+            stretchTo(f * Motion.ccFollowModulesDuo.value)
+            unfoldTo(pt >= Motion.ccUnfoldAtDuo.value)
+        }
         revealTo(p >= revealAt)
+    }
+
+    /** Let go: ring and modules spring back to their place, carrying the finger's speed. */
+    private fun releaseFollow(velocity: Float) {
+        releaseStretch()
+        if (follow.value == 0f && follow.targetValue == 0f) return
+        scope.launch { follow.animateTo(0f, Motion.ccFollowBack.spec(), initialVelocity = velocity * Motion.ccFollowDuo.value) }
     }
 
     /** [velocity] in pt/s, positive = down. */
@@ -132,20 +179,24 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     fun show(velocity: Float = 0f) {
         open = true
         revealTo(true)
+        if (duo) unfoldTo(true)
         io.github.janhurn9400.liquidy.data.PerfBoost.kick()
         scope.launch { progress.animateTo(1f, Motion.cc.spec(), initialVelocity = velocity / Motion.ccPull.value) }
         scope.launch { over.animateTo(0f, Motion.cc.spec()) }
+        releaseFollow(velocity)
     }
 
     fun hide(velocity: Float = 0f) {
         open = false
         revealTo(false, closing = true)
+        unfoldTo(false)
         scope.launch {
             // closing is much quicker than opening (M-CC close)
             progress.animateTo(0f, Motion.ccClose.spec(), initialVelocity = velocity / Motion.ccPull.value)
             if (!open) { expanded = null; expand.snapTo(0f) } // closed while a module was big → next time compact again
         }
         scope.launch { over.animateTo(0f, Motion.cc.spec()) }
+        releaseFollow(velocity)
     }
 
     /** Back/home: a big module closes first, then the Control Center. */
@@ -168,14 +219,23 @@ class ControlCenterModel(private val scope: CoroutineScope) {
 
     /** Dragging the open Control Center up (negative [dyPt]) closes it along with the finger. */
     fun dragOpen(dyPt: Float, screenPt: Float) {
-        if (dyPt >= 0f) { scope.launch { progress.snapTo(1f) }; scope.launch { over.snapTo(Motion.rubberBand(dyPt, screenPt)) } }
+        if (dyPt >= 0f) {
+            val o = Motion.rubberBand(dyPt, screenPt)
+            scope.launch { progress.snapTo(1f) }; scope.launch { over.snapTo(o) }
+            stretchTo(o) // Duo: pulling the open Control Center stretches the tiles again
+        }
         else {
             val p = (1f + dyPt / Motion.ccPull.value).coerceIn(0f, 1f)
             scope.launch { progress.snapTo(p) }; scope.launch { over.snapTo(0f) }
+            stretchTo(0f)
+            if (duo) unfoldTo(p * Motion.ccPull.value >= Motion.ccUnfoldAtDuo.value)
             revealTo(p >= revealAt)
         }
     }
 }
+
+/** Layers of the Duo progressive blur (more = smoother ramp, each one costs a full-screen blur). */
+private const val DUO_BLUR_STEPS = 4
 
 /** Rectangle in pt. */
 private data class PtRect(val x: Float, val y: Float, val w: Float, val h: Float) {
@@ -252,12 +312,27 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
     val wPt = screenW / density
     val grid = CcGrid(wPt, duo, unfolded)
     // Duo unfolded: only the right page (right of the hinge) is blurred; the left page just dims [MEASURED simulator]
+    // Progressive blur across the hinge (T-CC.duoBlurFeather): a crossfade from sharp to blurred showed both images
+    // half on top of each other — a visible seam. Instead several layers with growing blur radius, each faded in over
+    // its own slice of the ramp; every layer blurs the whole backdrop, so pixels near the hinge blur with real neighbours.
     if (duo && unfolded && drawBackdrop != null) Box(Modifier.fillMaxSize().graphicsLayer {
-        alpha = p().coerceIn(0f, 1f)
-        val b = DesignTokens.ccBlur.value * density
-        renderEffect = BlurEffect(b, b, TileMode.Clamp)
+        alpha = p().coerceIn(0f, 1f); compositingStrategy = CompositingStrategy.Offscreen
     }) {
-        Canvas(Modifier.fillMaxSize()) { clipRect(left = size.width / 2) { drawBackdrop() } }
+        for (i in 1..DUO_BLUR_STEPS) Box(Modifier.fillMaxSize()
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                val w = DesignTokens.ccDuoBlurFeather.value * density
+                val start = size.width / 2 - w / 2
+                val x0 = start + w * (i - 1) / DUO_BLUR_STEPS; val x1 = start + w * i / DUO_BLUR_STEPS
+                drawRect(Brush.horizontalGradient(0f to Color.Transparent, 1f to Color.Black, startX = x0, endX = x1),
+                    blendMode = BlendMode.DstIn)
+            }) {
+            Box(Modifier.fillMaxSize().graphicsLayer {
+                val b = DesignTokens.ccBlur.value * density * i / DUO_BLUR_STEPS
+                renderEffect = BlurEffect(b, b, TileMode.Clamp)
+            }) { Canvas(Modifier.fillMaxSize()) { drawBackdrop() } }
+        }
     }
     Box(
         Modifier
@@ -301,9 +376,14 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
                 val r = model.reveal.value
                 alpha = r.coerceIn(0f, 1f)
                 val sc = Motion.ccEnterScale.value + (1f - Motion.ccEnterScale.value) * r
-                scaleX = sc; scaleY = sc
-                transformOrigin = TransformOrigin(0.5f, grid.top * density / size.height)
-                translationY = (-(1f - r) * (if (duo) Motion.ccEnterYDuo.value else Motion.ccEnterY.value) + model.over.value) * density
+                // Duo: grows about the grid's own centre, so the tiles don't drift sideways [MEASURED simulator]
+                val ox = if (duo) (grid.left + grid.width / 2) * density / size.width else 0.5f
+                transformOrigin = TransformOrigin(ox, grid.top * density / size.height)
+                // Duo: the tiles hang below with the finger and stretch, taller and thinner (M-CC Duo)
+                val fol = model.follow.value * Motion.ccFollowModulesDuo.value
+                val st = (1f + model.stretch.value).coerceAtLeast(0.5f)
+                scaleX = sc / kotlin.math.sqrt(st); scaleY = sc * st
+                translationY = (-(1f - r) * (if (duo) Motion.ccEnterYDuo.value else Motion.ccEnterY.value) + model.over.value + fol) * density
                 val b = (1f - r).coerceIn(0f, 1f) * Motion.ccEnterBlur.value * density
                 renderEffect = if (b > 0.5f) BlurEffect(b, b, TileMode.Decal) else null
             }
@@ -322,9 +402,9 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
     // Duo: the status column below the camera turns into the Control Center's (battery ring, Wi-Fi, carrier) and back
     if (duo) {
         val info by io.github.janhurn9400.liquidy.data.rememberStatusInfo()
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - e().coerceIn(0f, 1f); translationY = model.over.value * density }) {
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - e().coerceIn(0f, 1f); translationY = (model.over.value + model.follow.value) * density }) {
             io.github.janhurn9400.liquidy.ui.home.DuoStatusSymbols(info, statusColumnX, density, Color.White,
-                cc = { model.reveal.value }, ccOpening = { model.reveal.targetValue == 1f }, carrier = SystemControls.carrier.value.ifEmpty { "—" })
+                cc = { model.unfold.value }, ccOpening = { model.unfold.targetValue == 1f }, carrier = SystemControls.carrier.value.ifEmpty { "—" })
         }
     }
 }
