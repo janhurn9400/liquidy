@@ -130,7 +130,7 @@
     <string name="settings_statusbar">Custom Status Bar</string>
     <string name="settings_status_over_apps">Symbols over Apps</string>
     <string name="settings_status_over_apps_service">Turn On Service</string>
-    <string name="settings_status_over_apps_footer">The status symbols float over other apps at the top right, like on the home screen. Pull them down to open the Control Center.</string>
+    <string name="settings_status_over_apps_footer">The status symbols float over other apps at the top right, like on the home screen; pull them down to open the Control Center there too. Recommended with root (Magisk): only then do its switches turn things on and off directly — without it most of them open Android\'s settings. Hiding Android\'s own status icons needs root or Shizuku.</string>
     <string name="settings_status_position">Position</string>
     <string name="settings_status_position_footer">Move the symbols if they cover something in your apps. They float over this page while you adjust them.</string>
     <string name="settings_status_horizontal">Horizontal</string>

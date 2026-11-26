@@ -50,8 +50,9 @@ object StatusOverlay {
     private const val UNKNOWN_APP = "?"
     private const val OPEN_ON_CANCEL = Float.MAX_VALUE // marker: Android took the pull over → open on the spring
 
-    /** User setting (Settings › Appearance › Status Bar, Duo only). */
-    var enabled by mutableStateOf(true)
+    /** User setting (Settings › Appearance › Status Bar, Duo only). Off by default: recommended with root, where the
+     *  Control Center's switches work directly — without it every switch only opens Android's panel, tiring everywhere. */
+    var enabled by mutableStateOf(false)
         private set
 
     /** User position offset on top of the default app pose (dp; + = right / down), Settings › Symbols over Apps. */
@@ -69,7 +70,7 @@ object StatusOverlay {
 
     fun load(c: Context) {
         val p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        enabled = p.getBoolean("on", true)
+        enabled = p.getBoolean("on", false)
         offsetX = p.getFloat("dx", 0f); offsetY = p.getFloat("dy", 0f)
         excluded = p.getStringSet("excluded", emptySet()).orEmpty().toSet()
     }
