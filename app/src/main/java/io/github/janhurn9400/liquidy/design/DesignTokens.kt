@@ -519,9 +519,9 @@ object StatusOverlayLayout {
     const val COLUMN_FROM_RIGHT = 47f
     // over apps the bundle shrinks and moves up (user 11-26: 0.7 / −15 was too small and too high; now the clock top
     // 30 pt → 17 dp, the dots' bottom 96 pt → 71 dp, a little below the 52 dp status bar)
-    // user 11-26: 0.82 still a bit big → 0.75, and 6 dp further right (towards the screen edge)
+    // user 11-26: 0.82 still a bit big → 0.75, 6 dp further right (towards the screen edge), 3 dp higher
     const val SCALE = 0.75f
-    const val SHIFT_Y = -8f
+    const val SHIFT_Y = -11f
     const val SHIFT_X = 6f
     // touch area over the (scaled) symbols that opens the Control Center — only this small spot blocks the app below
     const val TOUCH_W = 60f
