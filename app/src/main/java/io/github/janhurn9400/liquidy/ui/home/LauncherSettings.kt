@@ -693,15 +693,16 @@ private fun FontPage(backLabel: String, model: HomeModel, onBack: () -> Unit) {
         HomePreview(model)
         Spacer(Modifier.height(SECTION_GAP.dp))
         Section(null) { FontRow(fc.default(), noRipple, last = true) { version++ } }
-        if (system.isNotEmpty()) Section(stringResource(R.string.settings_font_device)) {
-            system.forEachIndexed { i, o -> FontRow(o, noRipple, last = i == system.lastIndex) { version++ } }
-        }
+        // added font files first (what the user picked on purpose), then the fonts on the device
         Section(stringResource(R.string.settings_font_own), footer = stringResource(R.string.settings_font_footer)) {
             own.forEach { o -> FontRow(o, noRipple, last = false) { version++ } }
             Row(Modifier.fillMaxWidth().height(ROW_H.dp).clickable(noRipple, null) { picker.launch(FONT_MIME) }.padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 BasicText(stringResource(R.string.settings_font_add), style = LABEL.copy(color = Color(0xFF007AFF)))
             }
+        }
+        if (system.isNotEmpty()) Section(stringResource(R.string.settings_font_device)) {
+            system.forEachIndexed { i, o -> FontRow(o, noRipple, last = i == system.lastIndex) { version++ } }
         }
     }
 }
