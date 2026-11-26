@@ -115,11 +115,13 @@ object StatusOverlay {
         // started (boot, update) while something is open: no window event comes until the next switch — assume an app
         // is in front unless our home activity says otherwise (homeVisible)
         if (foreground == null) foreground = UNKNOWN_APP
+        // the (invisible) window exists from the start, so even the first app open needs no window to appear
+        if (active()) ensureWindow(s)
         update(s)
     }
 
     fun detach() {
-        hide(); host = null
+        removeWindow(); host = null
         androidIcons(false)
     }
 
@@ -161,8 +163,6 @@ object StatusOverlay {
      */
     var homeOwnsSymbols by mutableStateOf(true)
         private set
-    /** Floating symbols pose: 0 = home screen pose (full size, measured spot), 1 = app pose (SCALE, SHIFT, user offset). */
-    private var poseTarget by mutableStateOf(1f)
     private var leavingHome = false
     private var returning = false
 
@@ -171,9 +171,9 @@ object StatusOverlay {
     fun homeVisible(on: Boolean) {
         home = on
         val s = host ?: run { homeOwnsSymbols = true; return }
-        if (on && view != null && floatingAlpha > 0f && !previewing) {
+        if (on && shown && floatingAlpha > 0f && !previewing) {
             // back home: grow into the home pose first, then the launcher takes over (onArrivedHome)
-            returning = true; poseTarget = 0f
+            returning = true; poseMode = PoseMode.Return; poseTick++
             color = Color.White // fades to the launcher's white while growing back
             main.removeCallbacks(sampler)
             return
@@ -216,12 +216,28 @@ object StatusOverlay {
         if (show) { show(s); main.removeCallbacks(sampler); main.postDelayed(sampler, L.SAMPLE_DELAY_MS) } else hide()
     }
 
+    // The floating window stays added once created and is shown / hidden by alpha only: adding a window takes the
+    // system a few frames until it is on screen — at app open the launcher had already let go of its symbols by then
+    // (a hard cut). Removed only when the service stops.
+    private var shown by mutableStateOf(false)
+    private enum class PoseMode { App, Leave, Return }
+    private var poseMode = PoseMode.App
+    private var poseTick by mutableStateOf(0)
+    /** False from a pose change until the floating window has applied it — never a frame in the old pose. */
+    private var poseReady by mutableStateOf(true)
+
     private fun show(s: AccessibilityService) {
-        if (view != null) { if (leavingHome) { leavingHome = false; poseTarget = 1f; homeOwnsSymbols = false }; return }
         val fromHome = leavingHome && !previewing
         leavingHome = false
-        poseTarget = if (fromHome) 0f else 1f
-        if (fromHome) color = Color.White // the launcher's Duo symbols are white
+        if (fromHome) { color = Color.White; poseMode = PoseMode.Leave; poseReady = false; poseTick++ } // launcher's are white
+        else if (!shown) { poseMode = PoseMode.App; poseReady = false; poseTick++ }
+        shown = true
+        ensureWindow(s)
+        showTouch(s)
+    }
+
+    private fun ensureWindow(s: AccessibilityService) {
+        if (view != null) return
         val wm = s.getSystemService(WindowManager::class.java)
         val d = s.resources.displayMetrics.density
         val o = OverlayOwner().also { owner = it; it.start() }
@@ -229,23 +245,26 @@ object StatusOverlay {
             setViewTreeLifecycleOwner(o); setViewTreeSavedStateRegistryOwner(o)
             setContent {
                 val info by rememberStatusInfo()
-                val pose = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(poseTarget) }
-                androidx.compose.runtime.LaunchedEffect(poseTarget) {
-                    if (poseTarget == 1f && pose.value < 1f) {
-                        // leaving home: first a frame in the home pose on top of the launcher's, then the launcher lets go
-                        androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { }
-                        homeOwnsSymbols = false
-                        pose.animateTo(1f, io.github.janhurn9400.liquidy.motion.Motion.appOpen.spec())
-                    } else if (poseTarget == 0f && returning) {
-                        pose.animateTo(0f, io.github.janhurn9400.liquidy.motion.Motion.homeReturn.spec())
-                        onArrivedHome()
-                    } else pose.snapTo(poseTarget)
+                val pose = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(1f) }
+                androidx.compose.runtime.LaunchedEffect(poseTick) {
+                    when (poseMode) {
+                        PoseMode.Leave -> {
+                            // leaving home: frames in the home pose on top of the launcher's first, then it lets go
+                            pose.snapTo(0f); poseReady = true
+                            androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { }
+                            homeOwnsSymbols = false
+                            pose.animateTo(1f, io.github.janhurn9400.liquidy.motion.Motion.appOpen.spec())
+                        }
+                        PoseMode.Return -> {
+                            pose.animateTo(0f, io.github.janhurn9400.liquidy.motion.Motion.homeReturn.spec())
+                            onArrivedHome()
+                        }
+                        PoseMode.App -> { pose.snapTo(1f); poseReady = true }
+                    }
                 }
-                // leaving home: hand over in the home pose, then go small
-                androidx.compose.runtime.LaunchedEffect(Unit) { if (poseTarget == 0f && !returning) poseTarget = 1f }
                 val tint by androidx.compose.animation.animateColorAsState(color, label = "symbolColor")
                 Box(Modifier.fillMaxSize().graphicsLayer {
-                    alpha = floatingAlpha
+                    alpha = if (shown && poseReady) floatingAlpha else 0f
                     val t = pose.value
                     val sc = 1f + (L.SCALE - 1f) * t
                     scaleX = sc; scaleY = sc
@@ -269,15 +288,19 @@ object StatusOverlay {
             title = "Liquidy status symbols"
         }
         runCatching { wm.addView(v, lp); view = v }.onFailure { android.util.Log.w("StatusOverlay", "addView", it); owner?.stop(); owner = null }
-        showTouch(s)
     }
 
     private fun hide() {
         main.removeCallbacks(sampler)
+        shown = false
         val wm = host?.getSystemService(WindowManager::class.java)
         touch?.let { t -> runCatching { wm?.removeView(t) } }; touch = null
+    }
+
+    private fun removeWindow() {
+        hide()
         val v = view ?: return
-        runCatching { wm?.removeView(v) }
+        runCatching { host?.getSystemService(WindowManager::class.java)?.removeView(v) }
         owner?.stop(); owner = null; view = null
     }
 
@@ -486,7 +509,7 @@ object StatusOverlay {
     /** Brightness of the app behind the symbols → black or white symbols (like iOS over light / dark apps). */
     private fun sample() {
         val s = host ?: return
-        if (view == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        if (!shown || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         s.takeScreenshot(Display.DEFAULT_DISPLAY, s.mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
             override fun onSuccess(shot: AccessibilityService.ScreenshotResult) {
                 val hw = Bitmap.wrapHardwareBuffer(shot.hardwareBuffer, shot.colorSpace)
