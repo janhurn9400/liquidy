@@ -315,8 +315,9 @@ object Motion {
     val ccResizeOverRange = tunable("M-CC-RESIZE.overRange", "Resize past the sizes: half at", "Control Center", 40f, 5f, 200f, "pt")
     val ccResizeBlur = tunable("M-CC-RESIZE.blur", "Module text blur halfway between sizes", "Control Center", 8f, 0f, 30f, "pt")
     val ccResizeFadeOut = tunable("M-CC-RESIZE.fadeOut", "Module text fades halfway", "Control Center", 0.6f, 0f, 1f)
-    // M-CC-PAGE — Control Center pages: what doesn't fit flows onto the next page, vertical swipe in the grid [ESTIMATED]
-    val ccPage = iosSpring("M-CC-PAGE", "Control Center page change", response = 0.4f, dampingFraction = 0.9f)
+    // M-CC-PAGE — Control Center pages: vertical swipe in the grid; the next page slides in, carrying the flick and settling
+    // with a ≈ 10 pt overshoot [MEASURED user's iPhone 11-26 18:20, 20.8 s @ 60 fps: response 0.59 s, ζ 0.95, rms 2.4 pt]
+    val ccPage = iosSpring("M-CC-PAGE", "Control Center page change", response = 0.59f, dampingFraction = 0.95f)
     val ccPageFlick = tunable("M-CC-PAGE.flick", "Page flick (pages/s)", "Control Center", 0.6f, 0.1f, 5f)
     // M-CC-RESIZE — modules move/grow to their new spot when the layout reflows [ESTIMATED] like M-REFLOW
     val ccReflow = iosSpring("M-CC-REFLOW", "Control Center modules reflow", response = 0.35f, dampingFraction = 0.85f)

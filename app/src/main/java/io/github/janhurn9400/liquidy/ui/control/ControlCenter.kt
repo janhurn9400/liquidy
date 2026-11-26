@@ -1,5 +1,6 @@
 package io.github.janhurn9400.liquidy.ui.control
 
+import androidx.compose.animation.core.animateFloatAsState
 import android.content.Context
 import android.content.Intent
 import androidx.compose.animation.core.Animatable
@@ -238,6 +239,8 @@ class ControlCenterModel(private val scope: CoroutineScope) {
     /** Pages: what doesn't fit flows onto the next page; [page] 0… scrolls vertically (M-CC-PAGE). */
     val page = Animatable(0f)
     var pageCount by mutableStateOf(1)
+    /** Grid rows per page (set by the compact page) — to find the page an item lands on. */
+    var rowsPerPage = 6
 
     fun pageTo(i: Int, velocity: Float = 0f) {
         scope.launch { page.animateTo(i.coerceIn(0, pageCount - 1).toFloat(), Motion.ccPage.spec(), velocity) }
@@ -557,7 +560,7 @@ private fun Modules(context: Context, model: ControlCenterModel, g: CcGrid, dens
     val items = store.items.toList()
     val pos = io.github.janhurn9400.liquidy.data.CcLayoutStore.pack(items, g.rows)
     val pages = io.github.janhurn9400.liquidy.data.CcLayoutStore.pages(items, g.rows)
-    androidx.compose.runtime.SideEffect { model.pageCount = pages }
+    androidx.compose.runtime.SideEffect { model.pageCount = pages; model.rowsPerPage = g.rows }
     for (it in items) {
         val (col, row) = pos[it.id] ?: continue
         val target = g.slot(col, row, it.w, it.h)
@@ -772,7 +775,9 @@ private fun EditOverlay(model: ControlCenterModel, store: io.github.janhurn9400.
     if (e <= 0.001f) return
     val sizes = io.github.janhurn9400.liquidy.data.CcLayoutStore.sizesFor(item.id)
     val current by rememberUpdatedState(item)
-    Box(Modifier.fillMaxSize().graphicsLayer { alpha = e }.pointerInput(Unit) {
+    // while another module is resized its badge and handle fade out (only the resized one keeps them) [user's iPhone 11-26]
+    val others by animateFloatAsState(if (model.resizing != null && model.resizing?.id != item.id) 0f else 1f, label = "editFade")
+    Box(Modifier.fillMaxSize().graphicsLayer { alpha = e * others }.pointerInput(Unit) {
         // swallow taps on the module itself while editing
         awaitEachGesture { awaitFirstDown().consume(); while (true) { val ev = awaitPointerEvent(); ev.changes.forEach { it.consume() }; if (ev.changes.none { it.pressed }) break } }
     }) {
@@ -919,6 +924,9 @@ private fun Gallery(context: Context, model: ControlCenterModel, wPt: Float, scr
                 val add = { id: String ->
                     if (id !in present) store.add(id)
                     model.closeGallery()
+                    // the original shows the page the new control landed on (a full page → the next one) [user's iPhone 11-26]
+                    val row = io.github.janhurn9400.liquidy.data.CcLayoutStore.pack(store.items.toList(), model.rowsPerPage)[id]?.second
+                    if (row != null) model.pageTo(row / model.rowsPerPage)
                 }
                 if (builtIns.isNotEmpty()) GallerySection(null, null, builtIns, present, add)
                 tiles.groupBy { it.appLabel }.forEach { (app, list) ->
