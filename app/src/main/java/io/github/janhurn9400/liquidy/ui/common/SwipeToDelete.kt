@@ -50,6 +50,8 @@ fun SwipeToDelete(
     /** Row background at rest, and the highlight it turns into while swiped (light list: pressed grey) [MEASURED dark: 36/36/38]. */
     rowColor: Color = Color.White,
     highlight: Color = Color(0xFFE5E5EA),
+    /** Smaller rows than the original (≈ 76 pt): cap the button so it keeps a margin above and below. */
+    maxButton: androidx.compose.ui.unit.Dp? = null,
     content: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -61,7 +63,7 @@ fun SwipeToDelete(
     val gone = remember { Animatable(0f) }        // 0…1 the remaining sliver leaves on delete
     var armed by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
-    val d = DesignTokens.swipeButton.value * density
+    val d = minOf(DesignTokens.swipeButton.value, maxButton?.value ?: Float.MAX_VALUE) * density
     val inset = DesignTokens.swipeInset.value * density
     val open = d + 2 * inset                      // shift at which the button stands fully
 
@@ -181,3 +183,6 @@ private val RED = Color(0xFFFF383D)     // [MEASURED] button fill 255/56/61
 private const val TRASH_SHARE = 0.385f   // glyph height / button height [MEASURED 57 px in 148 px]
 private const val HIGHLIGHT_IN = 0.3f     // highlight fully on after this share of the button width [ESTIMATED]
 private const val FLING_OPEN = 400f      // dp/s: a quick flick opens even when short [ESTIMATED]
+
+/** Highlight of a swiped row on a dark surface [MEASURED 36/36/38 on black ≈ white 14 %]. */
+val SwipeHighlightDark = Color.White.copy(alpha = 0.14f)

@@ -215,7 +215,7 @@ fun WidgetConfigSheet(spec: WidgetSpec, from: androidx.compose.ui.geometry.Rect,
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.LocationRows(query: String, onPick: (WeatherRepository.Place?) -> Unit) {
     val context = LocalContext.current
-    val saved = remember { WeatherRepository.savedPlaces(context) }
+    var saved by remember { mutableStateOf(WeatherRepository.savedPlaces(context)) }
     val results by produceState(emptyList<WeatherRepository.Place>(), query) {
         delay(250)
         value = withContext(Dispatchers.IO) { WeatherRepository.searchPlaces(query) }
@@ -226,7 +226,13 @@ private fun androidx.compose.foundation.layout.ColumnScope.LocationRows(query: S
                 BasicText(stringResource(R.string.wcfg_your_locations), style = text(17f, FontWeight.SemiBold, GREY))
                 Spacer(Modifier.height(4.dp))
                 PlaceRow(stringResource(R.string.wcfg_my_location), null) { onPick(null) }
-                saved.forEach { p -> PlaceRow(p.name, null) { onPick(p) } }
+                saved.forEach { p ->
+                    androidx.compose.runtime.key(p.key) {
+                        SwipeRow(onDelete = { WeatherRepository.forgetPlace(context, p); saved = WeatherRepository.savedPlaces(context) }) {
+                            PlaceRow(p.name, null) { onPick(p) }
+                        }
+                    }
+                }
             } else {
                 Spacer(Modifier.height(8.dp))
                 results.forEach { p -> PlaceRow(p.name, p.region.ifEmpty { null }) { onPick(p) } }
@@ -239,7 +245,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.LocationRows(query: S
 @Composable
 private fun androidx.compose.foundation.layout.ColumnScope.CityRows(query: String, onPick: (io.github.janhurn9400.liquidy.data.WorldClock.City?) -> Unit) {
     val context = LocalContext.current
-    val saved = remember { io.github.janhurn9400.liquidy.data.WorldClock.saved(context) }
+    var saved by remember { mutableStateOf(io.github.janhurn9400.liquidy.data.WorldClock.saved(context)) }
     val online by produceState(emptyList<io.github.janhurn9400.liquidy.data.WorldClock.City>(), query) {
         value = emptyList(); delay(300)
         value = withContext(Dispatchers.IO) { io.github.janhurn9400.liquidy.data.WorldClock.searchOnline(query) }
@@ -251,7 +257,13 @@ private fun androidx.compose.foundation.layout.ColumnScope.CityRows(query: Strin
             BasicText(stringResource(R.string.wcfg_your_cities), style = text(17f, FontWeight.SemiBold, GREY))
             Spacer(Modifier.height(4.dp))
             PlaceRow(stringResource(R.string.wcfg_local_time), null) { onPick(null) }
-            saved.forEach { c -> PlaceRow(c.name, zoneLabel(c)) { onPick(c) } }
+            saved.forEach { c ->
+                androidx.compose.runtime.key(c.encode()) {
+                    SwipeRow(onDelete = { io.github.janhurn9400.liquidy.data.WorldClock.forget(context, c); saved = io.github.janhurn9400.liquidy.data.WorldClock.saved(context) }) {
+                        PlaceRow(c.name, zoneLabel(c)) { onPick(c) }
+                    }
+                }
+            }
         } else {
             Spacer(Modifier.height(8.dp))
             // online first (more precise, e.g. small places), then offline without duplicates
@@ -326,6 +338,12 @@ private fun androidx.compose.foundation.layout.ColumnScope.OptionRows(options: L
         }
     }
 }
+
+/** Saved place / city: swipe left to remove it from the list (iOS Weather / Clock). Rows sit on the dark frosted sheet. */
+@Composable
+private fun SwipeRow(onDelete: () -> Unit, content: @Composable () -> Unit) =
+    io.github.janhurn9400.liquidy.ui.common.SwipeToDelete(onDelete, rowColor = Color.Transparent,
+        highlight = io.github.janhurn9400.liquidy.ui.common.SwipeHighlightDark, maxButton = 38.dp, content = content)
 
 @Composable
 private fun PlaceRow(name: String, region: String?, onClick: () -> Unit) {

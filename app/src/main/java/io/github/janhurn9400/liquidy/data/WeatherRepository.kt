@@ -82,6 +82,12 @@ object WeatherRepository {
     fun savedPlaces(context: Context): List<Place> =
         context.getSharedPreferences("weather", Context.MODE_PRIVATE).getString(SAVED, null)?.split('\n')?.mapNotNull { Place.decode(it) } ?: emptyList()
 
+    /** Removes a place from "Your Locations" (swipe to delete). */
+    fun forgetPlace(context: Context, p: Place) {
+        val list = savedPlaces(context).filter { it.key != p.key }
+        context.getSharedPreferences("weather", Context.MODE_PRIVATE).edit().putString(SAVED, list.joinToString("\n") { it.encode() }).apply()
+    }
+
     fun rememberPlace(context: Context, p: Place) {
         val list = (listOf(p) + savedPlaces(context).filter { it.key != p.key }).take(12)
         context.getSharedPreferences("weather", Context.MODE_PRIVATE).edit().putString(SAVED, list.joinToString("\n") { it.encode() }).apply()

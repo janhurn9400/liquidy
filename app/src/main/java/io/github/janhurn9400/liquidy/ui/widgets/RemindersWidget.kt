@@ -87,6 +87,9 @@ object RemindersStore {
     fun toggle(c: Context, id: Long) { items = items.map { if (it.id == id) it.copy(done = !it.done) else it }; save(c) }
 
     /** Remove completed ones (like "Delete Completed"). */
+    /** One reminder removed (swipe to delete). */
+    fun remove(c: Context, id: Long) { items = items.filter { it.id != id }; save(c) }
+
     fun clearDone(c: Context) { items = items.filter { !it.done }; save(c) }
 
     val open get() = items.filter { !it.done }
@@ -147,6 +150,11 @@ fun RemindersSheet(amount: () -> Float, onClose: () -> Unit) {
             Spacer(Modifier.height(12.dp))
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 RemindersStore.items.forEach { r ->
+                    // swipe left to delete one reminder (iOS Reminders)
+                    androidx.compose.runtime.key(r.id) {
+                    io.github.janhurn9400.liquidy.ui.common.SwipeToDelete(onDelete = { RemindersStore.remove(context, r.id) },
+                        rowColor = Color.Transparent, highlight = io.github.janhurn9400.liquidy.ui.common.SwipeHighlightDark, maxButton = 38.dp) {
+                    Column {
                     Row(Modifier.fillMaxWidth().height(44.dp).clickable(noRipple, null) { RemindersStore.toggle(context, r.id) },
                         verticalAlignment = Alignment.CenterVertically) {
                         Circle(22.dp, r.done)
@@ -155,6 +163,9 @@ fun RemindersSheet(amount: () -> Float, onClose: () -> Unit) {
                             color = if (r.done) GREY else Color.White, textDecoration = if (r.done) TextDecoration.LineThrough else null))
                     }
                     Box(Modifier.padding(start = 34.dp).fillMaxWidth().height(0.6.dp).background(Color.White.copy(alpha = 0.12f)))
+                    }
+                    }
+                    }
                 }
             }
             Row(Modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(23.dp)).background(Color(0xFF2C2C2E)).padding(horizontal = 16.dp),

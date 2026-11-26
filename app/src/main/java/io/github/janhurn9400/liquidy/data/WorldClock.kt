@@ -47,6 +47,12 @@ object WorldClock {
     fun saved(context: Context): List<City> =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(SAVED, null)?.split('\n')?.mapNotNull { City.decode(it) } ?: emptyList()
 
+    /** Removes a city from "Your Cities" (swipe to delete). */
+    fun forget(context: Context, city: City) {
+        val list = saved(context).filter { it.encode() != city.encode() }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(SAVED, list.joinToString("\n") { it.encode() }).apply()
+    }
+
     fun remember(context: Context, city: City) {
         val list = (listOf(city) + saved(context).filter { it.encode() != city.encode() }).take(MAX_SAVED)
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(SAVED, list.joinToString("\n") { it.encode() }).apply()
