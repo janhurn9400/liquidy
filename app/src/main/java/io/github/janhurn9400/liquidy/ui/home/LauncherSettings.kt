@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.rememberScrollState
@@ -748,7 +749,9 @@ private fun HomePreview(model: HomeModel) {
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(HP_VIEW_ASPECT).clip(RoundedCornerShape(GROUP_CORNER.dp))) {
         val s = maxWidth.value / vpW // real pt → preview dp (enlarged)
         // the whole wallpaper at screen size, shifted so the cut-out shows
-        androidx.compose.foundation.Image(image, null, Modifier.offset((-vpX * s).dp, (-vpY * s).dp).requiredSize((sw * s).dp, (sh * s).dp),
+        // unbounded + top-start: a requiredSize bigger than the box would otherwise be centred and the offset would miss
+        androidx.compose.foundation.Image(image, null, Modifier.wrapContentSize(Alignment.TopStart, unbounded = true)
+            .offset((-vpX * s).dp, (-vpY * s).dp).requiredSize((sw * s).dp, (sh * s).dp),
             contentScale = androidx.compose.ui.layout.ContentScale.Crop)
         @Composable
         fun AppAt(key: String, cx: Float, top: Float, icon: Float, label: Boolean) {
@@ -1185,7 +1188,7 @@ private const val HP_DOCK_MAX_DUO = 6
 // the enlarged cut-out: this wide (pt), this aspect; Duo: from this y (top rows + upper dock), phone: the bottom
 private const val HP_VIEW_W = 330f
 private const val HP_VIEW_ASPECT = 1.6f
-private const val HP_VIEW_TOP_DUO = 150f
+private const val HP_VIEW_TOP_DUO = 20f // first two rows with their names (the font is what to judge)
 private val FONT_MIME = arrayOf("font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-otf",
     "application/vnd.ms-opentype", "application/font-sfnt", "application/octet-stream")
 private const val SIDEBAR_TOP = 86f   // header card ≈ 100 pt [MEASURED]
