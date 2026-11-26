@@ -530,6 +530,8 @@ object StatusOverlayLayout {
     const val CLOSE_CHECK_MS = 600L
     // Android took over a pull from the status bar zone: open on the spring after the queued finger snaps (≈ 2 frames)
     const val OPEN_AFTER_CANCEL_MS = 40L
+    // closing: below this panel progress the floating symbols take over again (poses are identical there)
+    const val HANDBACK_PROGRESS = 0.03f
     // luminance (0…1) of the app content behind the symbols above which they turn black
     const val LIGHT_BACKDROP = 0.6f
     // first sample after an app change, once its window has drawn (ms) [ESTIMATED]

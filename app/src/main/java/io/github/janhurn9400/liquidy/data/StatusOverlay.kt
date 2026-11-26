@@ -327,6 +327,14 @@ object StatusOverlay {
                         else -> m.pull(pullPt, h / d)
                     }
                     androidx.compose.runtime.snapshotFlow { m.visible }.first { it }
+                    // the panel draws nothing until it is visible: hide the floating symbols only once two frames WITH
+                    // the panel's own symbols are out (else a frame without any symbols = flicker)
+                    androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { }
+                    main.post { if (ccView != null) view?.visibility = android.view.View.INVISIBLE }
+                    // closing: bring the floating symbols back just before the panel stops drawing — at this progress
+                    // both stand in the same pose and colour on top of each other
+                    androidx.compose.runtime.snapshotFlow { !m.open && m.progress.value < L.HANDBACK_PROGRESS }.first { it }
+                    main.post { view?.visibility = android.view.View.VISIBLE }
                     androidx.compose.runtime.snapshotFlow { m.visible }.first { !it }
                     main.post { closeCc() }
                 }
@@ -343,9 +351,6 @@ object StatusOverlay {
             title = "Liquidy Control Center"
         }
         runCatching { wm.addView(v, lp); ccView = v }.onFailure { o.stop(); ccOwner = null; dropBlur(); return }
-        // the Control Center draws its own status column: hide the floating one meanwhile — but only once the panel's
-        // first frame is on screen, else there are frames with no symbols at all (flicker)
-        v.viewTreeObserver.registerFrameCommitCallback { main.post { if (ccView != null) view?.visibility = android.view.View.INVISIBLE } }
     }
 
     private fun dropBlur() { blurWindows.forEach { runCatching { it.dismiss() } }; blurWindows = emptyList() }
