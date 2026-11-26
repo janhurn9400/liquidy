@@ -378,7 +378,7 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
                   statusBase: Color = Color.White,
                   /** Pose of the status column where the pull starts (over other apps: smaller and higher, see
                    *  StatusOverlayLayout); it grows into its home pose with the panel, so the symbols never jump. */
-                  statusStartScale: Float = 1f, statusStartShiftY: Float = 0f) {
+                  statusStartScale: Float = 1f, statusStartShiftY: Float = 0f, statusStartShiftX: Float = 0f) {
     model.duo = duo
     if (!model.visible) return
     val context = LocalContext.current
@@ -541,6 +541,7 @@ fun ControlCenter(model: ControlCenterModel, density: Float, screenW: Float, scr
             scaleX = sc; scaleY = sc
             transformOrigin = androidx.compose.ui.graphics.TransformOrigin(statusColumnX / size.width.coerceAtLeast(1f), 0f)
             translationY = (model.over.value + model.follow.value) * density + statusStartShiftY * (1f - q)
+            translationX = statusStartShiftX * (1f - q)
         }) {
             // the same symbols that stood there before (black over light settings) turn white as the panel comes down
             val statusColor = androidx.compose.ui.graphics.lerp(statusBase, Color.White, model.progress.value.coerceIn(0f, 1f))

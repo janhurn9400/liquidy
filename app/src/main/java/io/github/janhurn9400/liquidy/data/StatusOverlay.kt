@@ -157,6 +157,7 @@ object StatusOverlay {
                     scaleX = L.SCALE; scaleY = L.SCALE
                     transformOrigin = TransformOrigin((L.WINDOW_W - L.COLUMN_FROM_RIGHT) / L.WINDOW_W, 0f)
                     translationY = L.SHIFT_Y * d
+                    translationX = L.SHIFT_X * d
                 }) {
                     DuoStatusSymbols(info, (L.WINDOW_W - L.COLUMN_FROM_RIGHT) * d, d, color)
                 }
@@ -252,7 +253,7 @@ object StatusOverlay {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.END
-            x = ((L.COLUMN_FROM_RIGHT - L.TOUCH_W / 2) * d).roundToInt()
+            x = ((L.COLUMN_FROM_RIGHT - L.SHIFT_X - L.TOUCH_W / 2) * d).roundToInt()
             layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             title = "Liquidy status symbols touch"
         }
@@ -311,7 +312,7 @@ object StatusOverlay {
                 val scope = androidx.compose.runtime.rememberCoroutineScope()
                 val m = androidx.compose.runtime.remember { ControlCenterModel(scope).also { it.duo = true; ccModel = it } }
                 ControlCenter(m, d, w, h, duo = true, unfolded = unfolded, statusColumnX = w - L.COLUMN_FROM_RIGHT * d,
-                    statusBase = color, statusStartScale = L.SCALE, statusStartShiftY = L.SHIFT_Y * d)
+                    statusBase = color, statusStartScale = L.SCALE, statusStartShiftY = L.SHIFT_Y * d, statusStartShiftX = L.SHIFT_X * d)
                 androidx.compose.runtime.LaunchedEffect(m) {
                     // native blur follows the panel like the home screen's (T-CC.blur × progress), stepped per strip
                     launch {
