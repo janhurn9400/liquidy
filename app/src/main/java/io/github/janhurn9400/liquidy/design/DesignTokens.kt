@@ -354,6 +354,8 @@ object DesignTokens {
     // stretches into a capsule; past the full-swipe point it snaps to the full row width (left edge 87 pt from the screen)
     val swipeButton = dpToken("T-SWIPE.button", "Swipe action: button diameter", "Lists", 49.3f, 30f, 60f)
     val swipeInset = dpToken("T-SWIPE.inset", "Swipe action: inset from the row end", "Lists", 10.7f, 0f, 24f)
+    // while swiped the row becomes a highlighted card with rounded ends (36/36/38 on black, right edge ≈ 12 pt radius) [MEASURED]
+    val swipeRowCorner = dpToken("T-SWIPE.rowCorner", "Swiped row: corner radius", "Lists", 12f, 0f, 30f)
     val swipeFullAt = tunable("T-SWIPE.fullAt", "Full swipe from this share of the row width", "Lists", 0.6f, 0.3f, 0.9f) // red 568 → snap, row ≈ 380 pt [MEASURED]
     /** 18 colours from the iOS colour sheet, sampled (recording6 17.5 s). */
     val wallpaperSwatches = intArrayOf(

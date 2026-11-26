@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -43,7 +44,14 @@ import kotlin.math.roundToInt
  * deleted row's height then collapses (M-SWIPE.collapse) before [onDelete] removes it.
  */
 @Composable
-fun SwipeToDelete(onDelete: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun SwipeToDelete(
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Row background at rest, and the highlight it turns into while swiped (light list: pressed grey) [MEASURED dark: 36/36/38]. */
+    rowColor: Color = Color.White,
+    highlight: Color = Color(0xFFE5E5EA),
+    content: @Composable () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val view = LocalView.current
     val density = LocalDensity.current.density
@@ -94,13 +102,24 @@ fun SwipeToDelete(onDelete: () -> Unit, modifier: Modifier = Modifier, content: 
             if (dia < 1f && full.value <= 0f) return@Canvas
             val h = maxOf(dia, if (full.value > 0f) d else dia)
             drawRoundRect(RED, Offset(right - w, cy - h / 2), Size(w, h), CornerRadius(h / 2))
-            // trash glyph, sits at the left end of the capsule like the original (centred in the circle at rest)
+            // trash glyph stays centred while the capsule stretches; at the full-swipe point (haptic tick) it travels to
+            // the capsule's left end [MEASURED user's iPhone 11-26]
             val g = h * TRASH_SHARE
-            val gx = if (w > h * 1.05f) right - w + h / 2 else right - w / 2
+            val gx = (right - w / 2) + ((right - w + h / 2) - (right - w / 2)) * full.value
             if (g > 2f) drawTrash(Offset(gx, cy), g)
         }
         // ── the row itself ──
-        Box(Modifier.graphicsLayer { translationX = offset.value }
+        Box(Modifier.graphicsLayer {
+                // armed: the row leaves to the left so the full-width capsule stands free (round on both ends)
+                translationX = offset.value + (-size.width - offset.value) * full.value
+            }
+            // the moved row is a highlighted card with rounded ends (the original lifts it off the list)
+            .drawBehind {
+                val k = ((-offset.value) / (open * HIGHLIGHT_IN)).coerceIn(0f, 1f)
+                val c = androidx.compose.ui.graphics.lerp(rowColor, highlight, k)
+                val rad = DesignTokens.swipeRowCorner.value * density * k
+                drawRoundRect(c, cornerRadius = CornerRadius(rad))
+            }
             .draggable(rememberDraggableState { dx ->
                 if (deleting) return@rememberDraggableState
                 scope.launch {
@@ -152,4 +171,5 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawTrash(c: Offset
 
 private val RED = Color(0xFFFF383D)     // [MEASURED] button fill 255/56/61
 private const val TRASH_SHARE = 0.385f   // glyph height / button height [MEASURED 57 px in 148 px]
+private const val HIGHLIGHT_IN = 0.3f     // highlight fully on after this share of the button width [ESTIMATED]
 private const val FLING_OPEN = 400f      // dp/s: a quick flick opens even when short [ESTIMATED]

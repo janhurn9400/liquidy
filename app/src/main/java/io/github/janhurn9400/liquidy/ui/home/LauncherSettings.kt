@@ -713,7 +713,8 @@ private fun FontRow(o: io.github.janhurn9400.liquidy.data.FontChoice.Option, noR
     val context = LocalContext.current
     val fc = io.github.janhurn9400.liquidy.data.FontChoice
     val row = @Composable {
-        Row(Modifier.fillMaxWidth().height(ROW_H.dp).background(Color.White).clickable(noRipple, null) { fc.select(context, o) }
+        // no own background: SwipeToDelete paints it (white at rest, highlighted card while swiped)
+        Row(Modifier.fillMaxWidth().height(ROW_H.dp).clickable(noRipple, null) { fc.select(context, o) }
             .padding(start = 20.dp, end = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             BasicText(o.name, Modifier.weight(1f), maxLines = 1, style = TextStyle(fontFamily = o.family, fontSize = 17.sp, color = Color.Black))
             if (fc.key == o.key) Canvas(Modifier.size(15.dp, 13.dp)) {
