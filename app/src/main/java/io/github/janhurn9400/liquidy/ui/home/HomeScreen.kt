@@ -200,6 +200,7 @@ fun HomeScreen(
         io.github.janhurn9400.liquidy.glass.GlassAlign.dockRect = geo.dockRect
         val homeContentLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
         val homePillLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+        val settingsLayer = androidx.compose.ui.graphics.rememberGraphicsLayer()
         var folderBlurSnap by remember { androidx.compose.runtime.mutableStateOf<Pair<ImageBitmap, ImageBitmap>?>(null) }
         /** Android blurs its own wallpaper behind the window (see "Wallpaper blur" below). */
         var useSystemWallpaperBlur by remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -1633,7 +1634,14 @@ fun HomeScreen(
         // the real home screen (content + pill layers) for previews in settings (font page)
         if (model.settingsOpen) androidx.compose.runtime.CompositionLocalProvider(
             LocalHomeSnapshot provides HomeSnapshot(listOf(homeContentLayer, homePillLayer), w, h, wallpaper),
-        ) { LauncherSettingsSheet(model, onClose = { model.settingsClosed() }) }
+        ) {
+            // Control Center also over the settings (like iOS everywhere): pull down from the top right / Duo status column
+            // recorded too: the Control Center opened over the settings blurs the settings, not the home screen behind them
+            Box(Modifier.fillMaxSize().controlCenterPull(model, geo, w, h, density)
+                .drawWithContent { settingsLayer.record { this@drawWithContent.drawContent() }; drawLayer(settingsLayer) }) {
+                LauncherSettingsSheet(model, onClose = { model.settingsClosed() })
+            }
+        }
 
         // ── Customise sheet (icon style) ─────────────────────────────────────────────────
         if (model.customiseOpen) {
@@ -1753,7 +1761,7 @@ fun HomeScreen(
         // ── Control Center (above everything) ──────────────────────────────────────
         io.github.janhurn9400.liquidy.ui.control.ControlCenter(model.control, density, w, h,
             duo = geo.duo, unfolded = geo.unfolded, statusColumnX = w - DUO_STATUS_FROM_RIGHT * density,
-            drawBackdrop = { drawImage(wallpaper); drawLayer(homeContentLayer) })
+            drawBackdrop = { drawImage(wallpaper); drawLayer(homeContentLayer); if (model.settingsOpen) drawLayer(settingsLayer) })
         if (model.control.open) androidx.activity.compose.BackHandler { model.control.back() }
     }
     } // end CompositionLocalProvider
@@ -2138,3 +2146,39 @@ private const val GLASS_TAP_SLACK = 24f
 class HomeSnapshot(val layers: List<androidx.compose.ui.graphics.layer.GraphicsLayer>, val w: Float, val h: Float, val wallpaper: ImageBitmap)
 
 val LocalHomeSnapshot = androidx.compose.runtime.staticCompositionLocalOf<HomeSnapshot?> { null }
+
+/**
+ * Opens the Control Center from on top of a full-screen sheet (settings …) with the same gestures as on the home screen:
+ * pull down from the top-right edge zone (T-CC.edge), on Duo also from the status column (or tap it). Observes on the
+ * Initial pass and only takes over once the finger clearly moves down — taps (e.g. a close button there) pass through.
+ */
+private fun Modifier.controlCenterPull(model: HomeModel, geo: HomeGeometry, w: Float, h: Float, density: Float): Modifier =
+    this.pointerInput(geo, w, h) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+            val p = down.position
+            val inStatus = geo.duo && abs(p.x - (w - DUO_STATUS_FROM_RIGHT * density)) < DUO_STATUS_HIT_HALF_W * density &&
+                p.y < DUO_STATUS_HIT_BOTTOM * density
+            val inEdge = p.x > w / 2 && p.y < DesignTokens.ccEdgeZone.value * density
+            if (!inStatus && !inEdge) return@awaitEachGesture
+            val slop = viewConfiguration.touchSlop
+            val tracker = VelocityTracker().apply { addPosition(down.uptimeMillis, down.position) }
+            var pulling = false
+            while (true) {
+                val ev = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                tracker.addPointerInputChange(ch)
+                val d = ch.position - down.position
+                if (!ch.pressed) {
+                    if (pulling) model.control.release(tracker.calculateVelocity().y / density)
+                    else if (inStatus && d.getDistance() < slop) { ch.consume(); model.control.show() }
+                    break
+                }
+                if (!pulling && d.y > slop && abs(d.y) > abs(d.x)) pulling = true
+                if (pulling) {
+                    ch.consume()
+                    model.control.pull((d.y - slop).coerceAtLeast(0f) / density, h / density)
+                }
+            }
+        }
+    }
