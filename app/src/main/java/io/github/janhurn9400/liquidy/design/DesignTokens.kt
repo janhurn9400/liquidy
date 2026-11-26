@@ -517,10 +517,10 @@ object StatusOverlayLayout {
     const val WINDOW_W = 120f
     const val WINDOW_H = 140f
     const val COLUMN_FROM_RIGHT = 47f
-    // over apps the bundle shrinks and moves up so it stays inside the status bar height (≈ 52 dp: the clock top
-    // 30 pt → 6 dp, the dots' bottom 96 pt → 52 dp) and never covers an app's toolbar buttons (user 11-26)
-    const val SCALE = 0.7f
-    const val SHIFT_Y = -15f
+    // over apps the bundle shrinks and moves up (user 11-26: 0.7 / −15 was too small and too high; now the clock top
+    // 30 pt → 17 dp, the dots' bottom 96 pt → 71 dp, a little below the 52 dp status bar)
+    const val SCALE = 0.82f
+    const val SHIFT_Y = -8f
     // luminance (0…1) of the app content behind the symbols above which they turn black
     const val LIGHT_BACKDROP = 0.6f
     // re-check the brightness behind the symbols this often while an app is in front (ms) [ESTIMATED]
