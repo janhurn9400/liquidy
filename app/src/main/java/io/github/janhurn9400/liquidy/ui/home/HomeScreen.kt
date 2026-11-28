@@ -1608,6 +1608,8 @@ fun HomeScreen(
             remindersAnim.animateTo(if (io.github.janhurn9400.liquidy.ui.widgets.RemindersStore.sheetOpen) 1f else 0f,
                 androidx.compose.animation.core.spring(0.85f, 500f))
         }
+        // ── Change Icon (context menu): pick this app's icon from an icon pack ─────
+        model.iconPickerFor?.let { k -> model.apps[k]?.let { app -> IconPickerSheet(app) { model.iconPickerFor = null } } }
         // ── Widget settings ──────────────────────────────────────────────────────
         model.widgetConfigKey?.let { k -> model.widgets[k]?.let { spec ->
             androidx.activity.compose.BackHandler { model.closeWidgetConfig() }
@@ -1922,8 +1924,20 @@ private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.han
         val event = if (hitKey != null && !moved) withTimeoutOrNull(remaining.coerceAtLeast(1)) { awaitPointerEvent() } else awaitPointerEvent()
         if (event == null) {
             scope.launch { model.pressAlpha.snapTo(0f); model.pressedKey = null }
-            dragInFolder(model, open.id, geo, page, hitKey!!.value, slotTopLeft(hitKey.index), down, icon, dragMove, dragEnd)
-            return
+            if (model.editing) { dragInFolder(model, open.id, geo, page, hitKey!!.value, slotTopLeft(hitKey.index), down, icon, dragMove, dragEnd); return }
+            // like on the home screen: holding an app in a folder opens its context menu (Change Icon, App Info, shortcuts …);
+            // moving the finger on from there closes the menu and drags the app (out of the folder) as before
+            model.openContextMenu(hitKey!!.value, slotTopLeft(hitKey.index), density)
+            while (true) {
+                val e = awaitPointerEvent()
+                val c = e.changes.firstOrNull { it.id == down.id } ?: return
+                if (!c.pressed) return
+                if ((c.position - down.position).getDistance() > viewConfiguration.touchSlop * FOLDER_MENU_DRAG_SLOP) {
+                    model.closeContextMenu(animated = false)
+                    dragInFolder(model, open.id, geo, page, hitKey.value, slotTopLeft(hitKey.index), down, icon, dragMove, dragEnd)
+                    return
+                }
+            }
         }
         val change = event.changes.firstOrNull { it.id == down.id } ?: return
         tracker.addPointerInputChange(change)
@@ -2199,3 +2213,6 @@ private fun Modifier.controlCenterPull(model: HomeModel, geo: HomeGeometry, w: F
             }
         }
     }
+
+/** Folder: after the context menu opened, the finger must move this many touch slops before it becomes a drag. */
+private const val FOLDER_MENU_DRAG_SLOP = 3f

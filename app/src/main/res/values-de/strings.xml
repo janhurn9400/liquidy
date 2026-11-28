@@ -442,4 +442,8 @@
         <item>WLAN, Mobile Daten und der Rest öffnen Androids eigenes Panel – dort wählst du z. B. gleich ein WLAN</item>
     </string-array>
     <string name="welcome_method_setup">Einrichten</string>
+    <string name="change_icon">Icon ändern</string>
+    <string name="change_icon_search">Icons suchen</string>
+    <string name="change_icon_original">Original</string>
+    <string name="change_icon_photos">Aus Fotos</string>
 </resources>

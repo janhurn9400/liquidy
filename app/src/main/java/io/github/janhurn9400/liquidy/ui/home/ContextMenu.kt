@@ -408,6 +408,10 @@ private fun MenuGlyphView(glyph: MenuGlyph, color: Color) {
                 val pw = w * 0.36f
                 for (k in 0..1) drawRoundRect(color, Offset(w * 0.1f + k * (pw + w * 0.08f), w * 0.12f), Size(pw, w * 0.76f), CornerRadius(w * 0.08f), style = stroke)
             }
+            MenuGlyph.ChangeIcon -> { // rounded square with a small brush stroke
+                drawRoundRect(color, Offset(sw / 2 + w * 0.08f, sw / 2 + w * 0.08f), Size(w * 0.84f - sw, w * 0.84f - sw), CornerRadius(w * 0.22f), style = stroke)
+                drawLine(color, Offset(w * 0.34f, w * 0.66f), Offset(w * 0.66f, w * 0.34f), sw * 1.4f, StrokeCap.Round)
+            }
             MenuGlyph.Settings -> { // gear: ring + 8 teeth
                 drawCircle(color, w * 0.2f, c, style = stroke)
                 for (k in 0 until 8) {

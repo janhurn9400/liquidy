@@ -48,9 +48,80 @@ object IconPacks {
         val backs: List<String>, val mask: String?, val upon: String?, val scale: Float,
     )
 
+    /** Per-app icon chosen by the user: "package/class" of the app → "iconpack package|drawable name". */
+    var overrides by mutableStateOf<Map<String, String>>(emptyMap())
+        private set
+
     fun load(context: Context) {
-        selected = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("pack", null)
-            ?.takeIf { installed(context, it) }
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        selected = p.getString("pack", null)?.takeIf { installed(context, it) }
+        overrides = p.getStringSet("overrides", emptySet()).orEmpty().mapNotNull { e ->
+            e.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] }
+        }.toMap()
+    }
+
+    /** Sets the icon of [component] to [drawable] from [pack]; null = back to the normal icon. */
+    fun setOverride(context: Context, component: ComponentName, pack: String?, drawable: String?) {
+        val k = "${component.packageName}/${component.className}"
+        overrides = if (pack == null || drawable == null) overrides - k else overrides + (k to "$pack|$drawable")
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putStringSet("overrides", overrides.map { (a, b) -> "$a=$b" }.toSet()).apply()
+        onChanged?.invoke()
+    }
+
+    /** Marker "pack" for an icon the user picked from their photos (stored in filesDir/icons). */
+    const val FILE = "file"
+
+    /**
+     * Uses a picture from the user's photos as [component]'s icon: centre-cropped to a square, scaled to [ICON_FILE_PX]
+     * and kept in the app (the photo itself may be deleted later). false when it couldn't be read.
+     */
+    fun setOverrideFromImage(context: Context, component: ComponentName, uri: android.net.Uri): Boolean = runCatching {
+        val src = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(context.contentResolver, uri)) { d, _, _ ->
+            d.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+        }
+        val side = minOf(src.width, src.height)
+        val sq = android.graphics.Bitmap.createBitmap(src, (src.width - side) / 2, (src.height - side) / 2, side, side)
+        val out = android.graphics.Bitmap.createScaledBitmap(sq, ICON_FILE_PX, ICON_FILE_PX, true)
+        val dir = java.io.File(context.filesDir, "icons").apply { mkdirs() }
+        val f = java.io.File(dir, "${component.packageName}_${component.className}.png".replace('/', '_'))
+        f.outputStream().use { out.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        // file name + time: a new pick for the same app must change the icon cache key
+        setOverride(context, component, FILE, "${f.name}?${System.currentTimeMillis()}")
+        true
+    }.getOrDefault(false)
+
+    /** The user's own choice for [component] (part of the icon cache key). */
+    fun overrideOf(component: ComponentName): String? = overrides["${component.packageName}/${component.className}"]
+
+    /**
+     * Every icon the pack offers (drawable names), for the picker: its `drawable.xml` (the standard list icon packs
+     * ship for exactly this), else the icons named in `appfilter.xml`.
+     */
+    @SuppressLint("DiscouragedApi")
+    fun allIcons(context: Context, pkg: String): List<String> {
+        all[pkg]?.let { return it }
+        val l = loaded[pkg] ?: parse(context, pkg)?.also { loaded[pkg] = it } ?: return emptyList()
+        val names = LinkedHashSet<String>()
+        runCatching {
+            val id = l.res.getIdentifier("drawable", "xml", pkg)
+            val parser: XmlPullParser = if (id != 0) l.res.getXml(id) else
+                XmlPullParserFactory.newInstance().newPullParser().apply { setInput(l.res.assets.open("drawable.xml"), "UTF-8") }
+            while (parser.next() != XmlPullParser.END_DOCUMENT) {
+                if (parser.eventType == XmlPullParser.START_TAG && parser.name == "item")
+                    parser.getAttributeValue(null, "drawable")?.takeIf { it.isNotBlank() }?.let { names += it }
+            }
+        }
+        if (names.isEmpty()) names += l.items.values.toSortedSet()
+        return names.filter { l.res.getIdentifier(it, "drawable", pkg) != 0 || l.res.getIdentifier(it, "mipmap", pkg) != 0 }
+            .also { all[pkg] = it }
+    }
+    private val all = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
+    /** One icon of a pack by its drawable name (picker previews and overrides). */
+    fun named(context: Context, pkg: String, name: String): Drawable? {
+        val l = loaded[pkg] ?: parse(context, pkg)?.also { loaded[pkg] = it } ?: return null
+        return drawable(l, name)
     }
 
     fun select(context: Context, pkg: String?) {
@@ -76,8 +147,16 @@ object IconPacks {
      * Icon from the chosen pack for [component], otherwise null. [fallback] = original icon: for packs with
      * iconback/iconmask it's fitted into their frame (otherwise it stays unchanged → null).
      */
-    fun icon(context: Context, component: ComponentName, fallback: Drawable?, sizePx: Int): Drawable? =
-        selected?.let { iconFrom(context, it, component, fallback, sizePx) }
+    fun icon(context: Context, component: ComponentName, fallback: Drawable?, sizePx: Int): Drawable? {
+        // the user's own pick for this app wins over the chosen pack (and works without one)
+        overrideOf(component)?.split('|', limit = 2)?.takeIf { it.size == 2 }?.let { (pk, n) ->
+            if (pk == FILE) {
+                val f = java.io.File(java.io.File(context.filesDir, "icons"), n.substringBefore('?'))
+                android.graphics.BitmapFactory.decodeFile(f.path)?.let { return BitmapDrawable(context.resources, it) }
+            } else if (installed(context, pk)) named(context, pk, n)?.let { return it }
+        }
+        return selected?.let { iconFrom(context, it, component, fallback, sizePx) }
+    }
 
     /** Like [icon], but from a specific pack (preview in the settings). */
     fun iconFrom(context: Context, pkg: String, component: ComponentName, fallback: Drawable?, sizePx: Int): Drawable? {
@@ -190,6 +269,7 @@ object IconPacks {
     }.getOrNull()
 
     private const val PREFS = "iconpack"
+    private const val ICON_FILE_PX = 256
     private val ACTIONS = listOf(
         "org.adw.launcher.THEMES", "com.novalauncher.THEME", "com.gau.go.launcherex.theme",
         "com.teslacoilsw.launcher.THEME", "com.anddoes.launcher.THEME", "com.fede.launcher.THEME_ICONPACK",

@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import io.github.janhurn9400.liquidy.ui.welcome.pushDecor
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
@@ -247,11 +248,9 @@ private fun Detail(c: Category, model: HomeModel, tick: Int, inlineTitle: Boolea
     val context = LocalContext.current
     var subPage by remember { mutableStateOf(SubPage.None) }
     androidx.activity.compose.BackHandler(enabled = subPage != SubPage.None) { subPage = SubPage.None }
-    AnimatedContent(subPage, transitionSpec = {
-        if (targetState != SubPage.None) slideInHorizontally(spring(1f, 380f)) { it } togetherWith slideOutHorizontally(spring(1f, 380f)) { -it / 3 }
-        else slideInHorizontally(spring(1f, 380f)) { -it / 3 } togetherWith slideOutHorizontally(spring(1f, 380f)) { it }
-    }, label = "sub") { sub ->
-        Box(Modifier.fillMaxSize().background(DETAIL_BG)) {
+    // same push as the original's Settings (M-PUSH): the subpage slides over, the page below moves ⅓ aside and dims
+    AnimatedContent(subPage, transitionSpec = { io.github.janhurn9400.liquidy.ui.welcome.pushTransform(targetState != SubPage.None) }, label = "sub") { sub ->
+        Box(Modifier.fillMaxSize().then(pushDecor(subPage != SubPage.None, DETAIL_BG))) {
             when (sub) {
                 SubPage.IconPacks -> IconPackPage(categoryTitle(c)) { subPage = SubPage.None }
                 SubPage.Glass -> GlassPage(categoryTitle(c)) { subPage = SubPage.None }

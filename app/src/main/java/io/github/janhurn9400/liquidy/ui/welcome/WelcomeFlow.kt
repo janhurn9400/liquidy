@@ -1028,7 +1028,7 @@ private fun <T> pushTween() = tween<T>(io.github.janhurn9400.liquidy.motion.Moti
  * M-PUSH like the original's Settings: forward = the new page slides over from the right, the old one moves ⅓ left
  * (no fade); back = the reverse, the page on top leaves to the right.
  */
-private fun pushTransform(forward: Boolean): androidx.compose.animation.ContentTransform {
+internal fun pushTransform(forward: Boolean): androidx.compose.animation.ContentTransform {
     val par = io.github.janhurn9400.liquidy.motion.Motion.pushParallax.value
     return (if (forward) slideInHorizontally(pushTween()) { it } togetherWith slideOutHorizontally(pushTween()) { -(it * par).toInt() }
     else slideInHorizontally(pushTween()) { -(it * par).toInt() } togetherWith slideOutHorizontally(pushTween()) { it })
@@ -1040,7 +1040,7 @@ private fun pushTransform(forward: Boolean): androidx.compose.animation.ContentT
  * page on top casts a soft shadow to its left.
  */
 @Composable
-private fun androidx.compose.animation.AnimatedVisibilityScope.pushDecor(forward: Boolean): Modifier {
+internal fun androidx.compose.animation.AnimatedVisibilityScope.pushDecor(forward: Boolean, background: Color = Color.White): Modifier {
     // 1 = this page is the covered one / the one on top, eased with the push
     val covered by transition.animateFloat(transitionSpec = { pushTween() }, label = "covered") {
         when (it) { androidx.compose.animation.EnterExitState.Visible -> 0f; androidx.compose.animation.EnterExitState.PreEnter -> if (forward) 0f else 1f; androidx.compose.animation.EnterExitState.PostExit -> if (forward) 1f else 0f }
@@ -1056,7 +1056,7 @@ private fun androidx.compose.animation.AnimatedVisibilityScope.pushDecor(forward
                     Color.Black.copy(alpha = io.github.janhurn9400.liquidy.motion.Motion.pushShadow.value * onTop)), startX = -w, endX = 0f),
                     topLeft = Offset(-w, 0f), size = Size(w, size.height))
             }
-            drawPageBackground()
+            drawRect(background)
         }
         .drawWithContent {
             drawContent()

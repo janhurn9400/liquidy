@@ -159,7 +159,7 @@ class AppRepository(val context: Context, private val iconSizePx: Int) {
             }.getOrNull() ?: continue
             // computing a glyph (plate removal at 4× supersampling) is slow → cached on disk per app version, pack and size
             val version = runCatching { context.packageManager.getPackageInfo(app.component.packageName, 0).longVersionCode }.getOrDefault(0L)
-            val name = (app.key + "|" + version + "|" + (IconPacks.selected ?: "") + "|" + px + "|" + LAYER_CACHE_VERSION).hashCode().toUInt().toString(16)
+            val name = (app.key + "|" + version + "|" + (IconPacks.selected ?: "") + "|" + (IconPacks.overrideOf(app.component) ?: "") + "|" + px + "|" + LAYER_CACHE_VERSION).hashCode().toUInt().toString(16)
             val dir = java.io.File(context.cacheDir, "iconlayers").apply { mkdirs() }
             val gf = java.io.File(dir, "${name}_g.png"); val mf = java.io.File(dir, "${name}_m.png")
             val cached = if (gf.exists() && mf.exists()) runCatching {

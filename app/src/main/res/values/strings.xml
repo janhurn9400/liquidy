@@ -442,4 +442,8 @@
         <item>Wi-Fi, mobile data and the rest open Android\'s own panel — pick a network right away</item>
     </string-array>
     <string name="welcome_method_setup">Set Up</string>
+    <string name="change_icon">Change Icon</string>
+    <string name="change_icon_search">Search Icons</string>
+    <string name="change_icon_original">Original</string>
+    <string name="change_icon_photos">From Photos</string>
 </resources>

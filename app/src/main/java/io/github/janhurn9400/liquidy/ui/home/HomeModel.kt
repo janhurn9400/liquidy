@@ -121,6 +121,7 @@ sealed interface MenuGlyph {
     data object Pages : MenuGlyph
     data object Stack : MenuGlyph
     data object Settings : MenuGlyph
+    data object ChangeIcon : MenuGlyph
     data class Bitmap(val image: androidx.compose.ui.graphics.ImageBitmap?) : MenuGlyph
 }
 
@@ -1447,6 +1448,11 @@ class HomeModel(
     /** App dragged out of the App Library: App Library stays visible until the pager has swiped to the last page. */
     var leavingLibrary by mutableStateOf(false)
 
+    /** App whose icon is being picked from an icon pack (context menu › Change Icon), null = picker closed. */
+    var iconPickerFor by mutableStateOf<String?>(null)
+
+    private val hasIconPack get() = io.github.janhurn9400.liquidy.data.IconPacks.available(repository.context).isNotEmpty()
+
     fun openContextMenu(key: String, iconTopLeft: Offset, density: Float, widgetRect: androidx.compose.ui.geometry.Rect? = null,
                         fromLibrary: Boolean = false, iconScale: Float = 1f) {
         haptic() // iOS: noticeable when the menu opens
@@ -1457,6 +1463,7 @@ class HomeModel(
             if (app != null) {
                 add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.delete_app_menu), MenuGlyph.Remove, destructive = true) { deleteApp(key) })
                 add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.app_info), MenuGlyph.Info) { repository.showAppInfo(app, android.graphics.Rect()) })
+                if (hasIconPack) add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.change_icon), MenuGlyph.ChangeIcon) { iconPickerFor = key })
                 val pre = shortcutPrefetch?.takeIf { it.first == key }?.second
                 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
                 val list = if (pre != null && pre.isCompleted) pre.getCompleted() else emptyList()
@@ -1466,6 +1473,8 @@ class HomeModel(
             val app = apps[key]
             // Folder: no "Remove App"/app info (would open a delete dialog without an app)
             if (app != null) add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.remove_app_menu), MenuGlyph.Remove, destructive = true) { pendingRemoval = key })
+            // pick this app's icon from an installed icon pack
+            if (app != null && hasIconPack) add(MenuItem(res.getString(io.github.janhurn9400.liquidy.R.string.change_icon), MenuGlyph.ChangeIcon) { iconPickerFor = key })
             val isStack = widgets[key]?.type == STACK
             // Stack (recording 10-08 10:21, frame 262): Edit Stack · Edit Home Screen · Remove Stack (red, bottom)
             // Order like the other system entries: the outermost (red) first, ContextMenu flips depending on position
